@@ -20,6 +20,9 @@ import {
 } from '@/lib/services';
 import { DistribusiMBG } from '@/lib/types';
 import { formatWIBTime, formatIndonesianDate, getJakartaDateString } from '@/lib/utils';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { FeedbackBanner } from '@/components/ui/FeedbackBanner';
+import { QualityCheckCard, QualityConclusion } from '@/components/operasional/QualityCheckCard';
 
 export default function KedatanganMBGPage() {
   const { user } = useAuth();
@@ -30,6 +33,12 @@ export default function KedatanganMBGPage() {
   // Form states
   const [waktuAktual, setWaktuAktual] = useState('');
   const [keterangan, setKeterangan] = useState('');
+  const [kesimpulan, setKesimpulan] = useState<'LAYAK_EDAR' | 'TOLAK_RETUR'>('LAYAK_EDAR');
+  const [isSampelDisimpan, setIsSampelDisimpan] = useState(false);
+  const [statusAroma, setStatusAroma] = useState('Baik');
+  const [statusRasa, setStatusRasa] = useState('Baik');
+  const [statusTekstur, setStatusTekstur] = useState('Baik');
+  const [statusWadah, setStatusWadah] = useState('Bersih');
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -75,6 +84,14 @@ export default function KedatanganMBGPage() {
       setErrorMsg('Waktu kedatangan aktual wajib diisi');
       return;
     }
+    if (kesimpulan === 'LAYAK_EDAR' && !isSampelDisimpan) {
+      setErrorMsg('Konfirmasi penyimpanan 1 porsi sampel wajib diisi sebelum distribusi dibuka.');
+      return;
+    }
+    if (kesimpulan === 'TOLAK_RETUR') {
+      setErrorMsg('Distribusi diblokir karena makanan ditandai tidak layak edar/retur.');
+      return;
+    }
 
     setSubmitting(true);
     setErrorMsg('');
@@ -93,7 +110,14 @@ export default function KedatanganMBGPage() {
       const updated = await markMBGArrival({
         distribusiId: distribusi.id,
         waktuKedatangan: dateObj.toISOString(),
-        keterangan: keterangan.trim(),
+        keterangan: [
+          keterangan.trim(),
+          `QC: ${kesimpulan === 'LAYAK_EDAR' ? 'LAYAK EDAR' : 'TOLAK RETUR'}`,
+          `Aroma ${statusAroma}, rasa ${statusRasa}, tekstur ${statusTekstur}, wadah ${statusWadah}`,
+          `Sampel bank makanan: ${isSampelDisimpan ? 'disimpan' : 'belum disimpan'}`,
+        ]
+          .filter(Boolean)
+          .join(' | '),
         petugasId: user?.id || '00000000-0000-0000-0000-000000000000',
       });
 
@@ -142,54 +166,45 @@ export default function KedatanganMBGPage() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 pb-12">
-      {/* Page Header */}
-      <div>
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-brand-blue rounded-full text-xs font-semibold mb-2">
-          <Truck className="w-3.5 h-3.5" />
-          Operasional Distribusi
-        </div>
-        <h1 className="text-2xl sm:text-3xl font-black text-brand-navy tracking-tight">
-          Pencatatan Kedatangan MBG
-        </h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Catat waktu aktual tibanya makanan di sekolah untuk membuka akses konfirmasi siswa
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Operasional Distribusi"
+        title="Pencatatan Kedatangan MBG"
+        description="Catat waktu aktual tibanya makanan dan selesaikan QC untuk membuka akses konfirmasi siswa."
+        icon={<Truck className="h-3.5 w-3.5" />}
+      />
 
       {errorMsg && (
-        <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-800 text-xs sm:text-sm flex items-start gap-2.5">
-          <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
-          <span>{errorMsg}</span>
-        </div>
+        <FeedbackBanner tone="error" icon={<AlertTriangle className="h-4 w-4 shrink-0 text-red-600" />}>
+          {errorMsg}
+        </FeedbackBanner>
       )}
 
       {successMsg && (
-        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs sm:text-sm flex items-start gap-2.5">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
-          <span>{successMsg}</span>
-        </div>
+        <FeedbackBanner tone="success" icon={<CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />}>
+          {successMsg}
+        </FeedbackBanner>
       )}
 
       {/* Main Status & Form Card */}
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="glass-panel overflow-hidden rounded-[2rem]">
         {/* Status Top Strip */}
         <div
           className={`p-6 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
             isTiba
-              ? 'bg-emerald-50/50 border-emerald-100'
+              ? 'bg-emerald-50/65 border-emerald-100/80'
               : isDitutup
-              ? 'bg-slate-100 border-slate-200'
-              : 'bg-amber-50/50 border-amber-100'
+              ? 'bg-slate-100/65 border-slate-200/80'
+              : 'bg-amber-50/65 border-amber-100/80'
           }`}
         >
           <div className="flex items-center gap-3">
             <div
               className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
                 isTiba
-                  ? 'bg-emerald-500 text-white'
+                  ? 'bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-lg shadow-emerald-200'
                   : isDitutup
-                  ? 'bg-slate-600 text-white'
-                  : 'bg-amber-500 text-white'
+                  ? 'bg-slate-600 text-white shadow-lg shadow-slate-200'
+                  : 'bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-lg shadow-amber-200'
               }`}
             >
               <Truck className="w-6 h-6" />
@@ -222,7 +237,7 @@ export default function KedatanganMBGPage() {
         </div>
 
         {/* Input Form */}
-        <div className="p-6 sm:p-8">
+        <div className="p-5 sm:p-8">
           <form onSubmit={handleSimpanKedatangan} className="space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               {/* Waktu Kedatangan Aktual (BR-04) */}
@@ -284,6 +299,22 @@ export default function KedatanganMBGPage() {
                 className="w-full p-3.5 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue disabled:opacity-60"
               />
             </div>
+
+            <QualityCheckCard
+              disabled={isDitutup}
+              conclusion={kesimpulan}
+              onConclusionChange={(value: QualityConclusion) => setKesimpulan(value)}
+              sampleStored={isSampelDisimpan}
+              onSampleStoredChange={setIsSampelDisimpan}
+              aroma={statusAroma}
+              onAromaChange={setStatusAroma}
+              taste={statusRasa}
+              onTasteChange={setStatusRasa}
+              texture={statusTekstur}
+              onTextureChange={setStatusTekstur}
+              container={statusWadah}
+              onContainerChange={setStatusWadah}
+            />
 
             {/* Detail Snapshot jika sudah pernah dicatat */}
             {distribusi?.waktu_input && (
@@ -377,4 +408,3 @@ export default function KedatanganMBGPage() {
     </div>
   );
 }
-

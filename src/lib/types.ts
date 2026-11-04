@@ -1,7 +1,19 @@
-export type UserRole = 'admin' | 'guru';
+export type UserRole = 'super_admin' | 'guru_piket' | 'kepala_sekolah' | 'admin' | 'guru';
+
+export interface School {
+  id: string;
+  npsn: string;
+  nama_sekolah: string;
+  nama_kepala_sekolah: string | null;
+  nip_kepala_sekolah: string | null;
+  nama_sppg_mitra: string | null;
+  dibuat_pada: string;
+  diperbarui_pada: string;
+}
 
 export interface Pengguna {
   id: string;
+  id_sekolah?: string | null;
   nama: string;
   email: string;
   peran: UserRole;
@@ -12,25 +24,33 @@ export interface Pengguna {
 
 export interface Kelas {
   id: string;
+  id_sekolah?: string;
   nama_kelas: string;
-  tingkat: 'X' | 'XI' | 'XII';
+  tingkat: string;
   jurusan: string;
-  status_aktif: boolean;
+  total_siswa_dapodik?: number;
+  status_aktif?: boolean;
   dibuat_pada: string;
   diperbarui_pada: string;
 }
 
 export interface Siswa {
-  id: string;
-  nisn: string | null;
-  nama: string;
-  kelas_id: string;
-  email: string | null;
+  nisn: string; // Primary Key (10 digits)
+  id_kelas?: string;
+  nama_lengkap: string;
   no_hp: string | null;
-  status_aktif: boolean;
+  email: string | null;
+  jurusan: string | null;
+  alergi_makanan: string | null;
+  is_perwakilan_kelas: boolean;
+  lead_score: number;
+  lead_status: 'COLD' | 'WARM' | 'HOT';
   dibuat_pada: string;
   diperbarui_pada: string;
-  // Joined field
+  id: string;
+  nama: string;
+  kelas_id: string;
+  status_aktif: boolean;
   kelas?: Kelas;
 }
 
@@ -38,7 +58,7 @@ export type DistribusiStatus = 'menunggu' | 'tiba' | 'ditutup';
 
 export interface DistribusiMBG {
   id: string;
-  tanggal: string; // YYYY-MM-DD
+  tanggal: string;
   status: DistribusiStatus;
   waktu_kedatangan: string | null;
   waktu_input: string | null;
@@ -69,6 +89,70 @@ export interface PenerimaanMBG {
   petugas?: Pengguna;
 }
 
+export type OrganolepticKesimpulan = 'LAYAK_EDAR' | 'TOLAK_RETUR';
+
+export interface OrganolepticTest {
+  id: string;
+  id_sekolah: string;
+  id_guru_piket: string;
+  tanggal: string;
+  jam_tiba: string;
+  master_qr_token: string;
+  kode_pin_harian: string;
+  status_ketepatan: 'TEPAT_WAKTU' | 'TERLAMBAT';
+  status_aroma: string | null;
+  status_rasa: string | null;
+  status_tekstur: string | null;
+  status_wadah: string | null;
+  foto_sampel_url: string | null;
+  is_sampel_disimpan: boolean;
+  catatan_kelayakan: string | null;
+  kesimpulan: OrganolepticKesimpulan;
+  catatan_kejadian_khusus: string | null;
+  dibuat_pada: string;
+}
+
+export type AttendanceStatus = 'MENUNGGU' | 'SUDAH_TERIMA_MBG' | 'OMPRENG_KEMBALI';
+
+export interface DailyAttendance {
+  id: string;
+  id_kelas: string;
+  id_uji: string;
+  tanggal: string;
+  jumlah_hadir: number;
+  jumlah_absen: number;
+  status_ambil: AttendanceStatus;
+  ompreng_utuh: number;
+  ompreng_rusak: number;
+  ompreng_hilang: number;
+  ttd_perwakilan_siswa: string | null;
+  waktu_terima_kelas: string | null;
+  waktu_kembali_ompreng: string | null;
+  dibuat_pada: string;
+  kelas?: Kelas;
+}
+
+export interface StudentMbgLog {
+  id: string;
+  id_log: string;
+  nisn: string;
+  nama_siswa_snapshot: string | null;
+  tipe_klaim: 'KOLEKTIF_KELAS' | 'MANDIRI' | 'SUSULAN';
+  status_terima: 'SUDAH_AMBIL' | 'ABSEN_TIDAK_AMBIL';
+  waktu_ambil: string;
+}
+
+export interface CrmCampaign {
+  id: string;
+  judul_promo: string;
+  banner_image_url: string | null;
+  target_tingkat: string;
+  target_jurusan: string[];
+  rekomendasi_fakultas_ubsi: string | null;
+  cta_url_template: string | null;
+  poin_interaksi: number;
+}
+
 export interface RiwayatAktivitas {
   id: string;
   pengguna_id: string | null;
@@ -80,4 +164,3 @@ export interface RiwayatAktivitas {
   waktu_aktivitas: string;
   pengguna?: Pengguna;
 }
-

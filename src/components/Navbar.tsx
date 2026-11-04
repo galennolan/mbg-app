@@ -35,20 +35,20 @@ export default function Navbar() {
   const isStudentPage = pathname === '/';
 
   return (
-    <nav className="bg-brand-navy text-white sticky top-0 z-40 shadow-md">
+    <nav className="sticky top-0 z-40 border-b border-white/10 bg-brand-navy/95 text-white shadow-[0_8px_30px_rgba(15,30,54,0.18)] backdrop-blur-xl">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo & Brand */}
           <div className="flex items-center gap-3">
             <Link href="/" className="flex items-center gap-2 group">
-              <div className="w-10 h-10 rounded-lg bg-brand-blue flex items-center justify-center shadow-md group-hover:bg-brand-blue-500 transition">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-blue to-cyan-500 shadow-lg shadow-blue-950/20 transition group-hover:scale-105">
                 <Utensils className="w-5 h-5 text-white" />
               </div>
               <div>
-                <span className="font-bold text-lg tracking-tight block leading-tight text-white">
+                <span className="block text-lg font-black leading-tight tracking-tight text-white">
                   MBG Tracker
                 </span>
-                <span className="text-xs text-blue-200 block font-normal leading-none">
+                <span className="block text-xs font-normal leading-none text-blue-200">
                   Makan Bergizi Gratis
                 </span>
               </div>
@@ -156,7 +156,7 @@ export default function Navbar() {
 
                     {adminDropdownOpen && (
                       <div
-                        className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl py-2 z-50 text-gray-800 border border-gray-100"
+                        className="absolute right-0 z-50 mt-2 w-48 rounded-2xl border border-white/70 bg-white/90 py-2 text-gray-800 shadow-2xl backdrop-blur-xl"
                         onClick={() => setAdminDropdownOpen(false)}
                       >
                         <Link
@@ -238,7 +238,7 @@ export default function Navbar() {
           <div className="flex lg:hidden">
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 rounded-md text-gray-200 hover:text-white hover:bg-brand-navy-light focus:outline-none"
+              className="rounded-xl p-2 text-gray-200 hover:bg-white/10 hover:text-white focus:outline-none"
             >
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
@@ -248,7 +248,7 @@ export default function Navbar() {
 
       {/* Mobile Menu Dropdown */}
       {mobileMenuOpen && (
-        <div className="lg:hidden bg-brand-navy-dark border-t border-slate-700 px-4 pt-2 pb-4 space-y-1">
+        <div className="space-y-1 border-t border-white/10 bg-brand-navy-dark/95 px-4 pb-4 pt-2 backdrop-blur-xl lg:hidden">
           <Link
             href="/"
             onClick={() => setMobileMenuOpen(false)}
@@ -382,4 +382,3 @@ export default function Navbar() {
     </nav>
   );
 }
-

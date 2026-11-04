@@ -1,0 +1,11 @@
+{
+  "name": "MBG Tracker",
+  "short_name": "MBG Tracker",
+  "description": "Sistem monitoring distribusi Makan Bergizi Gratis",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#172d50",
+  "lang": "id-ID",
+  "orientation": "portrait-primary"
+}
