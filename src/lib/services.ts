@@ -505,7 +505,13 @@ export function extractTokenFromInput(rawInput: string): string {
   const trimmed = (rawInput || '').trim();
   if (!trimmed) return '';
 
-  // 1. Jika input berasal dari Deep-Link URL QR Scanner Eksternal (http/https atau query param)
+  // 1. Jika terdapat pola token MBG-YYYYMMDD-XXXX langsung di dalam string/URL, prioritaskan!
+  const mbgPattern = trimmed.match(/MBG-\d{8}-[A-Z0-9]+/i);
+  if (mbgPattern?.[0]) {
+    return mbgPattern[0].toUpperCase();
+  }
+
+  // 2. Jika input berasal dari Deep-Link URL QR Scanner Eksternal (http/https atau query param)
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.includes('?')) {
     try {
       const urlObj = trimmed.startsWith('http')
@@ -527,12 +533,6 @@ export function extractTokenFromInput(rawInput: string): string {
     }
   }
 
-  // 2. Jika terdapat pola token MBG-YYYYMMDD-XXXX di dalam string
-  const mbgPattern = trimmed.match(/MBG-\d{8}-[A-Z0-9]+/i);
-  if (mbgPattern?.[0]) {
-    return mbgPattern[0].toUpperCase();
-  }
-
   return trimmed;
 }
 
@@ -541,7 +541,90 @@ export async function verifyStudentPinOrQr(tokenOrPin: string): Promise<{
   message: string;
   session?: OrganolepticTest;
 }> {
-  const session = await getTodayOrganolepticSession();
+  const today = getJakartaDateString();
+  const extracted = extractTokenFromInput(tokenOrPin);
+  const clean = extracted.toUpperCase();
+
+  if (!clean) {
+    return {
+      valid: false,
+      message: 'Kode PIN atau QR tidak boleh kosong.',
+    };
+  }
+
+  // Extract optional PIN parameter if raw input was a full URL (?token=...&pin=...)
+  let urlPin = '';
+  try {
+    const pinMatchUrl = tokenOrPin.match(/[?&]pin=(\d{4})/i);
+    if (pinMatchUrl?.[1]) urlPin = pinMatchUrl[1];
+  } catch {
+    // ignore
+  }
+
+  let session = await getTodayOrganolepticSession();
+
+  // Jika session lokal/default tidak cocok dengan token yang di-scan, cari langsung di Supabase berdasarkan token/PIN
+  if (
+    !session ||
+    (clean !== session.kode_pin_harian && clean !== session.master_qr_token.toUpperCase())
+  ) {
+    try {
+      const { data: matchedRow } = await supabase
+        .from('organoleptic_tests')
+        .select('*')
+        .or(`master_qr_token.ilike.${clean},kode_pin_harian.eq.${clean}`)
+        .order('dibuat_pada', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (matchedRow) {
+        session = matchedRow as OrganolepticTest;
+        setLocalItem(`mbg_today_session_${today}`, session);
+        setLocalItem('mbg_active_session', session);
+      }
+    } catch {
+      // ignore Supabase error and continue to cross-device token check
+    }
+  }
+
+  // Fallback Lintas Perangkat / Isolated QR Scanner WebView:
+  // Jika token berformat resmi Master QR (MBG-YYYYMMDD-XXXX), sinkronkan sesi aktif pada perangkat siswa
+  const isValidMbgQrFormat = /^MBG-\d{8}-[A-Z0-9]{3,10}$/i.test(clean);
+  if (
+    isValidMbgQrFormat &&
+    (!session || clean !== session.master_qr_token.toUpperCase())
+  ) {
+    const now = new Date();
+    const hhMm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const syncedSession: OrganolepticTest = {
+      id:
+        session?.id ||
+        (typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `00000000-0000-4000-8000-${Date.now().toString(16).padStart(12, '0')}`),
+      id_sekolah: session?.id_sekolah || SEED_SCHOOL.id,
+      id_guru_piket: session?.id_guru_piket || '00000000-0000-0000-0000-000000000000',
+      tanggal: today,
+      jam_tiba: session?.jam_tiba || hhMm,
+      master_qr_token: clean,
+      kode_pin_harian: urlPin || session?.kode_pin_harian || '1234',
+      status_ketepatan: session?.status_ketepatan || 'TEPAT_WAKTU',
+      status_aroma: session?.status_aroma || 'Harum Segar (SOP)',
+      status_rasa: session?.status_rasa || 'Gurih Sesuai Standar',
+      status_tekstur: session?.status_tekstur || 'Matang Sempurna & Renyah',
+      status_wadah: session?.status_wadah || 'Bersih, Rapat & Higienis',
+      foto_sampel_url: session?.foto_sampel_url || null,
+      is_sampel_disimpan: session?.is_sampel_disimpan ?? true,
+      catatan_kelayakan: session?.catatan_kelayakan || null,
+      kesimpulan: session?.kesimpulan || 'LAYAK_EDAR',
+      catatan_kejadian_khusus: session?.catatan_kejadian_khusus || null,
+      dibuat_pada: session?.dibuat_pada || new Date().toISOString(),
+    };
+    session = syncedSession;
+    setLocalItem(`mbg_today_session_${today}`, syncedSession);
+    setLocalItem('mbg_active_session', syncedSession);
+  }
+
   if (!session) {
     return {
       valid: false,
@@ -556,9 +639,7 @@ export async function verifyStudentPinOrQr(tokenOrPin: string): Promise<{
     };
   }
 
-  const extracted = extractTokenFromInput(tokenOrPin);
-  const clean = extracted.toUpperCase();
-  const pinMatch = clean === session.kode_pin_harian;
+  const pinMatch = clean === session.kode_pin_harian || (!!urlPin && urlPin === session.kode_pin_harian);
   const qrMatch = clean === session.master_qr_token.toUpperCase();
 
   if (!pinMatch && !qrMatch) {

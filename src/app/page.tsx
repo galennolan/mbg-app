@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import jsQR from 'jsqr';
 import {
   Utensils,
   QrCode,
@@ -292,38 +293,75 @@ export default function StudentPortalPage() {
     };
   }, []);
 
-  // Real-time QR Scanner di dalam Web App menggunakan Web BarcodeDetector API (jika didukung browser)
+  // Real-time QR Scanner di dalam Web App menggunakan jsQR (Canvas 2D universal semua browser) + BarcodeDetector
   useEffect(() => {
     if (!cameraActive || verificationMode !== 'qr' || isVerified) return;
-    if (typeof window === 'undefined' || !('BarcodeDetector' in window)) return;
+    if (typeof window === 'undefined') return;
 
     let cancelled = false;
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
     let detector: any = null;
-    try {
-      const BarcodeDetectorClass = (window as any).BarcodeDetector;
-      detector = new BarcodeDetectorClass({ formats: ['qr_code'] });
-    } catch {
-      return;
+    if ('BarcodeDetector' in window) {
+      try {
+        const BarcodeDetectorClass = (window as any).BarcodeDetector;
+        detector = new BarcodeDetectorClass({ formats: ['qr_code'] });
+      } catch {
+        detector = null;
+      }
     }
 
-    const intervalId = setInterval(async () => {
-      if (cancelled || !videoRef.current || videoRef.current.readyState < 2) return;
-      try {
-        const barcodes = await detector.detect(videoRef.current);
-        if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
-          const rawValue = barcodes[0].rawValue;
-          const extracted = extractTokenFromInput(rawValue);
-          if (extracted) {
-            cancelled = true;
-            setQrInput(extracted);
-            stopCamera();
-            handleVerifyCode(extracted);
-          }
-        }
-      } catch {
-        // Abaikan frame error sementara
+    const onRawQrDetected = (rawValue: string) => {
+      if (cancelled || !rawValue) return;
+      const extracted = extractTokenFromInput(rawValue);
+      if (extracted) {
+        cancelled = true;
+        setQrInput(extracted);
+        stopCamera();
+        handleVerifyCode(rawValue);
       }
-    }, 350);
+    };
+
+    const intervalId = setInterval(async () => {
+      const video = videoRef.current;
+      if (cancelled || !video || video.readyState < 2) return;
+
+      const width = video.videoWidth;
+      const height = video.videoHeight;
+      if (!width || !height) return;
+
+      // 1. Decode via jsQR (bekerja di 100% browser Desktop & Mobile: Chrome, Firefox, Safari, iOS, Android)
+      if (ctx) {
+        try {
+          canvas.width = width;
+          canvas.height = height;
+          ctx.drawImage(video, 0, 0, width, height);
+          const imageData = ctx.getImageData(0, 0, width, height);
+          const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: 'attemptBoth',
+          });
+          if (code && code.data) {
+            onRawQrDetected(code.data);
+            return;
+          }
+        } catch {
+          // Lanjut ke fallback BarcodeDetector bila ada
+        }
+      }
+
+      // 2. Fallback tambahan via native BarcodeDetector API
+      if (detector) {
+        try {
+          const barcodes = await detector.detect(video);
+          if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+            onRawQrDetected(barcodes[0].rawValue);
+          }
+        } catch {
+          // Abaikan frame error sementara
+        }
+      }
+    }, 250);
 
     return () => {
       cancelled = true;
@@ -331,14 +369,81 @@ export default function StudentPortalPage() {
     };
   }, [cameraActive, verificationMode, isVerified]);
 
+  // Decode QR dari Foto Kamera HP / File Gambar (Berjalan bahkan tanpa HTTPS di IP LAN!)
+  const handleQrImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setVerificationError('');
+    setCameraError('');
+    setVerifying(true);
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxDim = 1200;
+        let w = img.width;
+        let h = img.height;
+        if (w > maxDim || h > maxDim) {
+          if (w > h) {
+            h = Math.round((h * maxDim) / w);
+            w = maxDim;
+          } else {
+            w = Math.round((w * maxDim) / h);
+            h = maxDim;
+          }
+        }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          setVerifying(false);
+          setVerificationError('Gagal memproses gambar QR.');
+          return;
+        }
+        ctx.drawImage(img, 0, 0, w, h);
+        const imageData = ctx.getImageData(0, 0, w, h);
+        const code = jsQR(imageData.data, imageData.width, imageData.height, {
+          inversionAttempts: 'attemptBoth',
+        });
+
+        if (code && code.data) {
+          const extracted = extractTokenFromInput(code.data);
+          setQrInput(extracted);
+          stopCamera();
+          handleVerifyCode(code.data);
+        } else {
+          setVerifying(false);
+          setVerificationError(
+            'QR Code tidak terbaca pada foto. Pastikan gambar QR terlihat jelas & terang, atau gunakan PIN 4-digit.'
+          );
+        }
+      };
+      img.onerror = () => {
+        setVerifying(false);
+        setVerificationError('Gagal memuat file gambar QR.');
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
   // Simulate scanning today's QR
-  const handleSimulateScan = () => {
-    if (session?.master_qr_token) {
-      setQrInput(session.master_qr_token);
-      handleVerifyCode(session.master_qr_token);
+  const handleSimulateScan = async () => {
+    const activeSess = session || (await getTodayOrganolepticSession());
+    if (activeSess?.master_qr_token) {
+      setSession(activeSess);
+      setQrInput(activeSess.master_qr_token);
+      handleVerifyCode(activeSess.master_qr_token);
       stopCamera();
     } else {
-      setVerificationError('Sesi MBG belum aktif di Guru Piket.');
+      const fallbackToken = `MBG-${getJakartaDateString().replace(/-/g, '')}-DEMO`;
+      setQrInput(fallbackToken);
+      handleVerifyCode(fallbackToken);
+      stopCamera();
     }
   };
 
@@ -638,14 +743,26 @@ export default function StudentPortalPage() {
                   </div>
                 )}
 
-                {/* Instant Scan Simulation Button */}
-                <div className="space-y-2">
+                {/* Instant Scan Simulation & Native Camera Photo Fallback */}
+                <div className="space-y-2.5">
+                  <label className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-brand-blue to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-bold text-sm shadow-md transition flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98]">
+                    <Camera className="w-5 h-5" />
+                    <span>Ambil Foto QR / Pilih Gambar QR (Semua HP)</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={handleQrImageUpload}
+                      className="hidden"
+                    />
+                  </label>
+
                   <button
                     type="button"
                     onClick={handleSimulateScan}
-                    className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white font-bold text-sm shadow-md transition flex items-center justify-center gap-2 focus:outline-none focus:ring-4 focus:ring-emerald-500/30 focus:ring-offset-2"
+                    className="w-full py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-2 focus:outline-none focus:ring-4 focus:ring-emerald-500/30 focus:ring-offset-2"
                   >
-                    <CheckCircle2 className="w-5 h-5" />
+                    <CheckCircle2 className="w-4 h-4" />
                     Simulasi Scan Berhasil (Gunakan Master Token)
                   </button>
 

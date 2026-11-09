@@ -121,7 +121,26 @@ export default function KedatanganMBGPage() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      setBaseOrigin(window.location.origin);
+      const origin = window.location.origin;
+      setBaseOrigin(origin);
+
+      // Jika dibuka via localhost/127.0.0.1, otomatis deteksi IP LAN server agar HP eksternal bisa membuka link saat scan QR
+      if (
+        window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1'
+      ) {
+        fetch('/api/network-info')
+          .then((res) => res.json())
+          .then((info) => {
+            if (info?.lanIp && info.lanIp !== 'localhost') {
+              const portPart = window.location.port ? `:${window.location.port}` : '';
+              setBaseOrigin(`${window.location.protocol}//${info.lanIp}${portPart}`);
+            }
+          })
+          .catch(() => {
+            // Gunakan origin bawaan jika gagal
+          });
+      }
     }
     loadData();
   }, []);
@@ -169,7 +188,7 @@ export default function KedatanganMBGPage() {
   };
 
   const qrDeepLinkUrl = session
-    ? `${(baseOrigin || (typeof window !== 'undefined' ? window.location.origin : '')).replace(/\/$/, '')}/?token=${encodeURIComponent(session.master_qr_token)}`
+    ? `${(baseOrigin || (typeof window !== 'undefined' ? window.location.origin : '')).replace(/\/$/, '')}/?token=${encodeURIComponent(session.master_qr_token)}&pin=${encodeURIComponent(session.kode_pin_harian)}`
     : '';
 
   const handleCopyPin = () => {
@@ -385,20 +404,23 @@ export default function KedatanganMBGPage() {
                 <p className="text-xs font-bold text-slate-600 mb-2">
                   Tampilkan Layar Ini ke Perwakilan Siswa:
                 </p>
-                <div className="relative mx-auto inline-block p-4 rounded-3xl bg-white border border-slate-200 shadow-md">
+                <div className="mx-auto inline-block p-3 rounded-3xl bg-white border-2 border-slate-200 shadow-md">
                   <QRCodeSVG
                     value={qrDeepLinkUrl || session.master_qr_token}
-                    size={220}
-                    level="H"
-                    includeMargin={false}
-                    className="mx-auto"
+                    size={230}
+                    level="M"
+                    includeMargin={true}
+                    className="mx-auto block"
                   />
+                </div>
+                <div className="mt-2 flex items-center justify-center gap-2">
                   <button
-                    onClick={() => setQrFullscreen(!qrFullscreen)}
-                    className="absolute bottom-2 right-2 p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition"
-                    title="Fullscreen QR"
+                    type="button"
+                    onClick={() => setQrFullscreen(true)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition"
                   >
                     <Maximize2 className="w-3.5 h-3.5" />
+                    Perbesar QR (Layar Penuh)
                   </button>
                 </div>
                 <p className="text-[11px] text-slate-500 font-mono mt-2 break-all">
@@ -584,13 +606,15 @@ export default function KedatanganMBGPage() {
       >
         {session && (
           <div className="space-y-5">
-            <QRCodeSVG
-              value={qrDeepLinkUrl || session.master_qr_token}
-              size={260}
-              level="H"
-              includeMargin={false}
-              className="mx-auto"
-            />
+            <div className="mx-auto inline-block p-3 rounded-3xl bg-white border-2 border-slate-200 shadow-sm">
+              <QRCodeSVG
+                value={qrDeepLinkUrl || session.master_qr_token}
+                size={270}
+                level="M"
+                includeMargin={true}
+                className="mx-auto block"
+              />
+            </div>
             <p className="text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl py-1.5 px-3">
               Dapat discan langsung dari Kamera HP / QR Scanner luar maupun dari menu Siswa di aplikasi.
             </p>
