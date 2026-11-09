@@ -64,6 +64,8 @@ export default function KedatanganMBGPage() {
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [copiedPin, setCopiedPin] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [baseOrigin, setBaseOrigin] = useState('');
   const [qrFullscreen, setQrFullscreen] = useState(false);
   const [showCloseModal, setShowCloseModal] = useState(false);
 
@@ -118,6 +120,9 @@ export default function KedatanganMBGPage() {
   };
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setBaseOrigin(window.location.origin);
+    }
     loadData();
   }, []);
 
@@ -163,11 +168,23 @@ export default function KedatanganMBGPage() {
     }
   };
 
+  const qrDeepLinkUrl = session
+    ? `${(baseOrigin || (typeof window !== 'undefined' ? window.location.origin : '')).replace(/\/$/, '')}/?token=${encodeURIComponent(session.master_qr_token)}`
+    : '';
+
   const handleCopyPin = () => {
     if (session?.kode_pin_harian) {
       navigator.clipboard.writeText(session.kode_pin_harian);
       setCopiedPin(true);
       setTimeout(() => setCopiedPin(false), 2000);
+    }
+  };
+
+  const handleCopyQrLink = () => {
+    if (qrDeepLinkUrl) {
+      navigator.clipboard.writeText(qrDeepLinkUrl);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
     }
   };
 
@@ -370,7 +387,7 @@ export default function KedatanganMBGPage() {
                 </p>
                 <div className="relative mx-auto inline-block p-4 rounded-3xl bg-white border border-slate-200 shadow-md">
                   <QRCodeSVG
-                    value={session.master_qr_token}
+                    value={qrDeepLinkUrl || session.master_qr_token}
                     size={220}
                     level="H"
                     includeMargin={false}
@@ -387,6 +404,47 @@ export default function KedatanganMBGPage() {
                 <p className="text-[11px] text-slate-500 font-mono mt-2 break-all">
                   Token: <strong>{session.master_qr_token}</strong>
                 </p>
+                <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] font-bold text-emerald-700">
+                  <CheckCircle2 className="w-3 h-3" />
+                  Bisa discan via Kamera HP / Google Lens / Scanner Luar & Web App
+                </div>
+
+                {/* Deep-Link URL Configuration & Copy Link */}
+                <div className="mt-3 rounded-2xl bg-slate-50 border border-slate-200/80 p-3 text-left space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      Link Tujuan Scan Eksternal:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleCopyQrLink}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 text-[10px] font-bold border border-slate-200 shadow-sm transition"
+                    >
+                      {copiedLink ? (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-600" />
+                          Link Tersalin!
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3 text-brand-blue" />
+                          Salin Link QR
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={baseOrigin}
+                    onChange={(e) => setBaseOrigin(e.target.value)}
+                    placeholder="Contoh: http://192.168.1.10:3000"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-mono text-slate-700 focus:border-brand-blue focus:outline-none"
+                    title="Ubah ke IP LAN (mis. http://192.168.1.x:3000) jika discan dari HP siswa di jaringan Wi-Fi lokal"
+                  />
+                  <p className="text-[10px] text-slate-500 font-mono truncate" title={qrDeepLinkUrl}>
+                    URL: {qrDeepLinkUrl}
+                  </p>
+                </div>
               </div>
 
               {/* PIN 4-Digit Fallback Display */}
@@ -527,12 +585,15 @@ export default function KedatanganMBGPage() {
         {session && (
           <div className="space-y-5">
             <QRCodeSVG
-              value={session.master_qr_token}
+              value={qrDeepLinkUrl || session.master_qr_token}
               size={260}
               level="H"
               includeMargin={false}
               className="mx-auto"
             />
+            <p className="text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl py-1.5 px-3">
+              Dapat discan langsung dari Kamera HP / QR Scanner luar maupun dari menu Siswa di aplikasi.
+            </p>
             <div className="bg-blue-50 rounded-2xl p-4 border border-blue-200">
               <p className="text-sm font-bold text-slate-700">Kode PIN Harian:</p>
               <p className="text-4xl font-black text-brand-navy tracking-widest my-2 font-mono">
