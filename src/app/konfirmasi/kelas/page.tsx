@@ -1,496 +1,337 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import {
   Users,
-  CheckSquare,
-  Square,
-  AlertTriangle,
   CheckCircle2,
-  Building,
-  Clock,
-  ArrowRight,
-  Filter,
+  AlertTriangle,
+  RotateCw,
+  Search,
   Check,
+  ShieldCheck,
+  Building,
+  ArrowRight,
+  Utensils,
+  Lock,
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase/client';
 import {
-  getTodayDistribution,
-  confirmTeacherClassMass,
+  getTodayOrganolepticSession,
+  getClassRoster,
+  submitClassRepresentativeClaim,
+  SEED_CLASSES,
 } from '@/lib/services';
-import { DistribusiMBG, Kelas, Siswa } from '@/lib/types';
-import { formatWIBTime, formatIndonesianDate, getJakartaDateString } from '@/lib/utils';
+import { OrganolepticTest, StudentRecord } from '@/lib/types';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { FeedbackBanner } from '@/components/ui/FeedbackBanner';
 
 export default function KonfirmasiKelasPage() {
   const { user } = useAuth();
-  const [distribusi, setDistribusi] = useState<DistribusiMBG | null>(null);
-  const [kelasList, setKelasList] = useState<Kelas[]>([]);
-  const [selectedKelasId, setSelectedKelasId] = useState('');
   const [loading, setLoading] = useState(true);
+  const [session, setSession] = useState<OrganolepticTest | null>(null);
 
-  // Class students state
-  const [loadingStudents, setLoadingStudents] = useState(false);
-  const [classStudents, setClassStudents] = useState<any[]>([]);
-  const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
-
-  // Preview & Confirm Modal
-  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [selectedClassId, setSelectedClassId] = useState(SEED_CLASSES[0].id);
+  const [roster, setRoster] = useState<StudentRecord[]>([]);
+  const [selectedNisns, setSelectedNisns] = useState<Set<string>>(new Set());
+  const [searchRoster, setSearchRoster] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [resultSummary, setResultSummary] = useState<{
-    berhasil: number;
-    dilewati: number;
+
+  const [feedback, setFeedback] = useState<{
+    type: 'success' | 'error';
+    message: string;
   } | null>(null);
-  const [errorMsg, setErrorMsg] = useState('');
 
-  // 1. Load active classes & distribution
-  useEffect(() => {
-    async function init() {
-      try {
-        const dist = await getTodayDistribution();
-        setDistribusi(dist);
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const sess = await getTodayOrganolepticSession();
+      setSession(sess);
+      const list = await getClassRoster(selectedClassId);
+      setRoster(list);
 
-        const { data: classes } = await supabase
-          .from('kelas')
-          .select('*')
-          .eq('status_aktif', true)
-          .order('nama_kelas');
-
-        if (classes) {
-          setKelasList(classes as Kelas[]);
-          if (classes.length > 0) {
-            setSelectedKelasId(classes[0].id);
-          }
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
+      // Default: Select all students who haven't received yet
+      const available = list.filter((s) => !s.sudah_ambil).map((s) => s.nisn);
+      setSelectedNisns(new Set(available));
+    } catch (e: any) {
+      setFeedback({ type: 'error', message: e.message || 'Gagal memuat data' });
+    } finally {
+      setLoading(false);
     }
-    init();
-  }, []);
+  };
 
-  // 2. Load students whenever selected class changes
   useEffect(() => {
-    if (!selectedKelasId || !distribusi) return;
+    loadData();
+  }, [selectedClassId]);
 
-    async function fetchStudentsForClass() {
-      setLoadingStudents(true);
-      setErrorMsg('');
-      setResultSummary(null);
-      try {
-        // Fetch all active students in class
-        const { data: students, error: err } = await supabase
-          .from('siswa')
-          .select('*, kelas:kelas_id(id, nama_kelas, jurusan)')
-          .eq('kelas_id', selectedKelasId)
-          .eq('status_aktif', true)
-          .order('nama');
-
-        if (err || !students) {
-          setClassStudents([]);
-          return;
-        }
-
-        // Fetch receipts for today
-        const studentIds = students.map((s) => s.id);
-        const { data: receipts } = await supabase
-          .from('penerimaan_mbg')
-          .select('*')
-          .eq('distribusi_id', distribusi?.id)
-          .in('siswa_id', studentIds);
-
-        const receiptMap = new Map((receipts || []).map((r: any) => [r.siswa_id, r]));
-
-        const processed = students.map((s) => ({
-          ...s,
-          receipt: receiptMap.get(s.id) || null,
-        }));
-
-        setClassStudents(processed);
-
-        // BR-05: Automatically select all students who have NOT received yet
-        const defaultSelected = new Set<string>();
-        processed.forEach((s) => {
-          if (!s.receipt) {
-            defaultSelected.add(s.id);
-          }
-        });
-        setSelectedStudentIds(defaultSelected);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoadingStudents(false);
-      }
-    }
-
-    fetchStudentsForClass();
-  }, [selectedKelasId, distribusi]);
-
-  // Toggle selection for a student
-  const toggleStudent = (id: string) => {
-    const updated = new Set(selectedStudentIds);
-    if (updated.has(id)) {
-      updated.delete(id);
+  const toggleStudent = (nisn: string, sudahAmbil: boolean) => {
+    if (sudahAmbil) return; // Locked!
+    const next = new Set(selectedNisns);
+    if (next.has(nisn)) {
+      next.delete(nisn);
     } else {
-      updated.add(id);
+      next.add(nisn);
     }
-    setSelectedStudentIds(updated);
+    setSelectedNisns(next);
   };
 
-  // Select all unrecorded
-  const selectAllUnrecorded = () => {
-    const updated = new Set<string>();
-    classStudents.forEach((s) => {
-      if (!s.receipt) {
-        updated.add(s.id);
-      }
-    });
-    setSelectedStudentIds(updated);
+  const availableStudents = roster.filter((s) => !s.sudah_ambil);
+  const isAllSelected =
+    availableStudents.length > 0 && availableStudents.every((s) => selectedNisns.has(s.nisn));
+
+  const handleToggleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedNisns(new Set());
+    } else {
+      setSelectedNisns(new Set(availableStudents.map((s) => s.nisn)));
+    }
   };
 
-  // Unselect all
-  const unselectAll = () => {
-    setSelectedStudentIds(new Set());
-  };
-
-  // Execute mass confirmation
-  const handleExecuteMassConfirm = async () => {
-    if (!distribusi || selectedStudentIds.size === 0) return;
+  const handleConfirmClass = async () => {
+    if (selectedNisns.size === 0) {
+      setFeedback({ type: 'error', message: 'Pilih minimal satu siswa yang hadir.' });
+      return;
+    }
 
     setSubmitting(true);
-    setErrorMsg('');
+    setFeedback(null);
+
+    const pin = session?.kode_pin_harian || '0000';
     try {
-      const res = await confirmTeacherClassMass({
-        distribusiId: distribusi.id,
-        siswaIds: Array.from(selectedStudentIds),
-        petugasId: user?.id || '00000000-0000-0000-0000-000000000000',
+      const res = await submitClassRepresentativeClaim({
+        classId: selectedClassId,
+        attendedNisns: Array.from(selectedNisns),
+        pinOrToken: pin,
       });
 
-      setResultSummary(res);
-      setShowPreviewModal(false);
-
-      // Refresh student receipts
-      const { data: updatedReceipts } = await supabase
-        .from('penerimaan_mbg')
-        .select('*')
-        .eq('distribusi_id', distribusi.id)
-        .in('siswa_id', classStudents.map((s) => s.id));
-
-      const receiptMap = new Map((updatedReceipts || []).map((r: any) => [r.siswa_id, r]));
-
-      setClassStudents((prev) =>
-        prev.map((s) => ({
-          ...s,
-          receipt: receiptMap.get(s.id) || s.receipt,
-        }))
-      );
-      setSelectedStudentIds(new Set());
+      if (res.success) {
+        setFeedback({ type: 'success', message: res.message });
+        const updated = await getClassRoster(selectedClassId);
+        setRoster(updated);
+      } else {
+        setFeedback({ type: 'error', message: res.message });
+      }
     } catch (err: any) {
-      setErrorMsg(err.message || 'Gagal menyimpan konfirmasi massal.');
+      setFeedback({ type: 'error', message: err.message || 'Gagal menyimpan konfirmasi' });
     } finally {
       setSubmitting(false);
     }
   };
 
-  const selectedClass = kelasList.find((k) => k.id === selectedKelasId);
-  const unrecordedCount = classStudents.filter((s) => !s.receipt).length;
+  const filteredRoster = roster.filter(
+    (s) =>
+      s.nama_lengkap.toLowerCase().includes(searchRoster.toLowerCase()) ||
+      s.nisn.includes(searchRoster)
+  );
+
+  const hadirCount = selectedNisns.size;
+  const absenCount = Math.max(0, roster.length - hadirCount);
+  const currentClass = SEED_CLASSES.find((c) => c.id === selectedClassId);
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 pb-12">
-      {/* Header */}
-      <div>
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-brand-blue rounded-full text-xs font-semibold mb-2">
-          <Users className="w-3.5 h-3.5" />
-          Konfirmasi Massal
+    <div className="space-y-6 pb-24">
+      <PageHeader
+        title="Konfirmasi Kolektif Kelas (FR-3.2)"
+        subtitle="Checklist massal penerimaan MBG per kelas oleh Guru Piket atau Wali Kelas."
+        badgeText="STAFF MODE"
+      >
+        <div className="flex items-center gap-2">
+          <button
+            onClick={loadData}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/80 hover:bg-white text-slate-700 text-xs font-bold border border-slate-200/80 shadow-sm transition"
+          >
+            <RotateCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            Segarkan
+          </button>
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand-navy hover:bg-slate-800 text-white text-xs font-bold shadow-sm transition"
+          >
+            Live Monitor
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
         </div>
-        <h1 className="text-2xl sm:text-3xl font-black text-brand-navy tracking-tight">
-          Pencatatan MBG Per Kelas
-        </h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Guru dapat mencatat penerimaan seluruh siswa dalam satu kelas sekaligus dengan opsi unselect siswa tidak hadir
-        </p>
-      </div>
+      </PageHeader>
 
-      {resultSummary && (
-        <div className="p-5 rounded-3xl bg-emerald-50 border border-emerald-200 text-emerald-900 flex items-start gap-3">
-          <CheckCircle2 className="w-6 h-6 text-emerald-600 flex-shrink-0 mt-0.5" />
-          <div>
-            <h4 className="font-bold text-base text-emerald-950">
-              Konfirmasi Massal Berhasil Diproses!
-            </h4>
-            <p className="text-xs sm:text-sm text-emerald-800 mt-0.5">
-              Sebanyak <strong>{resultSummary.berhasil} siswa</strong> berhasil dicatat menerima MBG.{' '}
-              {resultSummary.dilewati > 0 && (
-                <span>
-                  ({resultSummary.dilewati} siswa dilewati karena sudah memiliki catatan sebelumnya).
-                </span>
-              )}
-            </p>
+      {feedback && (
+        <FeedbackBanner
+          type={feedback.type}
+          message={feedback.message}
+          onDismiss={() => setFeedback(null)}
+        />
+      )}
+
+      {/* Class Selector Bar */}
+      <div className="rounded-3xl border border-white/20 bg-white/70 p-4 sm:p-5 shadow-lg backdrop-blur-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-100 text-brand-blue">
+            <Users className="h-5 w-5" />
           </div>
-        </div>
-      )}
-
-      {errorMsg && (
-        <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-800 text-xs sm:text-sm flex items-start gap-2.5">
-          <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
-          <span>{errorMsg}</span>
-        </div>
-      )}
-
-      {/* Selector Kelas & Control Bar */}
-      <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
           <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-              Pilih Kelas Distribusi
-            </label>
-            <div className="relative">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              Pilih Kelas
+            </span>
+            <div className="flex items-center gap-2 mt-0.5">
               <select
-                value={selectedKelasId}
-                onChange={(e) => setSelectedKelasId(e.target.value)}
-                className="w-full py-3 px-4 bg-slate-50 border border-slate-300 rounded-xl text-base font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue"
+                value={selectedClassId}
+                onChange={(e) => setSelectedClassId(e.target.value)}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-black text-brand-navy shadow-sm focus:border-brand-blue focus:outline-none focus:ring-2 focus:ring-brand-blue/20"
               >
-                {kelasList.map((k) => (
-                  <option key={k.id} value={k.id}>
-                    {k.nama_kelas} ({k.jurusan})
+                {SEED_CLASSES.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nama_kelas} ({c.jurusan} - {c.total_siswa_dapodik} Siswa)
                   </option>
                 ))}
               </select>
             </div>
           </div>
-
-          {selectedClass && (
-            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs text-slate-600 flex items-center justify-between">
-              <div>
-                <span className="text-slate-400 block text-[10px] uppercase">Jurusan</span>
-                <span className="font-bold text-slate-800">{selectedClass.jurusan}</span>
-              </div>
-              <div>
-                <span className="text-slate-400 block text-[10px] uppercase">Tingkat</span>
-                <span className="font-bold text-slate-800">{selectedClass.tingkat}</span>
-              </div>
-              <div>
-                <span className="text-slate-400 block text-[10px] uppercase">Belum Tercatat</span>
-                <span className="font-bold text-amber-600">{unrecordedCount} Siswa</span>
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* Quick selection helper buttons (FR-13) */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100 text-xs">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={selectAllUnrecorded}
-              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition"
-            >
-              Pilih Semua yang Belum
-            </button>
-            <button
-              type="button"
-              onClick={unselectAll}
-              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition"
-            >
-              Batalkan Semua Pilihan
-            </button>
-          </div>
-
-          <div className="text-slate-500 font-medium">
-            Terpilih:{' '}
-            <strong className="text-brand-blue font-bold text-sm">
-              {selectedStudentIds.size}
-            </strong>{' '}
-            dari {classStudents.length} siswa
-          </div>
+        <div className="relative max-w-xs w-full">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={searchRoster}
+            onChange={(e) => setSearchRoster(e.target.value)}
+            placeholder="Cari siswa atau NISN..."
+            className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-medium focus:border-brand-blue focus:outline-none focus:ring-2 focus:ring-brand-blue/20"
+          />
         </div>
       </div>
 
-      {/* Table Daftar Siswa Kelas */}
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
-          <div className="font-bold text-sm text-slate-800">
-            Daftar Siswa Kelas {selectedClass?.nama_kelas}
+      {/* Roster Checklist */}
+      <div className="rounded-3xl border border-white/20 bg-white/80 p-5 sm:p-6 shadow-xl backdrop-blur-xl space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/60 pb-3">
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={handleToggleSelectAll}
+              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold border transition ${
+                isAllSelected
+                  ? 'bg-brand-blue text-white border-brand-blue'
+                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              {isAllSelected ? 'Batalkan Pilih Semua' : 'Pilih Semua Hadir (Default)'}
+            </button>
+            <span className="text-xs text-slate-500">
+              {selectedNisns.size} dari {roster.length} terpilih
+            </span>
           </div>
-          <div className="text-xs text-slate-400">
-            Hilangkan centang pada siswa yang tidak hadir atau tidak mengambil MBG
+
+          <div className="text-xs font-bold text-slate-600 flex items-center gap-2">
+            <span className="text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 flex items-center gap-1">
+              <AlertTriangle className="w-3 h-3 text-amber-600" />
+              Indikator Alergi Aktif
+            </span>
           </div>
         </div>
 
-        {loadingStudents ? (
-          <div className="p-12 text-center text-slate-400 text-sm">
-            <div className="w-8 h-8 border-4 border-brand-blue border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-            Memuat daftar siswa kelas...
-          </div>
-        ) : classStudents.length === 0 ? (
-          <div className="p-12 text-center text-slate-400 text-sm">
-            Tidak ada siswa aktif terdaftar di kelas ini.
-          </div>
-        ) : (
-          <div className="divide-y divide-slate-100">
-            {classStudents.map((s, idx) => {
-              const hasReceived = !!s.receipt;
-              const isChecked = selectedStudentIds.has(s.id);
+        {/* Student items */}
+        <div className="divide-y divide-slate-100">
+          {filteredRoster.map((student) => {
+            const isSelected = selectedNisns.has(student.nisn);
+            const isClaimed = student.sudah_ambil;
 
-              return (
-                <div
-                  key={s.id}
-                  onClick={() => {
-                    if (!hasReceived) toggleStudent(s.id);
-                  }}
-                  className={`p-4 flex items-center justify-between gap-3 transition ${
-                    hasReceived
-                      ? 'bg-slate-50/70 text-slate-400 cursor-not-allowed'
-                      : isChecked
-                      ? 'bg-blue-50/40 hover:bg-blue-50/70 cursor-pointer'
-                      : 'hover:bg-slate-50 cursor-pointer'
-                  }`}
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div>
-                      {hasReceived ? (
-                        <div className="w-5 h-5 rounded bg-emerald-100 text-emerald-700 flex items-center justify-center">
-                          <Check className="w-3.5 h-3.5" />
-                        </div>
-                      ) : (
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => toggleStudent(s.id)}
-                          className="w-5 h-5 rounded text-brand-blue focus:ring-brand-blue rounded-md border-slate-300"
-                        />
-                      )}
-                    </div>
-
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-mono text-slate-400">{idx + 1}.</span>
-                        <span
-                          className={`font-bold text-sm truncate ${
-                            hasReceived ? 'text-slate-500 line-through' : 'text-slate-900'
-                          }`}
-                        >
-                          {s.nama}
-                        </span>
-                        {s.nisn && (
-                          <span className="text-[11px] font-mono text-slate-400">
-                            ({s.nisn})
-                          </span>
-                        )}
-                      </div>
-                    </div>
+            return (
+              <div
+                key={student.nisn}
+                onClick={() => toggleStudent(student.nisn, isClaimed)}
+                className={`py-3.5 px-3 rounded-2xl flex items-center justify-between gap-3 transition cursor-pointer select-none ${
+                  isClaimed
+                    ? 'opacity-60 bg-slate-50/80 cursor-not-allowed'
+                    : isSelected
+                    ? 'bg-blue-50/60 border border-blue-200/60'
+                    : 'hover:bg-slate-50'
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div
+                    className={`w-5 h-5 rounded-lg border flex items-center justify-center transition flex-shrink-0 ${
+                      isClaimed
+                        ? 'bg-emerald-600 border-emerald-600 text-white'
+                        : isSelected
+                        ? 'bg-brand-blue border-brand-blue text-white'
+                        : 'border-slate-300 bg-white'
+                    }`}
+                  >
+                    {(isSelected || isClaimed) && <Check className="w-3.5 h-3.5" />}
                   </div>
 
-                  <div className="flex-shrink-0 text-right">
-                    {hasReceived ? (
-                      <div>
-                        <span className="text-[11px] font-semibold bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full">
-                          Sudah Tercatat
-                        </span>
-                        <div className="text-[10px] font-mono text-slate-400 mt-0.5">
-                          {formatWIBTime(s.receipt.waktu_penerimaan)} ({s.receipt.sumber_pencatatan})
-                        </div>
-                      </div>
-                    ) : isChecked ? (
-                      <span className="text-xs font-semibold text-brand-blue bg-blue-100/70 px-2.5 py-0.5 rounded-full">
-                        Akan Dicatat
-                      </span>
-                    ) : (
-                      <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2.5 py-0.5 rounded-full">
-                        Dilewati (Unselected)
-                      </span>
-                    )}
+                  <div className="min-w-0">
+                    <span
+                      className={`text-xs font-bold ${
+                        isClaimed ? 'text-slate-500 line-through' : 'text-slate-900'
+                      }`}
+                    >
+                      {student.nama_lengkap}
+                    </span>
+                    <p className="text-[11px] text-slate-500 font-mono">NISN: {student.nisn}</p>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
 
-        {/* Bottom Floating Bar */}
-        <div className="p-4 sm:p-5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="text-xs text-slate-600">
-            Total yang akan diproses: <strong>{selectedStudentIds.size} Siswa</strong>
-          </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {student.alergi_makanan && (
+                    <span className="text-[11px] font-bold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-xl border border-amber-200">
+                      {student.alergi_makanan}
+                    </span>
+                  )}
 
-          <button
-            type="button"
-            onClick={() => setShowPreviewModal(true)}
-            disabled={selectedStudentIds.size === 0 || submitting}
-            className="w-full sm:w-auto px-7 py-3 bg-brand-blue hover:bg-brand-blue-700 text-white font-bold text-sm rounded-xl shadow-md transition flex items-center justify-center gap-2 disabled:opacity-40"
-          >
-            Pratinjau & Konfirmasi Sekarang
-            <ArrowRight className="w-4 h-4" />
-          </button>
+                  {isClaimed ? (
+                    <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      Sudah Ambil
+                    </span>
+                  ) : (
+                    <span
+                      className={`text-[11px] font-bold px-2 py-0.5 rounded-lg ${
+                        isSelected ? 'text-brand-blue' : 'text-slate-400'
+                      }`}
+                    >
+                      {isSelected ? 'Hadir' : 'Absen'}
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
-      {/* MODAL PRATINJAU KONFIRMASI MASSAL (FR-14, BR-05, AC-11, AC-12) */}
-      {showPreviewModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl p-6 border border-slate-100 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b">
-              <div>
-                <h3 className="font-bold text-base text-slate-900">
-                  Pratinjau Konfirmasi Massal
-                </h3>
-                <p className="text-xs text-slate-500">Kelas: {selectedClass?.nama_kelas}</p>
-              </div>
-              <button
-                onClick={() => setShowPreviewModal(false)}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-xs text-blue-900 leading-relaxed">
-              Anda akan mencatat bahwa <strong>{selectedStudentIds.size} siswa</strong> berikut telah
-              menerima Makan Bergizi Gratis (MBG) hari ini dengan pencatat atas nama{' '}
-              <strong>{user?.nama || 'Petugas'}</strong>.
-            </div>
-
-            {/* List nama yang akan dicatat */}
-            <div className="max-h-60 overflow-y-auto space-y-1.5 p-2 bg-slate-50 rounded-2xl border border-slate-200 text-xs">
-              {classStudents
-                .filter((s) => selectedStudentIds.has(s.id))
-                .map((s, i) => (
-                  <div
-                    key={s.id}
-                    className="flex justify-between py-1 px-2 hover:bg-white rounded"
-                  >
-                    <span className="font-medium text-slate-800">
-                      {i + 1}. {s.nama}
-                    </span>
-                    <span className="font-mono text-slate-400">{s.nisn || '-'}</span>
-                  </div>
-                ))}
-            </div>
-
-            <div className="flex gap-2.5 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowPreviewModal(false)}
-                disabled={submitting}
-                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition"
-              >
-                Periksa Ulang
-              </button>
-              <button
-                type="button"
-                onClick={handleExecuteMassConfirm}
-                disabled={submitting}
-                className="flex-1 py-3 bg-brand-blue hover:bg-brand-blue-700 text-white font-bold rounded-xl text-xs transition disabled:opacity-50"
-              >
-                {submitting ? 'Memproses Transaksi...' : `Simpan ${selectedStudentIds.size} Transaksi`}
-              </button>
-            </div>
-          </div>
+      {/* Bottom Sticky Action Bar */}
+      <div className="sticky bottom-4 z-30 rounded-3xl border border-white/20 bg-slate-900/90 text-white p-4 sm:p-5 shadow-2xl backdrop-blur-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <span className="block text-[11px] text-sky-200 font-bold uppercase tracking-wider">
+            {currentClass?.nama_kelas} ({currentClass?.jurusan})
+          </span>
+          <p className="text-sm font-black text-white mt-0.5">
+            <span className="text-emerald-400">Hadir = {hadirCount} Siswa</span>
+            <span className="text-slate-400 mx-2">|</span>
+            <span className="text-amber-300">Absen (Sisa) = {absenCount} Siswa</span>
+          </p>
         </div>
-      )}
+
+        <button
+          type="button"
+          onClick={handleConfirmClass}
+          disabled={submitting || hadirCount === 0}
+          className="py-3 px-6 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-black text-sm shadow-xl shadow-blue-900/40 active:scale-[0.98] transition flex items-center justify-center gap-2 disabled:opacity-50"
+        >
+          {submitting ? (
+            <>
+              <RotateCw className="w-4 h-4 animate-spin" />
+              Menyimpan...
+            </>
+          ) : (
+            <>
+              <Utensils className="w-4 h-4" />
+              Kunci Konfirmasi Kelas ({hadirCount} Porsi)
+            </>
+          )}
+        </button>
+      </div>
     </div>
   );
 }
-

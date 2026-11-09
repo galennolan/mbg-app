@@ -6,6 +6,7 @@ import { Building2, Plus, Edit2, Trash2, CheckCircle2, AlertTriangle, Users } fr
 import { supabase } from '@/lib/supabase/client';
 import { Kelas } from '@/lib/types';
 import { logActivity } from '@/lib/services';
+import { Modal, ModalInput, ModalSelect, ModalCheckbox, ModalActions } from '@/components/ui/ModalField';
 
 export default function ManajemenKelasPage() {
   const { user } = useAuth();
@@ -24,6 +25,7 @@ export default function ManajemenKelasPage() {
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(
     null
   );
+  const [submitting, setSubmitting] = useState(false);
 
   const loadClasses = async () => {
     setLoading(true);
@@ -48,6 +50,28 @@ export default function ManajemenKelasPage() {
     loadClasses();
   }, []);
 
+  const handleOpenModal = (kelas?: Kelas) => {
+    if (kelas) {
+      setEditingKelas(kelas);
+      setFormData({
+        nama_kelas: kelas.nama_kelas,
+        tingkat: kelas.tingkat as 'X' | 'XI' | 'XII',
+        jurusan: kelas.jurusan,
+        status_aktif: kelas.status_aktif ?? true,
+      });
+    } else {
+      setEditingKelas(null);
+      setFormData({ nama_kelas: '', tingkat: 'X', jurusan: '', status_aktif: true });
+    }
+    setFeedback(null);
+    setShowModal(true);
+  };
+
+  const resetForm = () => {
+    setEditingKelas(null);
+    setFormData({ nama_kelas: '', tingkat: 'X', jurusan: '', status_aktif: true });
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.nama_kelas || !formData.jurusan) {
@@ -55,6 +79,8 @@ export default function ManajemenKelasPage() {
       return;
     }
 
+    setSubmitting(true);
+    let successMessage = '';
     try {
       if (editingKelas) {
         const { error } = await supabase
@@ -70,7 +96,7 @@ export default function ManajemenKelasPage() {
 
         if (error) throw error;
         await logActivity('edit_kelas', 'kelas', editingKelas.id, editingKelas, formData, user?.id);
-        setFeedback({ type: 'success', message: 'Data kelas berhasil diperbarui' });
+        successMessage = 'Data kelas berhasil diperbarui';
       } else {
         const { data, error } = await supabase
           .from('kelas')
@@ -85,20 +111,17 @@ export default function ManajemenKelasPage() {
 
         if (error) throw error;
         await logActivity('tambah_kelas', 'kelas', data.id, null, data, user?.id);
-        setFeedback({ type: 'success', message: 'Kelas baru berhasil ditambahkan' });
+        successMessage = 'Kelas baru berhasil ditambahkan';
       }
 
       setShowModal(false);
-      setEditingKelas(null);
-      setFormData({
-        nama_kelas: '',
-        tingkat: 'X',
-        jurusan: '',
-        status_aktif: true,
-      });
+      resetForm();
+      setFeedback({ type: 'success', message: successMessage });
       loadClasses();
     } catch (err: any) {
       setFeedback({ type: 'error', message: err.message || 'Gagal menyimpan data kelas' });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -114,23 +137,14 @@ export default function ManajemenKelasPage() {
           <h1 className="text-2xl sm:text-3xl font-black text-brand-navy tracking-tight">
             Manajemen Kelas & Jurusan
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-base text-slate-600 mt-1">
             Atur data kelas, tingkat jenjang, dan keahlian jurusan sekolah
           </p>
         </div>
 
         <button
-          onClick={() => {
-            setEditingKelas(null);
-            setFormData({
-              nama_kelas: '',
-              tingkat: 'X',
-              jurusan: '',
-              status_aktif: true,
-            });
-            setShowModal(true);
-          }}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-brand-blue hover:bg-brand-blue-700 text-white text-xs font-bold rounded-xl shadow-sm transition"
+          onClick={() => handleOpenModal()}
+          className="inline-flex items-center gap-2 px-4 py-3 bg-brand-blue hover:bg-brand-blue-700 text-white text-sm font-bold rounded-xl shadow-sm transition"
         >
           <Plus className="w-4 h-4" />
           Tambah Kelas Baru
@@ -168,7 +182,7 @@ export default function ManajemenKelasPage() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200">
+              <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-600 border-b border-slate-200">
                 <tr>
                   <th className="py-3 px-4">Nama Kelas</th>
                   <th className="py-3 px-4">Tingkat</th>
@@ -181,38 +195,31 @@ export default function ManajemenKelasPage() {
               <tbody className="divide-y divide-slate-100">
                 {kelasList.map((k: any) => (
                   <tr key={k.id} className="hover:bg-slate-50/80 transition">
-                    <td className="py-3.5 px-4 font-bold text-slate-900">{k.nama_kelas}</td>
-                    <td className="py-3.5 px-4 text-xs font-semibold text-slate-700">
+                    <td className="py-3.5 px-4 font-bold text-slate-900 text-sm">{k.nama_kelas}</td>
+                    <td className="py-3.5 px-4 text-sm font-semibold text-slate-700">
                       Kelas {k.tingkat}
                     </td>
-                    <td className="py-3.5 px-4 text-xs text-slate-600">{k.jurusan}</td>
-                    <td className="py-3.5 px-4 text-xs font-mono text-brand-blue font-bold">
+                    <td className="py-3.5 px-4 text-sm text-slate-600">{k.jurusan}</td>
+                    <td className="py-3.5 px-4 text-sm font-mono text-brand-blue font-bold">
                       {k.siswa?.length || 0} Siswa
                     </td>
-                    <td className="py-3.5 px-4 text-xs">
+                    <td className="py-3.5 px-4 text-sm">
                       {k.status_aktif ? (
-                        <span className="text-[11px] font-semibold bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full">
+                        <span className="text-xs font-semibold bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full">
                           Aktif
                         </span>
                       ) : (
-                        <span className="text-[11px] font-semibold bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full">
+                        <span className="text-xs font-semibold bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full">
                           Nonaktif
                         </span>
                       )}
                     </td>
                     <td className="py-3.5 px-4 text-right text-xs">
                       <button
-                        onClick={() => {
-                          setEditingKelas(k);
-                          setFormData({
-                            nama_kelas: k.nama_kelas,
-                            tingkat: k.tingkat,
-                            jurusan: k.jurusan,
-                            status_aktif: k.status_aktif,
-                          });
-                          setShowModal(true);
-                        }}
-                        className="p-1.5 text-slate-600 hover:text-brand-blue rounded-lg hover:bg-slate-100 transition"
+                        onClick={() => handleOpenModal(k)}
+                        className="p-2 text-slate-600 hover:text-brand-blue rounded-lg hover:bg-slate-100 transition"
+                        title="Edit Kelas"
+                        aria-label={`Edit kelas ${k.nama_kelas}`}
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
@@ -226,96 +233,82 @@ export default function ManajemenKelasPage() {
       </div>
 
       {/* Modal Tambah/Edit Kelas */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl p-6 border border-slate-100 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b">
-              <h3 className="font-bold text-base text-slate-900">
-                {editingKelas ? 'Edit Data Kelas' : 'Tambah Kelas Baru'}
-              </h3>
-              <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600">
-                ✕
-              </button>
+      <Modal
+        isOpen={showModal}
+        onClose={() => {
+          setShowModal(false);
+          resetForm();
+        }}
+        title={editingKelas ? 'Edit Data Kelas' : 'Tambah Kelas Baru'}
+        size="md"
+      >
+        <form onSubmit={handleSave} className="space-y-4">
+          {feedback && (
+            <div
+              className={`p-3.5 rounded-2xl border text-sm flex items-start gap-2.5 ${
+                feedback.type === 'success'
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                  : 'bg-red-50 border-red-200 text-red-800'
+              }`}
+              role="alert"
+            >
+              {feedback.type === 'success' ? (
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+              ) : (
+                <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+              )}
+              <span>{feedback.message}</span>
             </div>
+          )}
 
-            <form onSubmit={handleSave} className="space-y-3 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Nama Kelas *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.nama_kelas}
-                  onChange={(e) => setFormData({ ...formData, nama_kelas: e.target.value })}
-                  placeholder="Contoh: XI RPL 1"
-                  className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue"
-                />
-              </div>
+          <ModalInput
+            label="Nama Kelas"
+            required
+            value={formData.nama_kelas}
+            onChange={(e) => setFormData({ ...formData, nama_kelas: e.target.value })}
+            placeholder="Contoh: XI RPL 1"
+            leftIcon={<Users className="w-5 h-5" />}
+            autoComplete="off"
+          />
 
-              <div>
-                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Tingkat Jenjang *
-                </label>
-                <select
-                  value={formData.tingkat}
-                  onChange={(e) =>
-                    setFormData({ ...formData, tingkat: e.target.value as any })
-                  }
-                  className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue"
-                >
-                  <option value="X">Kelas X</option>
-                  <option value="XI">Kelas XI</option>
-                  <option value="XII">Kelas XII</option>
-                </select>
-              </div>
+          <ModalSelect
+            label="Tingkat Jenjang"
+            required
+            value={formData.tingkat}
+            onChange={(e) => setFormData({ ...formData, tingkat: e.target.value as 'X' | 'XI' | 'XII' })}
+            options={[
+              { value: 'X', label: 'Kelas X' },
+              { value: 'XI', label: 'Kelas XI' },
+              { value: 'XII', label: 'Kelas XII' },
+            ]}
+          />
 
-              <div>
-                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Jurusan / Kompetensi Keahlian *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.jurusan}
-                  onChange={(e) => setFormData({ ...formData, jurusan: e.target.value })}
-                  placeholder="Contoh: Rekayasa Perangkat Lunak"
-                  className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue"
-                />
-              </div>
+          <ModalInput
+            label="Jurusan / Kompetensi Keahlian"
+            required
+            value={formData.jurusan}
+            onChange={(e) => setFormData({ ...formData, jurusan: e.target.value })}
+            placeholder="Contoh: Rekayasa Perangkat Lunak"
+            leftIcon={<Building2 className="w-5 h-5" />}
+            autoComplete="off"
+          />
 
-              <div className="flex items-center gap-2 pt-2">
-                <input
-                  type="checkbox"
-                  id="kelas_aktif"
-                  checked={formData.status_aktif}
-                  onChange={(e) => setFormData({ ...formData, status_aktif: e.target.checked })}
-                  className="w-4 h-4 rounded text-brand-blue"
-                />
-                <label htmlFor="kelas_aktif" className="font-semibold text-slate-800">
-                  Status Kelas Aktif
-                </label>
-              </div>
+          <ModalCheckbox
+            label="Status Kelas Aktif"
+            checked={formData.status_aktif}
+            onChange={(checked) => setFormData({ ...formData, status_aktif: checked })}
+          />
 
-              <div className="flex gap-2.5 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-3 bg-brand-blue hover:bg-brand-blue-700 text-white font-bold rounded-xl transition shadow"
-                >
-                  Simpan Kelas
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+          <ModalActions
+            onCancel={() => {
+              setShowModal(false);
+              resetForm();
+            }}
+            submitLabel={editingKelas ? 'Simpan Perubahan' : 'Simpan Kelas'}
+            submitting={submitting}
+          />
+        </form>
+      </Modal>
     </div>
   );
 }

@@ -1,604 +1,903 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import {
   Utensils,
-  Search,
+  QrCode,
+  Lock,
+  Camera,
   CheckCircle2,
-  Clock,
   AlertTriangle,
   RotateCw,
+  Users,
+  Search,
+  Check,
+  ShieldCheck,
+  Sparkles,
+  ArrowRight,
   UserCheck,
   Building,
-  School,
-  XCircle,
-  HelpCircle,
-  Sparkles,
+  GraduationCap,
+  ExternalLink,
+  X,
+  Bell,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import {
-  getTodayDistribution,
+  getTodayOrganolepticSession,
+  verifyStudentPinOrQr,
+  getClassRoster,
+  submitClassRepresentativeClaim,
+  submitIndividualStudentClaim,
   searchStudentsForConfirmation,
-  confirmStudentSelf,
-  CandidateStudent,
+  SEED_CLASSES,
+  SEED_SCHOOL,
 } from '@/lib/services';
-import { DistribusiMBG, Kelas } from '@/lib/types';
-import { formatWIBTime, formatIndonesianDate, getJakartaDateString } from '@/lib/utils';
+import { OrganolepticTest, StudentRecord, Kelas } from '@/lib/types';
+import { formatIndonesianDate, getJakartaDateString } from '@/lib/utils';
+import { Modal } from '@/components/ui/ModalField';
 
 export default function StudentPortalPage() {
   const [loading, setLoading] = useState(true);
-  const [distribusi, setDistribusi] = useState<DistribusiMBG | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
+  const [session, setSession] = useState<OrganolepticTest | null>(null);
+  const [classes, setClasses] = useState<Kelas[]>(SEED_CLASSES as any);
 
-  // Search & Filters
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedKelasId, setSelectedKelasId] = useState('');
-  const [selectedJurusan, setSelectedJurusan] = useState('');
-  const [kelasList, setKelasList] = useState<Kelas[]>([]);
-  const [jurusanList, setJurusanList] = useState<string[]>([]);
+  // Verification step state
+  const [verificationMode, setVerificationMode] = useState<'qr' | 'pin'>('pin');
+  const [pinDigits, setPinDigits] = useState(['', '', '', '']);
+  const [qrInput, setQrInput] = useState('');
+  const [verifying, setVerifying] = useState(false);
+  const [isVerified, setIsVerified] = useState(false);
+  const [verificationError, setVerificationError] = useState('');
 
-  // Search Results
-  const [searching, setSearching] = useState(false);
-  const [candidates, setCandidates] = useState<CandidateStudent[]>([]);
-  const [hasSearched, setHasSearched] = useState(false);
+  // Camera scanner simulation
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState('');
+  const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Confirmation Modal
-  const [selectedCandidate, setSelectedCandidate] = useState<CandidateStudent | null>(null);
-  const [confirming, setConfirming] = useState(false);
-  const [confirmResult, setConfirmResult] = useState<{
-    success: boolean;
+  // Step 2: Class & Checklist state
+  const [selectedClassId, setSelectedClassId] = useState<string>(SEED_CLASSES[0]?.id || '');
+  const [roster, setRoster] = useState<StudentRecord[]>([]);
+  const [selectedNisns, setSelectedNisns] = useState<Set<string>>(new Set());
+  const [searchRoster, setSearchRoster] = useState('');
+  const [submittingClaim, setSubmittingClaim] = useState(false);
+
+  // Success Confirmation Modal
+  const [claimSuccess, setClaimSuccess] = useState<{
+    berhasilCount: number;
+    dilewatiCount: number;
     message: string;
-    already_received?: boolean;
-    nama_siswa?: string;
-    kelas?: string;
-    waktu_penerimaan?: string;
+    className: string;
   } | null>(null);
 
-  // Load Distribution and Classes
-  const loadData = useCallback(async () => {
+  // Floating notification banner state
+  const [pushNotification, setPushNotification] = useState<{
+    title: string;
+    body: string;
+    timestamp: string;
+  } | null>(null);
+
+  // Load today's active session
+  const loadSession = async () => {
     try {
-      const dist = await getTodayDistribution();
-      setDistribusi(dist);
+      const sess = await getTodayOrganolepticSession();
+      setSession(sess);
 
-      // Fetch active classes for filter
-      const { data: classes } = await supabase
-        .from('kelas')
-        .select('*')
-        .eq('status_aktif', true)
-        .order('nama_kelas');
-
-      if (classes) {
-        setKelasList(classes as Kelas[]);
-        const uniqueJurusan = Array.from(new Set(classes.map((c) => c.jurusan)));
-        setJurusanList(uniqueJurusan);
+      // Fetch classes for this session's school if connected to Supabase
+      try {
+        const { data: classData } = await supabase
+          .from('classes')
+          .select('*')
+          .eq('status_aktif', true)
+          .order('nama_kelas');
+        if (classData && classData.length > 0) {
+          setClasses(classData as any);
+          if (!selectedClassId) setSelectedClassId(classData[0].id);
+        } else {
+          setClasses(SEED_CLASSES as any);
+        }
+      } catch (e) {
+        setClasses(SEED_CLASSES as any);
       }
-    } catch (err) {
-      console.error('Error loading student portal data:', err);
+    } catch (e) {
+      console.error('Error loading session:', e);
+      setClasses(SEED_CLASSES as any);
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
-  }, []);
+  };
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    loadSession();
 
-  // Execute search
-  const handleSearch = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!searchQuery.trim() && !selectedKelasId && !selectedJurusan) {
+    // Listen to simulated push notifications
+    const handlePushEvent = (e: any) => {
+      if (e.detail) {
+        setPushNotification(e.detail);
+        setTimeout(() => setPushNotification(null), 8000);
+      }
+    };
+    window.addEventListener('mbg-push-notification', handlePushEvent);
+    return () => window.removeEventListener('mbg-push-notification', handlePushEvent);
+  }, []);
+
+  // Update roster when class changes or verified
+  useEffect(() => {
+    async function fetchRoster() {
+      if (selectedClassId) {
+        const list = await getClassRoster(selectedClassId);
+        setRoster(list);
+
+        // FR-3.2: "Select All" default hadir (hanya siswa yang belum ambil yang dicentang otomatis)
+        const availableNisns = list.filter((s) => !s.sudah_ambil).map((s) => s.nisn);
+        setSelectedNisns(new Set(availableNisns));
+      }
+    }
+    fetchRoster();
+  }, [selectedClassId, isVerified]);
+
+  // Handle PIN input box typing
+  const handlePinChange = (index: number, value: string) => {
+    if (!/^\d*$/.test(value)) return;
+    const newDigits = [...pinDigits];
+    newDigits[index] = value.slice(-1);
+    setPinDigits(newDigits);
+
+    // Auto-focus next input
+    if (value && index < 3) {
+      const nextInput = document.getElementById(`pin-input-${index + 1}`);
+      nextInput?.focus();
+    }
+
+    // If 4 digits filled, auto-verify
+    if (index === 3 && value && newDigits.every((d) => d !== '')) {
+      handleVerifyCode(newDigits.join(''));
+    }
+  };
+
+  const handlePinKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && !pinDigits[index] && index > 0) {
+      const prevInput = document.getElementById(`pin-input-${index - 1}`);
+      prevInput?.focus();
+    }
+  };
+
+  // Verify PIN or QR Token
+  const handleVerifyCode = async (codeOverride?: string) => {
+    const code = codeOverride || (verificationMode === 'pin' ? pinDigits.join('') : qrInput.trim());
+    if (!code) {
+      setVerificationError('Harap masukkan PIN 4-digit atau scan QR Code');
       return;
     }
 
-    setSearching(true);
-    setHasSearched(true);
-    try {
-      const results = await searchStudentsForConfirmation(
-        searchQuery,
-        selectedKelasId || undefined,
-        selectedJurusan || undefined
-      );
-      setCandidates(results);
-    } catch (err) {
-      console.error('Search error:', err);
-    } finally {
-      setSearching(false);
-    }
-  };
+    setVerifying(true);
+    setVerificationError('');
 
-  // Trigger search on debounce or button click
-  useEffect(() => {
-    if (searchQuery.trim().length >= 2 || selectedKelasId || selectedJurusan) {
-      const timer = setTimeout(() => {
-        handleSearch();
-      }, 350);
-      return () => clearTimeout(timer);
-    } else {
-      setCandidates([]);
-      setHasSearched(false);
-    }
-  }, [searchQuery, selectedKelasId, selectedJurusan]);
-
-  // Submit Confirmation
-  const handleConfirmReceipt = async () => {
-    if (!selectedCandidate) return;
-    setConfirming(true);
     try {
-      const result = await confirmStudentSelf(selectedCandidate.id);
-      setConfirmResult(result);
-      if (result.success) {
-        // Update local candidate list
-        setCandidates((prev) =>
-          prev.map((c) =>
-            c.id === selectedCandidate.id
-              ? { ...c, sudah_menerima: true, waktu_penerimaan: result.waktu_penerimaan }
-              : c
-          )
-        );
+      const res = await verifyStudentPinOrQr(code);
+      if (res.valid && res.session) {
+        setIsVerified(true);
+        setSession(res.session);
+      } else {
+        setVerificationError(res.message);
       }
     } catch (err: any) {
-      setConfirmResult({
-        success: false,
-        message: err.message || 'Terjadi kesalahan sistem.',
-      });
+      setVerificationError(err.message || 'Verifikasi gagal');
     } finally {
-      setConfirming(false);
+      setVerifying(false);
     }
   };
 
-  const handleRefreshStatus = () => {
-    setRefreshing(true);
-    loadData();
+  // Camera scanner toggle
+  const stopCamera = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach((track) => track.stop());
+      videoRef.current.srcObject = null;
+    }
+    setCameraActive(false);
   };
 
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
-        <div className="w-12 h-12 border-4 border-brand-blue border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-slate-600 font-medium">Memeriksa status distribusi MBG...</p>
-      </div>
-    );
-  }
+  const startCamera = async () => {
+    setCameraError('');
+    setCameraActive(true);
 
-  const isArrived = distribusi?.status === 'tiba';
-  const isClosed = distribusi?.status === 'ditutup';
-  const isWaiting = !distribusi || distribusi.status === 'menunggu';
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      setCameraActive(false);
+      setCameraError(
+        'Kamera tidak tersedia. Akses kamera hanya berjalan pada HTTPS atau localhost. Gunakan input PIN sebagai alternatif.'
+      );
+      return;
+    }
+
+    try {
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false,
+        });
+      } catch {
+        // Fallback untuk perangkat yang tidak mendukung facingMode constraint
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      }
+
+      // Tunggu video element ter-mount setelah state cameraActive = true
+      requestAnimationFrame(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play().catch(() => {
+            /* autoplay bisa diblokir; muted + playsInline membantu */
+          });
+        } else {
+          stream.getTracks().forEach((t) => t.stop());
+        }
+      });
+    } catch (err: any) {
+      console.warn('Camera stream not supported or denied:', err);
+      setCameraActive(false);
+      const name = err?.name || '';
+      if (name === 'NotAllowedError' || name === 'SecurityError') {
+        setCameraError('Izin kamera ditolak. Aktifkan izin kamera di pengaturan browser, atau gunakan input PIN.');
+      } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+        setCameraError('Kamera tidak ditemukan pada perangkat ini. Gunakan input PIN sebagai alternatif.');
+      } else if (name === 'NotReadableError') {
+        setCameraError('Kamera sedang dipakai aplikasi lain. Tutup aplikasi tersebut lalu coba lagi.');
+      } else {
+        setCameraError('Gagal membuka kamera. Pastikan akses via HTTPS/localhost dan gunakan input PIN bila tetap gagal.');
+      }
+    }
+  };
+
+  // Pastikan kamera berhenti saat unmount / ganti mode
+  useEffect(() => {
+    return () => {
+      if (videoRef.current && videoRef.current.srcObject) {
+        (videoRef.current.srcObject as MediaStream).getTracks().forEach((t) => t.stop());
+      }
+    };
+  }, []);
+
+  // Simulate scanning today's QR
+  const handleSimulateScan = () => {
+    if (session?.master_qr_token) {
+      setQrInput(session.master_qr_token);
+      handleVerifyCode(session.master_qr_token);
+      stopCamera();
+    } else {
+      setVerificationError('Sesi MBG belum aktif di Guru Piket.');
+    }
+  };
+
+  // Toggle Single Student Checkbox
+  const toggleStudent = (nisn: string, sudahAmbil: boolean) => {
+    if (sudahAmbil) return; // Idempotency: locked!
+    const updated = new Set(selectedNisns);
+    if (updated.has(nisn)) {
+      updated.delete(nisn);
+    } else {
+      updated.add(nisn);
+    }
+    setSelectedNisns(updated);
+  };
+
+  // Toggle Select All
+  const availableStudents = roster.filter((s) => !s.sudah_ambil);
+  const isAllSelected =
+    availableStudents.length > 0 && availableStudents.every((s) => selectedNisns.has(s.nisn));
+
+  const handleToggleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedNisns(new Set());
+    } else {
+      setSelectedNisns(new Set(availableStudents.map((s) => s.nisn)));
+    }
+  };
+
+  // Submit Claim (FR-3.2, FR-3.3)
+  const handleSubmitClaim = async () => {
+    if (selectedNisns.size === 0) {
+      alert('Pilih minimal 1 siswa yang hadir untuk menerima MBG.');
+      return;
+    }
+
+    setSubmittingClaim(true);
+    const pinOrToken = session?.kode_pin_harian || pinDigits.join('') || qrInput;
+    const currentClass = classes.find((c) => c.id === selectedClassId);
+
+    try {
+      const res = await submitClassRepresentativeClaim({
+        classId: selectedClassId,
+        attendedNisns: Array.from(selectedNisns),
+        pinOrToken: pinOrToken,
+      });
+
+      if (res.success) {
+        setClaimSuccess({
+          berhasilCount: res.berhasilCount,
+          dilewatiCount: res.dilewatiCount,
+          message: res.message,
+          className: currentClass?.nama_kelas || 'Kelas',
+        });
+        // Reload roster
+        const updated = await getClassRoster(selectedClassId);
+        setRoster(updated);
+      } else {
+        alert(res.message);
+      }
+    } catch (err: any) {
+      alert(err.message || 'Gagal menyimpan klaim porsi.');
+    } finally {
+      setSubmittingClaim(false);
+    }
+  };
+
+  // Filtered roster by search
+  const filteredRoster = roster.filter(
+    (s) =>
+      s.nama_lengkap.toLowerCase().includes(searchRoster.toLowerCase()) ||
+      s.nisn.includes(searchRoster)
+  );
+
+  const hadirCount = selectedNisns.size;
+  const absenCount = Math.max(0, roster.length - hadirCount);
 
   return (
-    <div className="max-w-2xl mx-auto pb-12">
-      {/* Header Info Sekolah */}
-      <div className="text-center mb-6">
-        <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 text-brand-blue rounded-full text-xs font-semibold mb-2">
-          <School className="w-3.5 h-3.5" />
-          MBG Tracker • {formatIndonesianDate(distribusi?.tanggal || getJakartaDateString())}
-        </div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-brand-navy tracking-tight">
-          Penerimaan Makan Bergizi Gratis
-        </h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Konfirmasi mandiri penerimaan makan siang harian siswa
-        </p>
-      </div>
-
-      {/* KONDISI 1: MBG BELUM TIBA (FR-07, AC-02) */}
-      {isWaiting && (
-        <div className="bg-white rounded-2xl shadow-sm border border-amber-200 overflow-hidden text-center p-6 sm:p-8">
-          <div className="w-20 h-20 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-4 border border-amber-200 shadow-inner">
-            <Clock className="w-10 h-10 animate-pulse" />
-          </div>
-
-          <div className="inline-block px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-bold uppercase tracking-wider mb-2">
-            Status: MBG Belum Tiba
-          </div>
-
-          <h2 className="text-xl sm:text-2xl font-bold text-slate-800 mb-2">
-            Makanan Belum Sampai di Sekolah
-          </h2>
-          <p className="text-slate-600 text-sm max-w-md mx-auto leading-relaxed mb-6">
-            Kedatangan Makan Bergizi Gratis (MBG) hari ini belum dicatat oleh guru atau petugas
-            penanggung jawab. Mohon menunggu arahan bapak/ibu guru di kelas.
-          </p>
-
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+    <div className="space-y-6 pb-24">
+      {/* Floating Push Notification Banner */}
+      {pushNotification && (
+        <div className="fixed top-4 right-4 left-4 sm:left-auto sm:max-w-md z-50 animate-in slide-in-from-top-4">
+          <div className="rounded-2xl border border-blue-300 bg-blue-900/95 text-white p-4 shadow-2xl backdrop-blur-xl flex items-start gap-3">
+            <span className="text-xl">🔔</span>
+            <div className="flex-1">
+              <p className="text-xs font-black uppercase tracking-wider text-sky-200">
+                {pushNotification.title}
+              </p>
+              <p className="text-xs text-white mt-0.5">{pushNotification.body}</p>
+              <span className="text-[10px] text-sky-300 font-mono mt-1 block">
+                {pushNotification.timestamp} WIB
+              </span>
+            </div>
             <button
-              onClick={handleRefreshStatus}
-              disabled={refreshing}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-brand-blue hover:bg-brand-blue-700 text-white font-medium px-6 py-3 rounded-xl transition shadow-sm active:scale-95 disabled:opacity-50"
+              onClick={() => setPushNotification(null)}
+              className="text-sky-300 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition"
+              aria-label="Tutup notifikasi"
             >
-              <RotateCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-              {refreshing ? 'Memeriksa...' : 'Periksa Status Lagi'}
+              <X className="w-4 h-4" />
             </button>
           </div>
-
-          <div className="mt-8 pt-6 border-t border-slate-100 text-xs text-slate-400 flex items-center justify-center gap-1.5">
-            <HelpCircle className="w-4 h-4 text-slate-400" />
-            Pencarian identitas dan konfirmasi akan otomatis aktif setelah guru mencatat kedatangan MBG.
-          </div>
         </div>
       )}
 
-      {/* KONDISI 2: DISTRIBUSI SUDAH DITUTUP */}
-      {isClosed && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden text-center p-6 sm:p-8">
-          <div className="w-16 h-16 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center mx-auto mb-4 border border-slate-200">
-            <XCircle className="w-8 h-8 text-slate-500" />
+      {/* Top Banner Glassmorphism Header */}
+      <div className="rounded-3xl border border-white/20 bg-gradient-to-r from-blue-950/90 via-blue-900/80 to-indigo-950/90 p-6 sm:p-8 text-white shadow-xl backdrop-blur-xl relative overflow-hidden">
+        <div className="absolute -top-12 -right-12 w-48 h-48 bg-blue-600/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="rounded-full bg-cyan-400/20 px-3 py-0.5 text-[11px] font-bold text-cyan-200 border border-cyan-400/30">
+                PWA SISWA & PERWAKILAN KELAS
+              </span>
+              <span className="text-xs text-sky-300">•</span>
+              <span className="text-xs text-sky-200">
+                {formatIndonesianDate(getJakartaDateString())}
+              </span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+              Klaim Penerimaan MBG (FR-3.1, FR-3.2)
+            </h1>
+            <p className="text-xs sm:text-sm text-sky-200 mt-1 max-w-xl">
+              Verifikasi Master QR / PIN Harian dari Guru Piket, lalu konfirmasi checklist siswa yang hadir
+              mengambil makanan.
+            </p>
           </div>
 
-          <div className="inline-block px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-bold uppercase tracking-wider mb-2">
-            Status: Distribusi Ditutup
+          <div className="flex items-center gap-2.5">
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold border border-white/20 backdrop-blur-md transition"
+            >
+              <Users className="w-3.5 h-3.5 text-cyan-300" />
+              Live Monitor
+            </Link>
+            <Link
+              href="/kedatangan"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md transition"
+            >
+              <Utensils className="w-3.5 h-3.5" />
+              Piket Guru
+            </Link>
           </div>
-
-          <h2 className="text-xl font-bold text-slate-800 mb-2">
-            Distribusi Hari Ini Telah Berakhir
-          </h2>
-          <p className="text-slate-600 text-sm max-w-md mx-auto mb-4">
-            Pencatatan konfirmasi penerimaan MBG untuk tanggal ini telah ditutup. Bila Anda belum
-            tercatat, silakan hubungi guru pembina atau petugas MBG sekolah.
-          </p>
         </div>
-      )}
+      </div>
 
-      {/* KONDISI 3: MBG SUDAH TIBA (FR-02 - FR-09) */}
-      {isArrived && (
-        <div className="space-y-6">
-          {/* Status Banner Tiba */}
-          <div className="bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-2xl p-4 sm:p-5 shadow-sm flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center">
-                <Utensils className="w-5 h-5 text-white" />
+      {/* STEP 1: DUAL VERIFICATION (FR-3.1 QR SCANNER & 4-DIGIT PIN FALLBACK) */}
+      {!isVerified ? (
+        <div className="max-w-xl mx-auto space-y-6">
+          <div className="rounded-3xl border border-white/20 bg-white/80 p-6 sm:p-8 shadow-xl backdrop-blur-xl space-y-6">
+            <div className="text-center space-y-1.5">
+              <div className="w-12 h-12 mx-auto rounded-2xl bg-gradient-to-br from-brand-blue to-cyan-500 text-white flex items-center justify-center shadow-lg shadow-blue-500/20">
+                <ShieldCheck className="w-6 h-6" />
               </div>
-              <div>
-                <div className="text-xs font-medium text-emerald-100">Status MBG Hari Ini</div>
-                <div className="font-bold text-base sm:text-lg">Makanan Sudah Tiba di Sekolah</div>
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-xs text-emerald-100">Waktu Kedatangan</div>
-              <div className="font-mono font-bold text-sm sm:text-base">
-                {formatWIBTime(distribusi?.waktu_kedatangan)}
-              </div>
-            </div>
-          </div>
-
-          {/* Form Pencarian Siswa */}
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sm:p-6">
-            <div className="mb-4">
-              <h2 className="text-lg font-bold text-brand-navy">Konfirmasi Penerimaan</h2>
-              <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-                Masukkan nama lengkap Anda untuk mencari data siswa. Gunakan filter kelas dan
-                jurusan bila terdapat nama yang serupa.
+              <h2 className="text-lg font-black text-slate-900">
+                Verifikasi Lokasi & Hak Ambil MBG
+              </h2>
+              <p className="text-xs text-slate-500 max-w-md mx-auto">
+                Scan Master QR Code di meja Guru Piket atau masukkan 4-digit PIN harian sebagai fallback
+                jika kamera buram/rusak.
               </p>
             </div>
 
-            <div className="space-y-3">
-              {/* Nama Lengkap Input */}
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                  <Search className="w-5 h-5" />
-                </div>
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Ketik nama lengkap Anda..."
-                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-base text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue transition"
-                />
-              </div>
-
-              {/* Filter Kelas & Jurusan (FR-03 & FR-04) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
-                    Filter Kelas
-                  </label>
-                  <select
-                    value={selectedKelasId}
-                    onChange={(e) => setSelectedKelasId(e.target.value)}
-                    className="w-full py-2.5 px-3 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue"
-                  >
-                    <option value="">Semua Kelas</option>
-                    {kelasList.map((k) => (
-                      <option key={k.id} value={k.id}>
-                        {k.nama_kelas}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
-                    Filter Jurusan
-                  </label>
-                  <select
-                    value={selectedJurusan}
-                    onChange={(e) => setSelectedJurusan(e.target.value)}
-                    className="w-full py-2.5 px-3 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue"
-                  >
-                    <option value="">Semua Jurusan</option>
-                    {jurusanList.map((j) => (
-                      <option key={j} value={j}>
-                        {j}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Hasil Pencarian (FR-05) */}
-          {searching && (
-            <div className="bg-white rounded-2xl p-8 border border-slate-200 text-center text-slate-500 text-sm flex items-center justify-center gap-2">
-              <div className="w-5 h-5 border-2 border-brand-blue border-t-transparent rounded-full animate-spin"></div>
-              Mencari data siswa...
-            </div>
-          )}
-
-          {!searching && hasSearched && candidates.length === 0 && (
-            <div className="bg-white rounded-2xl p-8 border border-slate-200 text-center">
-              <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
-                <Search className="w-6 h-6" />
-              </div>
-              <h3 className="font-bold text-slate-800 text-base mb-1">Data Siswa Tidak Ditemukan</h3>
-              <p className="text-sm text-slate-500 max-w-sm mx-auto mb-3">
-                Pastikan ejaan nama Anda sudah tepat atau coba pilih kelas Anda.
-              </p>
-              <div className="text-xs bg-amber-50 text-amber-800 p-3 rounded-xl border border-amber-200 inline-block">
-                Jika data Anda tetap tidak muncul, hubungi bapak/ibu guru untuk dicatat langsung.
-              </div>
-            </div>
-          )}
-
-          {!searching && candidates.length > 0 && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between px-1">
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  Ditemukan {candidates.length} Siswa Cocok
-                </span>
-                <span className="text-xs text-slate-400">Pilih nama Anda di bawah</span>
-              </div>
-
-              <div className="space-y-2.5">
-                {candidates.map((c) => (
-                  <div
-                    key={c.id}
-                    className={`rounded-2xl border p-4 transition ${
-                      c.sudah_menerima
-                        ? 'bg-slate-50 border-slate-200'
-                        : 'bg-white border-slate-200 hover:border-brand-blue hover:shadow-md cursor-pointer'
-                    }`}
-                    onClick={() => {
-                      if (!c.sudah_menerima) {
-                        setSelectedCandidate(c);
-                        setConfirmResult(null);
-                      }
-                    }}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-bold text-slate-900 text-base truncate">
-                            {c.nama}
-                          </h4>
-                          {c.sudah_menerima && (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                              Sudah Menerima
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
-                          <span className="inline-flex items-center gap-1 font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
-                            <Building className="w-3 h-3 text-slate-400" />
-                            {c.nama_kelas}
-                          </span>
-                          <span>•</span>
-                          <span>{c.jurusan}</span>
-                        </div>
-                        {c.sudah_menerima && c.waktu_penerimaan && (
-                          <div className="text-[11px] text-emerald-700 mt-1 font-mono">
-                            Dikonfirmasi: {formatWIBTime(c.waktu_penerimaan)}
-                          </div>
-                        )}
-                      </div>
-
-                      <div>
-                        {c.sudah_menerima ? (
-                          <div className="text-xs text-slate-400 font-medium px-3 py-1.5 bg-slate-200/60 rounded-xl">
-                            Tercatat
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedCandidate(c);
-                              setConfirmResult(null);
-                            }}
-                            className="bg-brand-blue hover:bg-brand-blue-700 text-white text-xs sm:text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm transition active:scale-95"
-                          >
-                            Pilih
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* MODAL KONFIRMASI PENERIMAAN SISWA (FR-08, BR-03, AC-06, AC-07) */}
-      {selectedCandidate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-slate-100 animate-scaleUp">
-            {/* Modal Header */}
-            <div className="bg-brand-navy p-5 text-white flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-brand-blue flex items-center justify-center">
-                  <UserCheck className="w-4 h-4 text-white" />
-                </div>
-                <h3 className="font-bold text-base">Konfirmasi Identitas</h3>
-              </div>
+            {/* Mode Switcher Tabs */}
+            <div className="grid grid-cols-2 p-1.5 bg-slate-100/90 rounded-2xl border border-slate-200">
               <button
+                type="button"
                 onClick={() => {
-                  if (!confirming) {
-                    setSelectedCandidate(null);
-                    setConfirmResult(null);
-                  }
+                  setVerificationMode('pin');
+                  stopCamera();
                 }}
-                className="text-slate-300 hover:text-white p-1 rounded-lg"
+                className={`py-2.5 text-xs font-bold rounded-xl transition flex items-center justify-center gap-2 ${
+                  verificationMode === 'pin'
+                    ? 'bg-white text-brand-blue shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
               >
-                ✕
+                <Lock className="w-4 h-4" />
+                Input PIN 4-Digit
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setVerificationMode('qr');
+                  startCamera();
+                }}
+                className={`py-2.5 text-xs font-bold rounded-xl transition flex items-center justify-center gap-2 ${
+                  verificationMode === 'qr'
+                    ? 'bg-white text-brand-blue shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <QrCode className="w-4 h-4" />
+                Scan Master QR
               </button>
             </div>
 
-            {/* Modal Body */}
-            <div className="p-6">
-              {!confirmResult ? (
-                <>
-                  <div className="text-center mb-5">
-                    <p className="text-xs uppercase tracking-wider font-semibold text-slate-400 mb-1">
-                      Identitas Anda
-                    </p>
-                    <div className="text-xl font-extrabold text-slate-900">
-                      {selectedCandidate.nama}
-                    </div>
-                    <div className="inline-flex items-center gap-1.5 mt-2 px-3 py-1 bg-blue-50 text-brand-blue rounded-full text-xs font-semibold">
-                      <span>{selectedCandidate.nama_kelas}</span>
-                      <span>•</span>
-                      <span>{selectedCandidate.jurusan}</span>
-                    </div>
-                  </div>
+            {/* Error Feedback */}
+            {verificationError && (
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+                <span>{verificationError}</span>
+              </div>
+            )}
 
-                  <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-4 text-xs leading-relaxed mb-6">
-                    <div className="font-semibold flex items-center gap-1.5 text-amber-800 mb-1">
-                      <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
-                      Penting untuk diperhatikan:
-                    </div>
-                    Pastikan nama dan kelas di atas benar-benar adalah data Anda. Tindakan ini akan
-                    mencatat waktu penerimaan Anda secara permanen dengan jam server sekolah.
-                  </div>
-
-                  <div className="space-y-2.5">
-                    <button
-                      onClick={handleConfirmReceipt}
-                      disabled={confirming}
-                      className="w-full py-4 bg-brand-blue hover:bg-brand-blue-700 active:scale-[0.98] text-white font-bold rounded-2xl shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 text-base transition disabled:opacity-50"
-                    >
-                      {confirming ? (
-                        <>
-                          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                          Menyimpan ke Server...
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle2 className="w-5 h-5" />
-                          Saya Sudah Menerima MBG
-                        </>
-                      )}
-                    </button>
-
-                    <button
-                      onClick={() => setSelectedCandidate(null)}
-                      disabled={confirming}
-                      className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-2xl text-sm transition"
-                    >
-                      Bukan Data Saya (Kembali)
-                    </button>
-                  </div>
-                </>
-              ) : confirmResult.success ? (
-                /* Sukses Konfirmasi */
-                <div className="text-center py-2">
-                  <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-4 border border-emerald-200 shadow-inner">
-                    <CheckCircle2 className="w-9 h-9" />
-                  </div>
-                  <h4 className="text-xl font-bold text-slate-800 mb-1">
-                    Konfirmasi Berhasil!
-                  </h4>
-                  <p className="text-xs text-slate-500 mb-5">
-                    Data penerimaan Anda telah tersimpan dengan aman di server sekolah.
-                  </p>
-
-                  <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 text-left text-xs space-y-2 mb-6">
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Nama Siswa:</span>
-                      <span className="font-semibold text-slate-800">
-                        {confirmResult.nama_siswa || selectedCandidate.nama}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Kelas:</span>
-                      <span className="font-semibold text-slate-800">
-                        {confirmResult.kelas || selectedCandidate.nama_kelas}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Waktu Tercatat:</span>
-                      <span className="font-mono font-bold text-brand-blue">
-                        {formatWIBTime(confirmResult.waktu_penerimaan)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Sumber:</span>
-                      <span className="font-medium text-slate-700">Konfirmasi Mandiri Siswa</span>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      setSelectedCandidate(null);
-                      setConfirmResult(null);
-                    }}
-                    className="w-full py-3.5 bg-brand-blue hover:bg-brand-blue-700 text-white font-bold rounded-2xl text-sm shadow transition"
-                  >
-                    Tutup & Selesai
-                  </button>
+            {/* PIN 4-DIGIT INPUT */}
+            {verificationMode === 'pin' && (
+              <div className="space-y-4">
+                <div className="flex justify-center gap-3">
+                  {pinDigits.map((digit, idx) => (
+                    <input
+                      key={idx}
+                      id={`pin-input-${idx}`}
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={1}
+                      value={digit}
+                      onChange={(e) => handlePinChange(idx, e.target.value)}
+                      onKeyDown={(e) => handlePinKeyDown(idx, e)}
+                      className="w-14 h-16 text-center text-3xl font-black text-brand-navy rounded-2xl border-2 border-slate-200 bg-white focus:border-brand-blue focus:outline-none focus:ring-4 focus:ring-brand-blue/15 shadow-sm transition"
+                    />
+                  ))}
                 </div>
-              ) : (
-                /* Gagal / Sudah Pernah Menerima */
-                <div className="text-center py-2">
-                  <div className="w-16 h-16 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto mb-4 border border-amber-200">
-                    <AlertTriangle className="w-8 h-8" />
-                  </div>
-                  <h4 className="text-lg font-bold text-slate-800 mb-1">
-                    {confirmResult.already_received
-                      ? 'Sudah Pernah Menerima'
-                      : 'Konfirmasi Tidak Berhasil'}
-                  </h4>
-                  <p className="text-xs text-slate-600 mb-4 leading-relaxed">
-                    {confirmResult.message}
-                  </p>
 
-                  {confirmResult.waktu_penerimaan && (
-                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-6 text-xs text-slate-700">
-                      Tercatat pada:{' '}
-                      <span className="font-mono font-bold text-brand-blue">
-                        {formatWIBTime(confirmResult.waktu_penerimaan)}
-                      </span>
+                {/* Quick Auto-Fill for Testing if Session Exists */}
+                {session && (
+                  <div className="text-center pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const digits = session.kode_pin_harian.split('');
+                        setPinDigits(digits);
+                        handleVerifyCode(session.kode_pin_harian);
+                      }}
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-blue hover:underline bg-blue-50 px-3 py-1.5 rounded-full border border-blue-100"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      Gunakan PIN Hari Ini: [{session.kode_pin_harian}] (1-Klik Tes)
+                    </button>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => handleVerifyCode()}
+                  disabled={verifying || pinDigits.some((d) => !d)}
+                  className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-blue-700 to-indigo-800 text-white font-bold text-sm shadow-lg shadow-blue-900/20 active:scale-[0.98] transition disabled:opacity-50"
+                >
+                  {verifying ? 'Memverifikasi...' : 'Verifikasi PIN & Lanjut Roster'}
+                </button>
+              </div>
+            )}
+
+            {/* QR SCANNER */}
+            {verificationMode === 'qr' && (
+              <div className="space-y-4">
+                <div className="relative mx-auto max-w-sm rounded-3xl overflow-hidden bg-black aspect-square flex flex-col items-center justify-center border-4 border-slate-800 shadow-inner">
+                  {cameraActive ? (
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="text-center p-6 space-y-2 text-slate-400">
+                      <Camera className="w-10 h-10 mx-auto text-slate-500" />
+                      <p className="text-xs">Kamera siap untuk memindai Master QR</p>
                     </div>
                   )}
 
-                  <button
-                    onClick={() => {
-                      setSelectedCandidate(null);
-                      setConfirmResult(null);
-                    }}
-                    className="w-full py-3 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded-2xl text-sm transition"
-                  >
-                    Kembali
-                  </button>
+                  {/* Viewfinder Target Overlay */}
+                  <div className="absolute inset-8 border-2 border-cyan-400/70 rounded-2xl pointer-events-none flex flex-col justify-between p-2">
+                    <div className="flex justify-between">
+                      <span className="w-4 h-4 border-t-2 border-l-2 border-cyan-400" />
+                      <span className="w-4 h-4 border-t-2 border-r-2 border-cyan-400" />
+                    </div>
+                    <p className="text-[10px] text-cyan-200 text-center font-bold bg-black/60 py-0.5 rounded-md px-2 self-center">
+                      Arahkan ke Master QR Guru Piket
+                    </p>
+                    <div className="flex justify-between">
+                      <span className="w-4 h-4 border-b-2 border-l-2 border-cyan-400" />
+                      <span className="w-4 h-4 border-b-2 border-r-2 border-cyan-400" />
+                    </div>
+                  </div>
                 </div>
-              )}
+
+                {cameraError && (
+                  <div
+                    className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-800 text-sm flex items-start gap-2.5"
+                    role="alert"
+                  >
+                    <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                    <span>{cameraError}</span>
+                  </div>
+                )}
+
+                {/* Instant Scan Simulation Button */}
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={handleSimulateScan}
+                    className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white font-bold text-sm shadow-md transition flex items-center justify-center gap-2 focus:outline-none focus:ring-4 focus:ring-emerald-500/30 focus:ring-offset-2"
+                  >
+                    <CheckCircle2 className="w-5 h-5" />
+                    Simulasi Scan Berhasil (Gunakan Master Token)
+                  </button>
+
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Atau paste token QR manual..."
+                      value={qrInput}
+                      onChange={(e) => setQrInput(e.target.value)}
+                      aria-label="Token QR manual"
+                      className="flex-1 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-base focus:outline-none focus:ring-4 focus:ring-brand-blue/20 focus:border-brand-blue"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleVerifyCode(qrInput)}
+                      className="px-4 py-2 rounded-xl bg-brand-blue text-white text-xs font-bold"
+                    >
+                      Cek
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        /* STEP 2: INTERACTIVE CHECKLIST ROSTER & IDEMPOTENCY LOCK (FR-3.2) */
+        <div className="space-y-6">
+          {/* Top Verification Success Banner */}
+          <div className="rounded-3xl border border-emerald-200 bg-emerald-50/80 p-4 sm:p-5 shadow-sm backdrop-blur-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-bold shadow-md">
+                <Check className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-emerald-800">
+                  Verifikasi Berhasil • Transit MBG Dibuka
+                </p>
+                <p className="text-xs text-emerald-950 font-medium">
+                  {SEED_SCHOOL.nama_sekolah} • SPPG: {SEED_SCHOOL.nama_sppg_mitra}
+                </p>
+              </div>
             </div>
+
+            <button
+              onClick={() => {
+                setIsVerified(false);
+                setPinDigits(['', '', '', '']);
+              }}
+              className="text-xs font-bold text-slate-600 hover:text-slate-900 underline self-start sm:self-center"
+            >
+              Ganti Kode / Sesi Lain
+            </button>
+          </div>
+
+          {/* Class Selector Bar */}
+          <div className="rounded-3xl border border-white/20 bg-white/70 p-4 sm:p-5 shadow-lg backdrop-blur-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-100 text-brand-blue">
+                <Users className="h-5 w-5" />
+              </div>
+              <div>
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  Pilih Kelas Distribusi
+                </span>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <select
+                    value={selectedClassId}
+                    onChange={(e) => setSelectedClassId(e.target.value)}
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-black text-brand-navy shadow-sm focus:border-brand-blue focus:outline-none focus:ring-2 focus:ring-brand-blue/20"
+                  >
+{classes.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.nama_kelas} ({c.jurusan} - {c.total_siswa_dapodik} Siswa)
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Search inside roster */}
+            <div className="relative max-w-xs w-full">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchRoster}
+                onChange={(e) => setSearchRoster(e.target.value)}
+                placeholder="Cari nama atau NISN siswa..."
+                className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-medium focus:border-brand-blue focus:outline-none focus:ring-2 focus:ring-brand-blue/20"
+              />
+            </div>
+          </div>
+
+          {/* Roster Table Card */}
+          <div className="rounded-3xl border border-white/20 bg-white/80 p-5 sm:p-6 shadow-xl backdrop-blur-xl space-y-4">
+            {/* Table Action Controls */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/60 pb-3">
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={handleToggleSelectAll}
+                  className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold border transition ${
+                    isAllSelected
+                      ? 'bg-brand-blue text-white border-brand-blue'
+                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  {isAllSelected ? 'Batalkan Pilih Semua' : 'Pilih Semua Hadir (Default)'}
+                </button>
+                <span className="text-xs text-slate-500">
+                  {selectedNisns.size} dari {roster.length} terpilih
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
+                <span className="flex items-center gap-1 text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                  <AlertTriangle className="w-3 h-3 text-amber-600" />
+                  Indikator Alergi Makanan
+                </span>
+              </div>
+            </div>
+
+            {/* Student Roster List */}
+            <div className="divide-y divide-slate-100">
+              {filteredRoster.map((student) => {
+                const isSelected = selectedNisns.has(student.nisn);
+                const isAlreadyClaimed = student.sudah_ambil;
+
+                return (
+                  <div
+                    key={student.nisn}
+                    onClick={() => toggleStudent(student.nisn, isAlreadyClaimed)}
+                    className={`py-3.5 px-3 rounded-2xl flex items-center justify-between gap-3 transition cursor-pointer select-none ${
+                      isAlreadyClaimed
+                        ? 'opacity-60 bg-slate-50/80 cursor-not-allowed'
+                        : isSelected
+                        ? 'bg-blue-50/60 border border-blue-200/60'
+                        : 'hover:bg-slate-50'
+                    }`}
+                  >
+                    {/* Left: Checkbox & Name */}
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className={`w-5 h-5 rounded-lg border flex items-center justify-center transition flex-shrink-0 ${
+                          isAlreadyClaimed
+                            ? 'bg-emerald-600 border-emerald-600 text-white'
+                            : isSelected
+                            ? 'bg-brand-blue border-brand-blue text-white'
+                            : 'border-slate-300 bg-white'
+                        }`}
+                      >
+                        {(isSelected || isAlreadyClaimed) && <Check className="w-3.5 h-3.5" />}
+                      </div>
+
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span
+                            className={`text-xs font-bold ${
+                              isAlreadyClaimed ? 'text-slate-500 line-through' : 'text-slate-900'
+                            }`}
+                          >
+                            {student.nama_lengkap}
+                          </span>
+                          {student.is_perwakilan_kelas && (
+                            <span className="text-[10px] font-bold bg-purple-100 text-purple-700 px-2 py-0.2 rounded-full border border-purple-200">
+                              ⭐ Perwakilan Kelas
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-500 font-mono">
+                          NISN: {student.nisn} • {student.nama_kelas}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Right: Allergy Warning or Idempotency Lock Badge */}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {/* Allergy Indicator (FR-3.2) */}
+                      {student.alergi_makanan && (
+                        <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-xl border border-amber-200">
+                          <AlertTriangle className="w-3 h-3 text-amber-600" />
+                          {student.alergi_makanan}
+                        </span>
+                      )}
+
+                      {/* Idempotency Lock (FR-3.2) */}
+                      {isAlreadyClaimed ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          Sudah Ambil
+                        </span>
+                      ) : (
+                        <span
+                          className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-lg ${
+                            isSelected ? 'text-brand-blue' : 'text-slate-400'
+                          }`}
+                        >
+                          {isSelected ? (
+                            <>
+                              <Check className="w-3 h-3" />
+                              Hadir
+                            </>
+                          ) : (
+                            'Absen'
+                          )}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Sticky Bottom Counter & Submit Bar (FR-3.2, FR-3.3) */}
+          <div className="sticky bottom-4 z-30 rounded-3xl border border-white/20 bg-slate-900/90 text-white p-4 sm:p-5 shadow-2xl backdrop-blur-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div>
+                <span className="block text-[11px] text-sky-200 font-bold uppercase tracking-wider">
+                  Rekapitulasi Kehadiran Kelas
+                </span>
+                <p className="text-sm font-black text-white mt-0.5">
+                  <span className="text-emerald-400">Hadir = {hadirCount} Siswa</span>
+                  <span className="text-slate-400 mx-2">|</span>
+                  <span className="text-amber-300">Absen (Sisa) = {absenCount} Siswa</span>
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleSubmitClaim}
+              disabled={submittingClaim || hadirCount === 0}
+              className="py-3 px-6 rounded-2xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white font-black text-sm shadow-xl shadow-red-900/40 active:scale-[0.98] transition flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {submittingClaim ? (
+                <>
+                  <RotateCw className="w-4 h-4 animate-spin" />
+                  Mengunci Rekap...
+                </>
+              ) : (
+                <>
+                  <Utensils className="w-4 h-4" />
+                  Konfirmasi Terima MBG ({hadirCount} Porsi)
+                </>
+              )}
+            </button>
           </div>
         </div>
       )}
+
+      {/* Celebratory Success Modal */}
+      <Modal
+        isOpen={!!claimSuccess}
+        onClose={() => setClaimSuccess(null)}
+        title="Penerimaan MBG Berhasil Dikunci!"
+        size="md"
+        className="text-center"
+      >
+        {claimSuccess && (
+          <div className="space-y-5">
+            <div className="w-16 h-16 mx-auto rounded-3xl bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+              <CheckCircle2 className="w-8 h-8" />
+            </div>
+
+            <div>
+              <p className="text-base text-slate-600 mt-1">
+                Klaim untuk kelas <strong>{claimSuccess.className}</strong> telah dicatat ke audit
+                anti-fraud dan feed live monitoring Guru Piket.
+              </p>
+            </div>
+
+            <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4 text-left space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-600">Porsi Terserap:</span>
+                <span className="font-bold text-emerald-600">{claimSuccess.berhasilCount} Porsi</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-600">Porsi Dilewati (Sudah Ambil):</span>
+                <span className="font-bold text-slate-700">{claimSuccess.dilewatiCount} Porsi</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-600">Waktu Validasi:</span>
+                <span className="font-bold text-slate-700">
+                  {new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}{' '}
+                  WIB
+                </span>
+              </div>
+            </div>
+
+            {/* Smart EdTech CRM Beasiswa UBSI Banner (DBD Section 3.3) */}
+            <div className="rounded-2xl bg-gradient-to-br from-blue-900 to-indigo-950 p-4 text-white text-left space-y-2 shadow-md">
+              <div className="flex items-center gap-2">
+                <GraduationCap className="w-5 h-5 text-cyan-300" />
+                <span className="text-xs font-black uppercase text-cyan-200">
+                  Info Kuliah & Beasiswa UBSI
+                </span>
+              </div>
+              <p className="text-sm text-sky-100 leading-snug">
+                Dapatkan beasiswa kuliah hingga 100% di Universitas Bina Sarana Informatika untuk lulusan
+                SMK/SMA berprestasi!
+              </p>
+              <a
+                href="https://bsi.ac.id"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-bold shadow-md transition"
+              >
+                Daftar PMB UBSI
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setClaimSuccess(null)}
+              className="w-full py-3.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold transition"
+            >
+              Tutup & Selesai
+            </button>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
-

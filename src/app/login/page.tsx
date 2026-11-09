@@ -57,8 +57,8 @@ export default function LoginPage() {
   };
 
   // Helper to register demo / initial admin account in Supabase Auth if needed
-  const handleCreateInitialAccount = async (role: 'admin' | 'guru') => {
-    const targetEmail = role === 'admin' ? 'admin@mbg.sekolah.id' : 'guru@mbg.sekolah.id';
+  const handleCreateInitialAccount = async (role: 'super_admin' | 'guru_piket') => {
+    const targetEmail = role === 'super_admin' ? 'admin@mbg.sekolah.id' : 'guru@mbg.sekolah.id';
     const targetPassword = 'Password123!';
     setEmail(targetEmail);
     setPassword(targetPassword);
@@ -73,7 +73,7 @@ export default function LoginPage() {
         password: targetPassword,
         options: {
           data: {
-            nama: role === 'admin' ? 'Administrator Sekolah' : 'Budi Santoso (Guru)',
+            nama: role === 'super_admin' ? 'Super Administrator' : 'Budi Santoso (Guru Piket)',
             peran: role,
           },
         },
@@ -138,41 +138,45 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              <label htmlFor="login-email" className="block text-sm font-bold text-slate-800 mb-1.5">
                 Alamat Email
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                  <Mail className="w-4 h-4" />
+                  <Mail className="w-5 h-5" />
                 </div>
                 <input
+                  id="login-email"
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="nama@sekolah.sch.id"
-                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue"
+                  autoComplete="email"
+                  className="w-full pl-11 pr-4 py-3.5 bg-white border border-slate-300 rounded-2xl text-base text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-brand-blue/20 focus:border-brand-blue transition"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              <label htmlFor="login-password" className="block text-sm font-bold text-slate-800 mb-1.5">
                 Kata Sandi
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                  <Lock className="w-4 h-4" />
+                  <Lock className="w-5 h-5" />
                 </div>
                 <input
+                  id="login-password"
                   type="password"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue"
+                  autoComplete="current-password"
+                  className="w-full pl-11 pr-4 py-3.5 bg-white border border-slate-300 rounded-2xl text-base text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-brand-blue/20 focus:border-brand-blue transition"
                 />
               </div>
             </div>
@@ -180,17 +184,17 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3.5 bg-brand-blue hover:bg-brand-blue-700 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center gap-2 text-sm disabled:opacity-50 mt-2"
+              className="w-full py-4 bg-brand-blue hover:bg-brand-blue-700 text-white font-bold rounded-2xl shadow-md transition flex items-center justify-center gap-2 text-base disabled:opacity-50 mt-2 focus:outline-none focus:ring-4 focus:ring-brand-blue/30 focus:ring-offset-2"
             >
               {loading ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                   Memproses Masuk...
                 </>
               ) : (
                 <>
                   Masuk ke Aplikasi
-                  <ArrowRight className="w-4 h-4" />
+                  <ArrowRight className="w-5 h-5" />
                 </>
               )}
             </button>
@@ -201,24 +205,24 @@ export default function LoginPage() {
             <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-2">
               Akun Percobaan / Setup Cepat
             </span>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2.5">
               <button
                 type="button"
-                onClick={() => handleCreateInitialAccount('admin')}
-                className="py-2 px-3 text-xs font-medium bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-lg border border-amber-200 transition text-center"
+                onClick={() => handleCreateInitialAccount('super_admin')}
+                className="py-3 px-3 text-sm font-semibold bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-xl border border-amber-200 transition text-center"
               >
                 Inisiasi Admin
               </button>
               <button
                 type="button"
-                onClick={() => handleCreateInitialAccount('guru')}
-                className="py-2 px-3 text-xs font-medium bg-blue-50 hover:bg-blue-100 text-blue-800 rounded-lg border border-blue-200 transition text-center"
+                onClick={() => handleCreateInitialAccount('guru_piket')}
+                className="py-3 px-3 text-sm font-semibold bg-blue-50 hover:bg-blue-100 text-blue-800 rounded-xl border border-blue-200 transition text-center"
               >
                 Inisiasi Guru
               </button>
             </div>
-            <p className="text-[11px] text-slate-400 mt-2">
-              Password default untuk akun inisiasi: <code className="font-mono">Password123!</code>
+            <p className="text-sm text-slate-500 mt-2">
+              Password default untuk akun inisiasi: <code className="font-mono font-bold">Password123!</code>
             </p>
           </div>
 

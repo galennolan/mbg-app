@@ -2,23 +2,31 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
-import { Users, UserPlus, Shield, ShieldCheck, Mail, CheckCircle2, AlertTriangle, Edit2 } from 'lucide-react';
+import { Users, UserPlus, Shield, ShieldCheck, Mail, CheckCircle2, AlertTriangle, Edit2, KeyRound } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import { Pengguna, UserRole } from '@/lib/types';
 import { logActivity } from '@/lib/services';
 import { formatIndonesianDate } from '@/lib/utils';
+import { Modal, ModalInput, ModalSelect, ModalActions } from '@/components/ui/ModalField';
 
 export default function ManajemenPenggunaPage() {
-  const { user } = useAuth();
+  const { user, role, loading: authLoading } = useAuth();
   const [usersList, setUsersList] = useState<Pengguna[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const router = require('next/navigation').useRouter();
+
+  useEffect(() => {
+    if (!authLoading && role !== 'super_admin') {
+      router.push('/dashboard');
+    }
+  }, [role, authLoading, router]);
 
   const [formData, setFormData] = useState({
     nama: '',
     email: '',
     password: '',
-    peran: 'guru' as UserRole,
+    peran: 'guru_piket' as UserRole,
   });
 
   const [submitting, setSubmitting] = useState(false);
@@ -106,7 +114,7 @@ export default function ManajemenPenggunaPage() {
         message: `Akun ${formData.peran.toUpperCase()} untuk ${formData.nama} berhasil dibuat!`,
       });
       setShowModal(false);
-      setFormData({ nama: '', email: '', password: '', peran: 'guru' });
+      setFormData({ nama: '', email: '', password: '', peran: 'guru_piket' });
       loadUsers();
     } catch (err: any) {
       setFeedback({ type: 'error', message: err.message || 'Gagal menambahkan akun' });
@@ -160,14 +168,18 @@ export default function ManajemenPenggunaPage() {
           <h1 className="text-2xl sm:text-3xl font-black text-brand-navy tracking-tight">
             Manajemen Guru & Petugas
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-base text-slate-600 mt-1">
             Kelola hak akses akun guru dan administrator aplikasi MBG Tracker
           </p>
         </div>
 
         <button
-          onClick={() => setShowModal(true)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-brand-blue hover:bg-brand-blue-700 text-white text-xs font-bold rounded-xl shadow-sm transition"
+          onClick={() => {
+            setFeedback(null);
+            setFormData({ nama: '', email: '', password: '', peran: 'guru_piket' });
+            setShowModal(true);
+          }}
+          className="inline-flex items-center gap-2 px-4 py-3 bg-brand-blue hover:bg-brand-blue-700 text-white text-sm font-bold rounded-xl shadow-sm transition"
         >
           <UserPlus className="w-4 h-4" />
           Tambah Akun Petugas
@@ -205,7 +217,7 @@ export default function ManajemenPenggunaPage() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200">
+              <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-600 border-b border-slate-200">
                 <tr>
                   <th className="py-3 px-4">Nama Lengkap</th>
                   <th className="py-3 px-4">Email Akun</th>
@@ -218,31 +230,33 @@ export default function ManajemenPenggunaPage() {
               <tbody className="divide-y divide-slate-100">
                 {usersList.map((u) => (
                   <tr key={u.id} className="hover:bg-slate-50/80 transition">
-                    <td className="py-3.5 px-4 font-bold text-slate-900">{u.nama}</td>
-                    <td className="py-3.5 px-4 text-xs font-mono text-slate-600">{u.email}</td>
-                    <td className="py-3.5 px-4 text-xs">
+                    <td className="py-3.5 px-4 font-bold text-slate-900 text-sm">{u.nama}</td>
+                    <td className="py-3.5 px-4 text-sm font-mono text-slate-600">{u.email}</td>
+                    <td className="py-3.5 px-4 text-sm">
                       <span
                         className={`inline-block px-2.5 py-0.5 rounded-full font-bold text-[10px] uppercase ${
-                          u.peran === 'admin'
+                          u.peran === 'super_admin'
                             ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                            : u.peran === 'kepala_sekolah'
+                            ? 'bg-purple-100 text-purple-800 border border-purple-300'
                             : 'bg-blue-100 text-blue-800 border border-blue-300'
                         }`}
                       >
-                        {u.peran}
+                        {u.peran.replace('_', ' ')}
                       </span>
                     </td>
-                    <td className="py-3.5 px-4 text-xs">
+                    <td className="py-3.5 px-4 text-sm">
                       {u.status_aktif ? (
-                        <span className="text-[11px] font-semibold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
+                        <span className="text-xs font-semibold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
                           Aktif
                         </span>
                       ) : (
-                        <span className="text-[11px] font-semibold bg-red-100 text-red-800 px-2 py-0.5 rounded-full">
+                        <span className="text-xs font-semibold bg-red-100 text-red-800 px-2 py-0.5 rounded-full">
                           Nonaktif
                         </span>
                       )}
                     </td>
-                    <td className="py-3.5 px-4 text-xs text-slate-400">
+                    <td className="py-3.5 px-4 text-sm text-slate-400">
                       {formatIndonesianDate(u.dibuat_pada)}
                     </td>
                     <td className="py-3.5 px-4 text-right text-xs">
@@ -266,96 +280,91 @@ export default function ManajemenPenggunaPage() {
       </div>
 
       {/* Modal Tambah User */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl p-6 border border-slate-100 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b">
-              <h3 className="font-bold text-base text-slate-900">Tambah Akun Guru / Petugas</h3>
-              <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600">
-                ✕
-              </button>
+      <Modal
+        isOpen={showModal}
+        onClose={() => {
+          setShowModal(false);
+          setFeedback(null);
+          setFormData({ nama: '', email: '', password: '', peran: 'guru_piket' });
+        }}
+        title="Tambah Akun Guru / Petugas"
+        size="md"
+      >
+        <form onSubmit={handleCreateUser} className="space-y-4">
+          {feedback && (
+            <div
+              className={`p-3.5 rounded-2xl border text-sm flex items-start gap-2.5 ${
+                feedback.type === 'success'
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                  : 'bg-red-50 border-red-200 text-red-800'
+              }`}
+              role="alert"
+            >
+              {feedback.type === 'success' ? (
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+              ) : (
+                <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+              )}
+              <span>{feedback.message}</span>
             </div>
+          )}
 
-            <form onSubmit={handleCreateUser} className="space-y-3 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Nama Lengkap *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.nama}
-                  onChange={(e) => setFormData({ ...formData, nama: e.target.value })}
-                  placeholder="Contoh: Dra. Siti Rahmah, M.Pd"
-                  className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue"
-                />
-              </div>
+          <ModalInput
+            label="Nama Lengkap"
+            required
+            value={formData.nama}
+            onChange={(e) => setFormData({ ...formData, nama: e.target.value })}
+            placeholder="Contoh: Dra. Siti Rahmah, M.Pd"
+            leftIcon={<Users className="w-5 h-5" />}
+            autoComplete="name"
+          />
 
-              <div>
-                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Email Akun *
-                </label>
-                <input
-                  type="email"
-                  required
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="guru@sekolah.sch.id"
-                  className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue"
-                />
-              </div>
+          <ModalInput
+            label="Email Akun"
+            type="email"
+            required
+            value={formData.email}
+            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+            placeholder="guru@sekolah.sch.id"
+            leftIcon={<Mail className="w-5 h-5" />}
+            autoComplete="email"
+          />
 
-              <div>
-                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Kata Sandi Awal *
-                </label>
-                <input
-                  type="password"
-                  required
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  placeholder="Minimal 8 karakter..."
-                  className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue"
-                />
-              </div>
+          <ModalInput
+            label="Kata Sandi Awal"
+            type="password"
+            required
+            value={formData.password}
+            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+            placeholder="Minimal 8 karakter..."
+            leftIcon={<KeyRound className="w-5 h-5" />}
+            helperText="Ganti kata sandi setelah login pertama kali."
+            autoComplete="new-password"
+          />
 
-              <div>
-                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Peran Akun *
-                </label>
-                <select
-                  value={formData.peran}
-                  onChange={(e) =>
-                    setFormData({ ...formData, peran: e.target.value as UserRole })
-                  }
-                  className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue"
-                >
-                  <option value="guru">Guru / Petugas MBG</option>
-                  <option value="admin">Administrator Sekolah</option>
-                </select>
-              </div>
+          <ModalSelect
+            label="Peran Akun"
+            required
+            value={formData.peran}
+            onChange={(e) => setFormData({ ...formData, peran: e.target.value as UserRole })}
+            options={[
+              { value: 'guru_piket', label: 'Guru Piket (Koordinator MBG)' },
+              { value: 'kepala_sekolah', label: 'Kepala Sekolah (Monitoring)' },
+              { value: 'super_admin', label: 'Super Administrator (UBSI)' },
+            ]}
+          />
 
-              <div className="flex gap-2.5 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  disabled={submitting}
-                  className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="flex-1 py-3 bg-brand-blue hover:bg-brand-blue-700 text-white font-bold rounded-xl transition shadow disabled:opacity-50"
-                >
-                  {submitting ? 'Membuat Akun...' : 'Daftarkan Akun'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+          <ModalActions
+            onCancel={() => {
+              setShowModal(false);
+              setFeedback(null);
+              setFormData({ nama: '', email: '', password: '', peran: 'guru_piket' });
+            }}
+            submitLabel="Daftarkan Akun"
+            submitting={submitting}
+          />
+        </form>
+      </Modal>
     </div>
   );
 }

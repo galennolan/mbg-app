@@ -142,6 +142,40 @@ export interface StudentMbgLog {
   waktu_ambil: string;
 }
 
+export interface LiveActivityFeedItem {
+  id: string;
+  nama_kelas: string;
+  deskripsi: string;
+  waktu: string;
+  tipe: 'KOLEKTIF_KELAS' | 'MANDIRI' | 'SUSULAN';
+  jumlah_porsi: number;
+}
+
+export interface ClassMonitoringStatus {
+  id_kelas: string;
+  nama_kelas: string;
+  jurusan: string;
+  tingkat: string;
+  total_siswa: number;
+  jumlah_hadir: number;
+  jumlah_absen: number;
+  status_ambil: AttendanceStatus;
+  persen: number;
+  waktu_terima: string | null;
+}
+
+export interface StudentRecord {
+  nisn: string;
+  nama_lengkap: string;
+  id_kelas: string;
+  nama_kelas: string;
+  jurusan: string;
+  alergi_makanan: string | null;
+  is_perwakilan_kelas: boolean;
+  sudah_ambil: boolean;
+  waktu_ambil: string | null;
+}
+
 export interface CrmCampaign {
   id: string;
   judul_promo: string;

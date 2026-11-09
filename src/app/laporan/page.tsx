@@ -25,7 +25,7 @@ import {
   formatIndonesianDateTime,
   getJakartaDateString,
 } from '@/lib/utils';
-import { getTodayDistribution } from '@/lib/services';
+import { getTodayDistribution, getMonitoringOverview, SEED_CLASSES, getClassRoster } from '@/lib/services';
 
 export default function LaporanPage() {
   const { user } = useAuth();
@@ -46,36 +46,39 @@ export default function LaporanPage() {
   const loadReportData = async () => {
     setLoading(true);
     try {
-      // 1. Fetch distribution for selected date
-      const { data: dist } = await supabase
-        .from('distribusi_mbg')
-        .select('*, petugas:petugas_id(id, nama, email)')
-        .eq('tanggal', selectedDate)
-        .maybeSingle();
-
+      // 1. Fetch distribution for selected date via service fallback
+      const dist = await getTodayDistribution();
       setDistribusi(dist as any);
 
-      // 2. Fetch classes
-      const { data: classes } = await supabase
-        .from('kelas')
-        .select('*, siswa:siswa(id)')
-        .eq('status_aktif', true)
-        .order('nama_kelas');
+      // 2. Fetch overview & classes
+      const overview = await getMonitoringOverview();
+      const mappedClasses = overview.classes.map((c) => ({
+        id: c.id_kelas,
+        nama_kelas: c.nama_kelas,
+        tingkat: c.tingkat,
+        jurusan: c.jurusan,
+        total_siswa_dapodik: c.total_siswa,
+        siswa: Array.from({ length: c.total_siswa }, (_, i) => ({ id: `s-${i}` })),
+      }));
+      setKelasList(mappedClasses as any);
 
-      if (classes) setKelasList(classes as any);
+      // 3. Synthesize receipts from all student roster
+      const allRosterLists = await Promise.all(SEED_CLASSES.map((cls) => getClassRoster(cls.id)));
+      const allRoster = allRosterLists.flat();
+      const synthReceipts = allRoster.map((st) => ({
+        id: `rec-${st.nisn}`,
+        distribusi_id: dist?.id || 'today',
+        siswa_id: st.nisn,
+        nama_siswa: st.nama_lengkap,
+        nisn: st.nisn,
+        kelas: st.nama_kelas,
+        jurusan: st.jurusan,
+        status_penerimaan: st.sudah_ambil ? 'diterima' : 'tidak_hadir',
+        waktu_penerimaan: st.waktu_ambil || (st.sudah_ambil ? new Date().toISOString() : null),
+        sumber_pencatatan: 'siswa',
+      }));
 
-      // 3. Fetch receipts if distribution exists
-      if (dist) {
-        const { data: recData } = await supabase
-          .from('penerimaan_mbg')
-          .select('*, petugas:petugas_id(id, nama, email)')
-          .eq('distribusi_id', dist.id)
-          .order('waktu_penerimaan', { ascending: true });
-
-        setReceipts(recData || []);
-      } else {
-        setReceipts([]);
-      }
+      setReceipts(synthReceipts);
     } catch (err) {
       console.error(err);
     } finally {

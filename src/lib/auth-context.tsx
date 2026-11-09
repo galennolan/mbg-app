@@ -29,6 +29,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<Pengguna | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const DEFAULT_SCHOOL_ID = '11111111-1111-1111-1111-111111111111';
+
   const fetchProfile = async (userId: string, email: string) => {
     try {
       const { data, error } = await supabase
@@ -38,15 +40,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle();
 
       if (data) {
-        setUser(data as Pengguna);
+        const enrichedUser: Pengguna = {
+          ...(data as Pengguna),
+          id_sekolah: data.id_sekolah || DEFAULT_SCHOOL_ID,
+        };
+        setUser(enrichedUser);
+        if (!data.id_sekolah) {
+          try {
+            await supabase
+              .from('pengguna')
+              .update({ id_sekolah: DEFAULT_SCHOOL_ID })
+              .eq('id', userId);
+          } catch (e) {
+            // Ignore if RLS blocks update
+          }
+        }
       } else {
         // Fallback for new user or admin setup
         const isDefaultAdmin = email.toLowerCase().includes('admin');
         const fallbackUser: Pengguna = {
           id: userId,
+          id_sekolah: DEFAULT_SCHOOL_ID,
           nama: email.split('@')[0],
           email: email,
-          peran: isDefaultAdmin ? 'admin' : 'guru',
+          peran: isDefaultAdmin ? 'super_admin' : 'guru_piket',
           status_aktif: true,
           dibuat_pada: new Date().toISOString(),
           diperbarui_pada: new Date().toISOString(),
@@ -65,9 +82,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Fallback local profile
       setUser({
         id: userId,
+        id_sekolah: DEFAULT_SCHOOL_ID,
         nama: email.split('@')[0],
         email: email,
-        peran: email.includes('admin') ? 'admin' : 'guru',
+        peran: email.includes('admin') ? 'super_admin' : 'guru_piket',
         status_aktif: true,
         dibuat_pada: new Date().toISOString(),
         diperbarui_pada: new Date().toISOString(),
