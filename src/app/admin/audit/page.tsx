@@ -18,15 +18,35 @@ export default function AuditLogPage() {
   const loadLogs = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      let localList: RiwayatAktivitas[] = [];
+      if (typeof window !== 'undefined') {
+        try {
+          const raw = localStorage.getItem('mbg_audit_logs');
+          if (raw) localList = JSON.parse(raw);
+        } catch {
+          // ignore
+        }
+      }
+
+      const { data } = await supabase
         .from('riwayat_aktivitas')
         .select('*, pengguna:pengguna_id(id, nama, email)')
         .order('waktu_aktivitas', { ascending: false })
         .limit(100);
 
-      if (data) {
-        setLogs(data as any);
-      }
+      const dbList = (data as any as RiwayatAktivitas[]) || [];
+      const combined = [...localList, ...dbList];
+      const seen = new Set<string>();
+      const unique = combined.filter((item) => {
+        const key = `${item.aktivitas}|${item.waktu_aktivitas}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      unique.sort(
+        (a, b) => new Date(b.waktu_aktivitas).getTime() - new Date(a.waktu_aktivitas).getTime()
+      );
+      setLogs(unique);
     } catch (err) {
       console.error(err);
     } finally {
@@ -122,7 +142,16 @@ export default function AuditLogPage() {
                       {formatIndonesianDateTime(log.waktu_aktivitas)}
                     </td>
                     <td className="py-3.5 px-4 font-bold text-slate-900 text-sm">
-                      <span className="font-mono bg-slate-100 text-slate-800 px-2 py-0.5 rounded">
+                      <span
+                        className={`font-mono px-2.5 py-0.5 rounded-lg text-xs font-bold border ${
+                          log.aktivitas === 'CORRECTION_BY_KEPSEK'
+                            ? 'bg-purple-100 text-purple-900 border-purple-300'
+                            : log.aktivitas.includes('CAMPAIGN') ||
+                              log.aktivitas.includes('DAPODIK')
+                            ? 'bg-amber-100 text-amber-900 border-amber-300'
+                            : 'bg-slate-100 text-slate-800 border-slate-200'
+                        }`}
+                      >
                         {log.aktivitas}
                       </span>
                     </td>

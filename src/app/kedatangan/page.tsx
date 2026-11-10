@@ -37,6 +37,7 @@ import { FeedbackBanner } from '@/components/ui/FeedbackBanner';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { QualityCheckCard } from '@/components/operasional/QualityCheckCard';
 import { Modal, ModalActions } from '@/components/ui/ModalField';
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 
 export default function KedatanganMBGPage() {
   const { user } = useAuth();
@@ -226,7 +227,8 @@ export default function KedatanganMBGPage() {
   };
 
   return (
-    <div className="space-y-6 pb-20">
+    <ProtectedRoute allowedRoles={['guru_piket', 'super_admin', 'kepala_sekolah', 'admin', 'guru']}>
+      <div className="space-y-6 pb-20">
       {/* Page Header */}
       <PageHeader
         title="Kedatangan MBG & Organoleptik (FR-2.1)"
@@ -661,6 +663,7 @@ export default function KedatanganMBGPage() {
           />
         </div>
       </Modal>
-    </div>
+      </div>
+    </ProtectedRoute>
   );
 }

@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "frontend-developer": {
+      "source": "dylantarre/animation-principles",
+      "sourceType": "github",
+      "skillPath": "skills/03-by-role-persona/frontend-developer/SKILL.md",
+      "computedHash": "39fa330f101fb32270deba53bae3710cf285aab40d0906477c005245c5c21965"
+    },
     "ui-ux-pro-max": {
       "source": "nextlevelbuilder/ui-ux-pro-max-skill",
       "sourceType": "github",

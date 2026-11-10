@@ -29,22 +29,36 @@ Membangun **Progressive Web App (PWA)** berdesain modern (*Glassmorphism*) denga
 
 | Role Pengguna | Perangkat Utama | Fokus Utama & Hak Akses |
 | :--- | :--- | :--- |
-| **Super Admin** (Tim Dev & Marcomm UBSI) | Desktop / Laptop | Manajemen multi-sekolah, sinkronisasi master data Dapodik (daftar nama siswa per kelas + data alergi), konfigurasi kampanye iklan/CTA PMB berbasis segmen jurusan, pemantauan *Lead Scoring* (Cold/Warm/Hot), dan ekspor *leads* ke gateway CRM WhatsApp/Email. |
-| **Admin Guru Piket** (Koordinator MBG) | Smartphone / Tablet / Laptop | Klik tombol **"MBG Datang"** (otomatis *broadcast* notifikasi & *generate* Master QR Code + PIN Harian), input uji organoleptik + foto sampel makanan, pantau *live feed* nama siswa yang mengambil MBG, verifikasi pengembalian ompreng (Utuh/Rusak/Hilang), dan *export* data laporan SPPG (Excel/CSV/PDF). |
-| **Perwakilan Siswa / Siswa** | Smartphone (PWA) | Menerima *Push Notification* saat MBG tiba, memindai (*scan*) QR Code Guru Piket (atau input PIN 4-Digit), melakukan *select/unselect* daftar nama teman sekelas yang hadir/absen, klik **"Sudah Terima MBG"**, dan berinteraksi dengan promo/beasiswa UBSI. |
-| **Kepala Sekolah** (Monitoring/Viewer) | Desktop / Smartphone | Akses *read-only* ke *dashboard* eksekutif (grafik serapan porsi, ketepatan waktu SPPG, statistik *food waste*, akuntabilitas ompreng, dan pengesahan laporan harian). |
+| **Super Admin** (UBSI Dev/Marcomm) | Desktop / Laptop | **Master Access.** Akses penuh ke seluruh menu sistem, manajemen multi-sekolah, audit log global, manajemen kampanye iklan/ads (On/Off), dan fitur "Tarik Data Master" (Dapodik/Student Data). |
+| **Admin Guru Piket** (Koordinator MBG) | Smartphone / Tablet | **Operational Access.** Input uji organoleptik, scan QR distribusi, kelola data siswa (Import/Edit), dan cetak laporan. Menginisiasi sesi harian. |
+| **Kepala Sekolah** (Monitoring & Correction) | Desktop / Smartphone | **Auditor Access.** Dashboard analitik, cetak laporan, dan memiliki hak khusus untuk **mengedit/koreksi data** jika terdapat kesalahan input operasional oleh Guru Piket. |
+| **Perwakilan Siswa / Siswa** | Smartphone (PWA) | **Claim Portal.** Menerima notifikasi, scan QR/PIN, checklist kehadiran. Login menggunakan **Nama + No. HP** yang tervalidasi saat data diimpor. |
 
 ---
 
-## 3. Tujuan Bisnis & Metrik Keberhasilan (Success Metrics / KPI)
+## 3. Sistem Autentikasi & Keamanan (Dual-Mode Auth)
 
-### 3.1 Metrik Operasional Sekolah (MBG)
+Sistem menggunakan dua metode autentikasi yang berbeda berdasarkan kategori pengguna:
+
+1. **Staff Auth (Staff & Admin):**
+   - Menggunakan **Supabase Auth** (Email & Password).
+   - Meliputi Role: Super Admin, Guru Piket, Kepala Sekolah.
+2. **Student Auth (Siswa):**
+   - Menggunakan **Custom Identity Verification** (Nama + No. HP).
+   - Akun siswa di-generate otomatis saat data diimpor oleh Admin/Guru ke tabel `students`.
+   - Tidak memerlukan email/password untuk mempermudah akses di lingkungan sekolah.
+
+---
+
+## 4. Tujuan Bisnis & Metrik Keberhasilan (Success Metrics / KPI)
+
+### 4.1 Metrik Operasional Sekolah (MBG)
 
 * **2-Click Simplicity:** Waktu interaksi di meja transit kurang dari **10 detik per kelas** berkat mekanisme *Siswa Scan QR Guru / PIN 4-Digit* dan *Auto-Select* daftar nama kelas.
 * **Individual Traceability & Food Safety:** 100% porsi yang keluar tercatat hingga ke level nama individu siswa beserta jam pengambilannya (*timestamp* presisi) dan peringatan dini untuk siswa yang memiliki alergi makanan.
 * **Zero Asset Discrepancy & Fast Export:** 100% akuntabilitas status wadah ompreng (Utuh, Rusak, Hilang) tercatat, serta rekapitulasi siap di-*export* ke format Excel/CSV/PDF untuk SPPG dalam waktu **< 1 menit**.
 
-### 3.2 Metrik Strategis Kampus (CRM & PMB UBSI)
+### 4.2 Metrik Strategis Kampus (CRM & PMB UBSI)
 
 * **Validasi Database:** 100% nomor WhatsApp siswa terformat standar internasional (`628xxx`) dan terpetakan sesuai jurusan (IPA, IPS, RPL, TKJ, Akuntansi, dll.).
 * **Click-Through Rate (CTR) & Lead Scoring:** Minimal **15% CTR** pada *Smart Banner* beasiswa/tryout UBSI di halaman PWA Siswa kelas XII, serta pengelompokan otomatis siswa ke dalam kategori *Hot/Warm/Cold Leads* berdasarkan frekuensi interaksi.
@@ -52,9 +66,9 @@ Membangun **Progressive Web App (PWA)** berdesain modern (*Glassmorphism*) denga
 
 ---
 
-## 4. Alur Pengguna Utama (Core User Flows — Prinsip "2-Klik Beres")
+## 5. Alur Pengguna Utama (Core User Flows — Prinsip "2-Klik Beres")
 
-### 4.1 Alur Sisi Guru Piket (Trigger, Food Safety QC & Broadcast)
+### 5.1 Alur Sisi Guru Piket (Trigger, Food Safety QC & Broadcast)
 
 1. **Tahap Kedatangan & QC Cepat:** Makanan tiba dari SPPG ke area transit sekolah. Guru piket mengecek kelayakan makanan (Uji Organoleptik default tercentang *Layak Edar* untuk mempercepat proses), memotret sampel makanan hari itu (1-Tap Photo), dan mencentang konfirmasi bahwa *1 Porsi Sampel Bank Makanan telah disimpan*.
 2. **Klik 1 (`MBG Datang`):** Guru Piket menekan tombol utama **"🍽️ MBG Datang & Buka Distribusi"**.
@@ -62,7 +76,7 @@ Membangun **Progressive Web App (PWA)** berdesain modern (*Glassmorphism*) denga
    * Sistem otomatis menembakkan **Web Push Notification** ke seluruh smartphone siswa/perwakilan kelas: *"🔔 Info Guru Piket: MBG hari ini sudah tiba dan siap dibagikan! Silakan perwakilan kelas menuju area transit."*
    * Layar perangkat Guru Piket langsung menampilkan **Dynamic Master QR Code** berukuran besar beserta **Kode PIN 4-Digit** (sebagai alternatif jika kamera HP siswa bermasalah).
 
-### 4.2 Alur Sisi Siswa / Perwakilan Kelas (Scan, Anti-Fraud & Checklist Nama)
+### 5.2 Alur Sisi Siswa / Perwakilan Kelas (Scan, Anti-Fraud & Checklist Nama)
 
 Sistem mendukung dua mode pengambilan yang sama-sama selesai dalam **2 langkah praktis** serta dilengkapi pencegahan klaim ganda (*Idempotency Lock*):
 
@@ -79,7 +93,7 @@ Sistem mendukung dua mode pengambilan yang sama-sama selesai dalam **2 langkah p
   2. **Klik 1 (Pilih Nama):** Siswa mengeklik namanya sendiri dari *list* nama teman sekelasnya (termasuk bagi siswa yang baru keluar dari UKS/dispensasi sebagai *Klaim Susulan*).
   3. **Klik 2 (`Sudah Terima MBG`):** Siswa menekan tombol **"✅ Sudah Terima MBG"**.
 
-### 4.3 Output Real-Time Notification & Rekonsiliasi Ompreng
+### 5.3 Output Real-Time Notification & Rekonsiliasi Ompreng
 
 1. **Live Feed & Catatan Notifikasi:** Begitu tombol *"Sudah Terima MBG"* ditekan, sistem langsung memunculkan catatan info notifikasi dan memperbarui rekap data *real-time* di layar Guru Piket maupun riwayat kelas dengan format naratif yang jelas:
    > 📢 **Info Rekap Kelas XII RPL 1 (10:02 WIB):**
@@ -89,16 +103,23 @@ Sistem mendukung dua mode pengambilan yang sama-sama selesai dalam **2 langkah p
 
 ---
 
-## 5. Kebutuhan Fungsional (Functional Requirements)
+## 6. Kebutuhan Fungsional (Functional Requirements)
 
-### Modul 1: Otentikasi & Manajemen Master Data Dapodik (Super Admin)
+### Modul 1: Otentikasi & Manajemen Master Data (RBAC & Master Menu)
 
-* **FR-1.1 (Import & Validasi Dapodik):** Fitur unggah massal (CSV/Excel) untuk data siswa per kelas dengan validasi ketat:
-  * `nisn`: Wajib 10 digit angka unik (Primary Key). Tolak otomatis jika terdeteksi duplikasi lintas sekolah.
-  * `nama_lengkap`: Ditampilkan sebagai daftar *checklist* interaktif saat pengambilan MBG per kelas.
-  * `no_hp`: Auto-sanitizer yang mengubah awalan `08...` atau `+628...` menjadi `628...` sebagai gateway komunikasi CRM.
-  * `alergi_makanan`: Data opsional alergi/pantangan medis siswa untuk ditampilkan sebagai peringatan visual saat distribusi.
-* **FR-1.2 (Manajemen Kelas & Kuota):** Pengelompokan daftar siswa berdasarkan `id_kelas` dan sinkronisasi `total_siswa_dapodik`.
+* **FR-1.1 (Dual-Auth Engine):** 
+    - Implementasi login Staff via Email/Password (Supabase Auth).
+    - Implementasi login Siswa via Nama Lengkap & Nomor HP (Verification matching ke tabel `students`).
+* **FR-1.2 (Super Admin Master Menu):**
+    - Menu **"Management Campaign"**: Fitur untuk membuat, mengedit, dan melakukan On/Off Toggle kampanye PMB UBSI.
+    - Menu **"Data Pulling"**: Fitur master untuk menarik/sinkronisasi ulang data siswa dari source eksternal (Dapodik Simulation).
+    - Akses penuh ke seluruh menu di bawah `/admin/*`.
+* **FR-1.3 (Kepala Sekolah Correction Mode):**
+    - Hak akses untuk melakukan override atau edit pada data `daily_attendances` dan `student_mbg_logs` jika terjadi kesalahan input operasional oleh Guru Piket, guna menjaga validitas laporan akhir.
+* **FR-1.4 (Import & Auto-Generation Account):** 
+    - Fitur unggah massal (CSV/Excel) oleh Super Admin/Guru Piket.
+    - Sistem secara otomatis mendaftarkan No. HP siswa sebagai identitas login unik.
+    - Sanitasi otomatis format nomor telepon ke standar internasional (`628xxx`).
 
 ### Modul 2: Trigger "MBG Datang", Uji Organoleptik & Food Sample Guard (Admin Guru Piket)
 
@@ -137,23 +158,23 @@ Sistem mendukung dua mode pengambilan yang sama-sama selesai dalam **2 langkah p
 
 ---
 
-## 6. Kebutuhan Non-Fungsional & Panduan UI/UX (Non-Functional Requirements)
+## 7. Kebutuhan Non-Fungsional & Panduan UI/UX (Non-Functional Requirements)
 
-### 6.1 Desain Visual: Modern Glassmorphism & Zero-Friction UX
+### 7.1 Desain Visual: Modern Glassmorphism & Zero-Friction UX
 
-* **Aesthetic Direction:** Gaya **Glassmorphism** yang segar dan *techy* untuk Gen Milenial, Gen Z, dan Gen Alpha (latar *mesh gradient* lembut dengan kartu konten `backdrop-filter: blur(16px)` dan *border* semi-transparan).
+* **Aesthetic Direction:** Gaya **Glassmorphism** yang segar dan *techy* untuk Gen Milenial, Gen Z, dan Gen Alpha (latar *mesh gradient* lembut dengan kartu konten `backdrop-filter: blur(16px)` and *border* semi-transparan).
 * **2-Click Ergonomics:** Tombol utama (**"MBG Datang"** di layar Guru dan **"Sudah Terima MBG"** di layar Siswa) dirancang sebagai *Floating Action Button* (FAB) berukuran besar dengan warna kontras tinggi agar mudah dijangkau dengan satu ibu jari.
 * **Print Stylesheet Isolation:** Saat mencetak laporan PDF (`@media print`), antarmuka Glassmorphism otomatis bertransformasi menjadi tabel dokumen resmi hitam-putih standar pemerintah/sekolah.
 
-### 6.2 Performa, Offline-First Resilience & Keandalan PWA
+### 7.2 Performa, Offline-First Resilience & Keandalan PWA
 
 * **Offline-First Queue (IndexedDB & Background Sync):** Mengantisipasi sinyal internet yang tidak stabil di koridor sekolah, transaksi klik *"Sudah Terima MBG"* tetap dapat disimpan secara lokal di memori PWA siswa dan otomatis disinkronkan ke server begitu perangkat mendapatkan kembali koneksi internet.
-* **Web Push Notification Ready:** Menggunakan *Service Worker* dan *Web Push API* agar notifikasi *"MBG Datang"* dan pengingat pengembalian ompreng tetap muncul di layar kunci (*lockscreen*) smartphone siswa.
+* **Web Push Notification Ready:** Menggunakan *Service Worker* and *Web Push API* agar notifikasi *"MBG Datang"* and pengingat pengembalian ompreng tetap muncul di layar kunci (*lockscreen*) smartphone siswa.
 * **Optimistic UI Updates:** Pemilihan *select/unselect* daftar nama siswa berjalan instan di sisi klien (*client-side state*) tanpa *lag*, dan proses simpan ke server berlangsung kurang dari **1 detik**.
 
 ---
 
-## 7. Spesifikasi Skema Database (Data Model v1.2 Final)
+## 8. Spesifikasi Skema Database (Data Model v1.2 Final)
 
 Berikut adalah struktur tabel relasional yang telah dilengkapi dengan fitur keamanan pangan, anti-fraud, akuntabilitas aset ompreng, dan *lead scoring* CRM:
 
@@ -172,15 +193,15 @@ Berikut adalah struktur tabel relasional yang telah dilengkapi dengan fitur keam
 7. **`food_waste_evaluations` (Tabel Evaluasi Sisa):**
    * `id_evaluasi` (PK), `id_log` (FK), `id_kelas` (FK), `porsi_sisa_habis` (Int), `keterangan_sisa` (Text).
 8. **`crm_campaigns` & `crm_click_logs` (Tabel Iklan PMB UBSI):**
-   * `id_campaign` (PK), `judul_promo`, `banner_image_url`, `target_tingkat` (Default: `XII`), `target_jurusan` (Array/Enum), `rekomendasi_fakultas_ubsi`, `cta_url_template`, `poin_interaksi` (Int — penambah `lead_score` siswa saat diklik).
+   * `id_campaign` (PK), `judul_promo`, `banner_image_url`, `target_tingkat` (Default: `XII`), `target_jurusan` (Array/Enum), `rekomendasi_fakultas_ubsi`, `cta_url_template`, `poin_interaksi` (Int — penambah `lead_score` siswa saat diklik), `status_aktif` (Boolean).
 
 ---
 
-## 8. Roadmap Pengembangan (Phasing / Milestones)
+## 9. Roadmap Pengembangan (Phasing / Milestones)
 
-* **Fase 1 — MVP "2-Click MBG Loop" & Anti-Fraud (Minggu 1–2):**
+* **Fase 1 — MVP "2-Click MBG Loop" & Anti-Fraud (Selesai):**
   * Setup database v1.2, fitur Guru klik **"MBG Datang"** (Master QR Generator + PIN 4-Digit + Push Notification), fitur Siswa Scan QR/PIN + Checklist *Select/Unselect* nama siswa sekelas (dengan indikator alergi & *idempotency lock*), serta *Live Log Feed* nama penerima MBG.
-* **Fase 2 — Asset Accountability, Multi-Format Export (SPPG) & Official Form Print (Minggu 3):**
-  * Pembuatan fitur *Export* Excel/CSV rincian siswa untuk SPPG, pembuatan *layout* cetak PDF **Formulir Pencatatan Harian MBG** (Bagian A, B, C), verifikasi pengembalian ompreng 3-status (Utuh/Rusak/Hilang), dan *dashboard* Kepala Sekolah.
-* **Fase 3 — Smart CRM UBSI, Lead Scoring & Offline-First PWA Polish (Minggu 4):**
-  * Integrasi modul *Import Dapodik* (auto-format WA `628xxx`), mesin penargetan *Smart Banner* PMB UBSI untuk kelas XII berdasarkan jurusan beserta *Automated Lead Scoring* (Cold/Warm/Hot), serta optimalisasi *Service Worker* & *IndexedDB* untuk ketahanan *offline*.
+* **Fase 2 — RBAC, Dual-Auth & Master Menu (Sedang Berjalan):**
+  * Implementasi Login Petugas (Supabase) vs Login Siswa (Nama/HP), Middleware RBAC, Campaign Manager (Ads Control), dan Data Correction mode untuk Kepala Sekolah.
+* **Fase 3 — Official Reporting, Smart CRM & PWA Polish (Mendatang):**
+  * Pembuatan layout cetak PDF resmi, verifikasi pengembalian ompreng, mesin penargetan Smart Banner UBSI, dan optimalisasi ketahanan offline.

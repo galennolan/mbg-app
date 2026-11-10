@@ -78,3 +78,40 @@ create policy "Allow select riwayat" on public.riwayat_aktivitas
 
 create policy "Allow insert riwayat" on public.riwayat_aktivitas
   for insert with check (true);
+
+-- 7. Kolom status_aktif & RLS untuk crm_campaigns (Tahap 3 RBAC Campaign Manager)
+alter table public.crm_campaigns add column if not exists status_aktif boolean not null default true;
+
+drop policy if exists "Super admin manage campaigns" on public.crm_campaigns;
+drop policy if exists "Allow all crm_campaigns" on public.crm_campaigns;
+create policy "Allow all crm_campaigns" on public.crm_campaigns
+  for all using (true) with check (true);
+
+drop policy if exists "Super admin manage students" on public.students;
+drop policy if exists "Allow all students" on public.students;
+create policy "Allow all students" on public.students
+  for all using (true) with check (true);
+
+-- 8. Buka Foreign Key & RLS untuk tabel public.pengguna + Seed 3 Akun Role Utama
+alter table public.pengguna drop constraint if exists pengguna_id_fkey;
+alter table public.organoleptic_tests drop constraint if exists organoleptic_tests_id_guru_piket_fkey;
+alter table public.riwayat_aktivitas drop constraint if exists riwayat_aktivitas_pengguna_id_fkey;
+
+drop policy if exists "User read own profile" on public.pengguna;
+drop policy if exists "Super admin manage pengguna" on public.pengguna;
+drop policy if exists "Allow all pengguna" on public.pengguna;
+
+create policy "Allow all pengguna" on public.pengguna
+  for all using (true) with check (true);
+
+insert into public.pengguna (id, id_sekolah, nama, email, peran, status_aktif)
+values
+  ('00000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'Super Administrator (Marcomm UBSI)', 'admin@mbg.sekolah.id', 'super_admin', true),
+  ('00000000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', 'Budi Santoso (Guru Piket)', 'guru@mbg.sekolah.id', 'guru_piket', true),
+  ('00000000-0000-0000-0000-000000000003', '11111111-1111-1111-1111-111111111111', 'Dr. Mochamad Wahyudi, M.M (Kepala Sekolah)', 'kepsek@mbg.sekolah.id', 'kepala_sekolah', true)
+on conflict (id) do update set
+  nama = excluded.nama,
+  email = excluded.email,
+  peran = excluded.peran,
+  status_aktif = excluded.status_aktif,
+  diperbarui_pada = now();

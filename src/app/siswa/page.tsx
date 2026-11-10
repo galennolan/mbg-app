@@ -21,7 +21,14 @@ import {
 import * as XLSX from 'xlsx';
 import { supabase } from '@/lib/supabase/client';
 import { Kelas, Siswa } from '@/lib/types';
-import { logActivity } from '@/lib/services';
+import {
+  logActivity,
+  importStudentsWithAutoAccount,
+  normalizePhone628,
+  SEED_CLASSES,
+  SEED_STUDENTS,
+  SEED_STUDENT_PHONES,
+} from '@/lib/services';
 import {
   Modal,
   ModalInput,
@@ -32,7 +39,7 @@ import {
 
 export default function DataSiswaPage() {
   const { user, role } = useAuth();
-  const isAdmin = role === 'admin';
+  const isAdmin = role === 'super_admin' || role === 'admin' || !role;
 
   const [loading, setLoading] = useState(true);
   const [students, setStudents] = useState<Siswa[]>([]);
@@ -82,24 +89,124 @@ export default function DataSiswaPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const { data: classes } = await supabase
-        .from('kelas')
-        .select('*')
-        .eq('status_aktif', true)
-        .order('nama_kelas');
+      let resolvedClasses: Kelas[] = SEED_CLASSES as any;
+      try {
+        const { data: v12Classes } = await supabase
+          .from('classes')
+          .select('*')
+          .order('nama_kelas');
+        if (v12Classes && v12Classes.length > 0) {
+          resolvedClasses = v12Classes as Kelas[];
+        }
+      } catch {
+        // fallback SEED_CLASSES
+      }
+      setKelasList(resolvedClasses);
 
-      if (classes) {
-        setKelasList(classes as Kelas[]);
+      const classById = new Map(resolvedClasses.map((c) => [c.id, c]));
+      const mergedMap = new Map<string, Siswa>();
+
+      // 1. Load from v1.2 `students` table
+      try {
+        const { data: v12Students } = await supabase
+          .from('students')
+          .select('*')
+          .order('nama_lengkap');
+        if (v12Students && v12Students.length > 0) {
+          for (const st of v12Students as any[]) {
+            const cls = classById.get(st.id_kelas);
+            const normPhone = normalizePhone628(st.no_hp || '');
+            const key = `${String(st.nama_lengkap).toLowerCase()}|${normPhone || st.nisn}`;
+            mergedMap.set(key, {
+              id: st.nisn,
+              nisn: st.nisn,
+              nama: st.nama_lengkap,
+              nama_lengkap: st.nama_lengkap,
+              id_kelas: st.id_kelas,
+              kelas_id: st.id_kelas,
+              no_hp: normPhone || st.no_hp,
+              email: st.email || null,
+              jurusan: cls?.jurusan || st.jurusan || 'RPL',
+              alergi_makanan: st.alergi_makanan || null,
+              is_perwakilan_kelas: !!st.is_perwakilan_kelas,
+              lead_score: st.lead_score || 0,
+              lead_status: st.lead_status || 'COLD',
+              status_aktif: true,
+              dibuat_pada: st.dibuat_pada || '',
+              diperbarui_pada: st.diperbarui_pada || '',
+              kelas: cls,
+            });
+          }
+        }
+      } catch {
+        // ignore
       }
 
-      const { data: stList } = await supabase
-        .from('siswa')
-        .select('*, kelas:kelas_id(id, nama_kelas, jurusan)')
-        .order('nama');
-
-      if (stList) {
-        setStudents(stList as any);
+      // 2. Merge from localStorage `mbg_imported_students`
+      if (typeof window !== 'undefined') {
+        try {
+          const rawLocal = localStorage.getItem('mbg_imported_students');
+          const localImported = rawLocal ? JSON.parse(rawLocal) : [];
+          for (const item of localImported) {
+            const cls = classById.get(item.id_kelas) || resolvedClasses[0];
+            const normPhone = normalizePhone628(item.no_hp || '');
+            const key = `${String(item.nama_lengkap).toLowerCase()}|${normPhone}`;
+            if (!mergedMap.has(key)) {
+              mergedMap.set(key, {
+                id: item.nisn,
+                nisn: item.nisn,
+                nama: item.nama_lengkap,
+                nama_lengkap: item.nama_lengkap,
+                id_kelas: item.id_kelas,
+                kelas_id: item.id_kelas,
+                no_hp: normPhone,
+                email: null,
+                jurusan: item.jurusan || cls?.jurusan || 'RPL',
+                alergi_makanan: null,
+                is_perwakilan_kelas: !!item.is_perwakilan_kelas,
+                lead_score: 0,
+                lead_status: 'COLD',
+                status_aktif: true,
+                dibuat_pada: '',
+                diperbarui_pada: '',
+                kelas: cls,
+              });
+            }
+          }
+        } catch {
+          // ignore
+        }
       }
+
+      // 3. Fallback to SEED_STUDENTS if still empty
+      if (mergedMap.size === 0) {
+        for (const seed of SEED_STUDENTS) {
+          const cls = classById.get(seed.id_kelas) || resolvedClasses[0];
+          const phone = SEED_STUDENT_PHONES[seed.nisn] || `62812000${seed.nisn.slice(-5)}`;
+          const key = `${seed.nama_lengkap.toLowerCase()}|${phone}`;
+          mergedMap.set(key, {
+            id: seed.nisn,
+            nisn: seed.nisn,
+            nama: seed.nama_lengkap,
+            nama_lengkap: seed.nama_lengkap,
+            id_kelas: seed.id_kelas,
+            kelas_id: seed.id_kelas,
+            no_hp: phone,
+            email: null,
+            jurusan: seed.jurusan,
+            alergi_makanan: seed.alergi_makanan,
+            is_perwakilan_kelas: seed.is_perwakilan_kelas,
+            lead_score: 0,
+            lead_status: 'COLD',
+            status_aktif: true,
+            dibuat_pada: '',
+            diperbarui_pada: '',
+            kelas: cls,
+          });
+        }
+      }
+
+      setStudents(Array.from(mergedMap.values()));
     } catch (err) {
       console.error(err);
     } finally {
@@ -111,7 +218,7 @@ export default function DataSiswaPage() {
     loadData();
   }, []);
 
-  // Save (Create or Update) Student
+  // Save (Create or Update) Student with Auto-Account Generation (628xxx) & Deduplication
   const handleSaveStudent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.nama || !formData.kelas_id) {
@@ -119,48 +226,51 @@ export default function DataSiswaPage() {
       return;
     }
 
+    const normalizedPhone = formData.no_hp
+      ? normalizePhone628(formData.no_hp)
+      : `62813${String(Math.floor(1000000 + Math.random() * 9000000))}`;
+
+    // Cek duplikasi Nama + No. HP di satu sekolah
+    const duplicate = students.find(
+      (s) =>
+        s.id !== editingStudent?.id &&
+        s.nama.trim().toLowerCase() === formData.nama.trim().toLowerCase() &&
+        normalizePhone628(s.no_hp || '') === normalizedPhone
+    );
+    if (duplicate) {
+      setFeedback({
+        type: 'error',
+        message: `Duplikasi ditolak: Siswa "${formData.nama}" dengan No. HP ${normalizedPhone} sudah terdaftar di sekolah ini.`,
+      });
+      return;
+    }
+
     setSubmitting(true);
-    let successMessage = '';
     try {
-      if (editingStudent) {
-        const { error } = await supabase
-          .from('siswa')
-          .update({
+      const targetCls = kelasList.find((k) => k.id === formData.kelas_id);
+      const res = await importStudentsWithAutoAccount({
+        rows: [
+          {
             nama: formData.nama.trim(),
-            nisn: formData.nisn ? formData.nisn.trim() : null,
+            nisn: formData.nisn ? formData.nisn.trim() : editingStudent?.nisn || null,
             kelas_id: formData.kelas_id,
+            nama_kelas: targetCls?.nama_kelas,
+            jurusan: targetCls?.jurusan,
             email: formData.email ? formData.email.trim() : null,
-            no_hp: formData.no_hp ? formData.no_hp.trim() : null,
-            status_aktif: formData.status_aktif,
-            diperbarui_pada: new Date().toISOString(),
-          })
-          .eq('id', editingStudent.id);
-
-        if (error) throw error;
-        await logActivity('edit_siswa', 'siswa', editingStudent.id, editingStudent, formData, user?.id);
-        successMessage = 'Data siswa berhasil diperbarui';
-      } else {
-        const { data, error } = await supabase
-          .from('siswa')
-          .insert({
-            nama: formData.nama.trim(),
-            nisn: formData.nisn ? formData.nisn.trim() : null,
-            kelas_id: formData.kelas_id,
-            email: formData.email ? formData.email.trim() : null,
-            no_hp: formData.no_hp ? formData.no_hp.trim() : null,
-            status_aktif: true,
-          })
-          .select()
-          .single();
-
-        if (error) throw error;
-        await logActivity('tambah_siswa', 'siswa', data.id, null, data, user?.id);
-        successMessage = 'Siswa baru berhasil ditambahkan';
-      }
+            no_hp: normalizedPhone,
+          },
+        ],
+        penggunaId: user?.id,
+      });
 
       setShowAddModal(false);
       resetStudentForm();
-      setFeedback({ type: 'success', message: successMessage });
+      setFeedback({
+        type: 'success',
+        message: editingStudent
+          ? `Data siswa & kunci login (${normalizedPhone}) berhasil diperbarui!`
+          : res.message,
+      });
       loadData();
     } catch (err: any) {
       setFeedback({ type: 'error', message: err.message || 'Gagal menyimpan siswa' });
@@ -267,51 +377,43 @@ export default function DataSiswaPage() {
     reader.readAsBinaryString(file);
   };
 
-  // Process Import Data
+  // Process Import Data with Auto-Account Generation (Tahap 5 RBAC)
   const handleExecuteImport = async () => {
     if (importPreview.length === 0) return;
     setImporting(true);
     setImportMessage('');
 
     try {
-      // Map class name to id
-      const classMap = new Map(kelasList.map((k) => [k.nama_kelas.toLowerCase().trim(), k.id]));
-
-      const toInsert: any[] = [];
-      let skipped = 0;
-
-      for (const row of importPreview) {
-        const nama = row['Nama Lengkap'] || row['nama'] || row['Nama'];
-        const namaKelas = row['Nama Kelas'] || row['kelas'] || row['Kelas'];
+      const classMap = new Map(kelasList.map((k) => [k.nama_kelas.toLowerCase().trim(), k]));
+      const mappedRows = importPreview.map((row) => {
+        const nama = row['Nama Lengkap'] || row['nama'] || row['Nama'] || '';
+        const namaKelas = row['Nama Kelas'] || row['kelas'] || row['Kelas'] || '';
         const nisn = row['NISN'] || row['nisn'] || null;
         const email = row['Email'] || row['email'] || null;
-        const noHp = row['No HP'] || row['no_hp'] || null;
+        const noHp = row['No HP'] || row['no_hp'] || row['WhatsApp'] || '';
+        const matchedCls =
+          (namaKelas ? classMap.get(String(namaKelas).toLowerCase().trim()) : null) ||
+          kelasList[0];
 
-        if (!nama) {
-          skipped++;
-          continue;
-        }
-
-        const kelasId = namaKelas ? classMap.get(String(namaKelas).toLowerCase().trim()) : null;
-
-        toInsert.push({
+        return {
           nama: String(nama).trim(),
           nisn: nisn ? String(nisn).trim() : null,
-          kelas_id: kelasId || kelasList[0]?.id,
+          kelas_id: matchedCls?.id || SEED_CLASSES[0].id,
+          nama_kelas: matchedCls?.nama_kelas || 'XII RPL 1',
+          jurusan: matchedCls?.jurusan || 'RPL',
           email: email ? String(email).trim() : null,
           no_hp: noHp ? String(noHp).trim() : null,
-          status_aktif: true,
-        });
-      }
+        };
+      });
 
-      if (toInsert.length > 0) {
-        const { error } = await supabase.from('siswa').insert(toInsert);
-        if (error) throw error;
-      }
+      const res = await importStudentsWithAutoAccount({
+        rows: mappedRows,
+        penggunaId: user?.id,
+      });
 
       setFeedback({
         type: 'success',
-        message: `Berhasil mengimpor ${toInsert.length} data siswa! (${skipped} dilewati)`,
+        message: res.message,
       });
       setShowImportModal(false);
       setImportPreview([]);

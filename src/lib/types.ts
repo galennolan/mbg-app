@@ -176,6 +176,16 @@ export interface StudentRecord {
   waktu_ambil: string | null;
 }
 
+export interface StudentAuthProfile {
+  nisn: string;
+  nama_lengkap: string;
+  no_hp: string;
+  id_kelas: string;
+  nama_kelas: string;
+  jurusan: string;
+  is_perwakilan_kelas: boolean;
+}
+
 export interface CrmCampaign {
   id: string;
   judul_promo: string;
@@ -185,6 +195,7 @@ export interface CrmCampaign {
   rekomendasi_fakultas_ubsi: string | null;
   cta_url_template: string | null;
   poin_interaksi: number;
+  status_aktif?: boolean;
 }
 
 export interface RiwayatAktivitas {

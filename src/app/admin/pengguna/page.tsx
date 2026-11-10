@@ -8,6 +8,7 @@ import { Pengguna, UserRole } from '@/lib/types';
 import { logActivity } from '@/lib/services';
 import { formatIndonesianDate } from '@/lib/utils';
 import { Modal, ModalInput, ModalSelect, ModalActions } from '@/components/ui/ModalField';
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 
 export default function ManajemenPenggunaPage() {
   const { user, role, loading: authLoading } = useAuth();
@@ -68,7 +69,8 @@ export default function ManajemenPenggunaPage() {
     setFeedback(null);
 
     try {
-      // 1. Sign up user in Supabase Auth
+      // 1. Coba Sign up user di Supabase Auth (bila Email Provider aktif)
+      let newUserId: string | undefined;
       const { data: authData, error: authErr } = await supabase.auth.signUp({
         email: formData.email.trim(),
         password: formData.password,
@@ -80,15 +82,23 @@ export default function ManajemenPenggunaPage() {
         },
       });
 
-      if (authErr) throw authErr;
+      if (!authErr && authData?.user?.id) {
+        newUserId = authData.user.id;
+      } else {
+        // Jika Email Auth dinonaktifkan di Supabase Dashboard, buat UUID langsung untuk tabel public.pengguna
+        newUserId =
+          typeof crypto !== 'undefined' && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `00000000-0000-0000-0000-${String(Date.now()).slice(-12).padStart(12, '0')}`;
+      }
 
-      const newUserId = authData.user?.id;
       if (newUserId) {
-        // 2. Insert into pengguna table
+        // 2. Insert ke tabel public.pengguna di Supabase
         const { error: insErr } = await supabase.from('pengguna').upsert({
           id: newUserId,
+          id_sekolah: '11111111-1111-1111-1111-111111111111',
           nama: formData.nama.trim(),
-          email: formData.email.trim(),
+          email: formData.email.trim().toLowerCase(),
           peran: formData.peran,
           status_aktif: true,
           dibuat_pada: new Date().toISOString(),
@@ -157,7 +167,8 @@ export default function ManajemenPenggunaPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 pb-12">
+    <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
+      <div className="max-w-4xl mx-auto space-y-6 pb-12">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -365,7 +376,8 @@ export default function ManajemenPenggunaPage() {
           />
         </form>
       </Modal>
-    </div>
+      </div>
+    </ProtectedRoute>
   );
 }
 

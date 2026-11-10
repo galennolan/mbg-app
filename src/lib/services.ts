@@ -14,6 +14,8 @@ import {
   StudentRecord,
   OrganolepticKesimpulan,
   AttendanceStatus,
+  CrmCampaign,
+  StudentAuthProfile,
 } from './types';
 import { getJakartaDateString } from './utils';
 
@@ -52,15 +54,35 @@ export async function logActivity(
   dataSesudah: any = null,
   penggunaId: string | null = null
 ) {
+  const nowIso = new Date().toISOString();
+  const localEntry: RiwayatAktivitas = {
+    id:
+      typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `audit-${Date.now()}`,
+    pengguna_id: penggunaId,
+    aktivitas,
+    tabel_terkait: tabelTerkait,
+    data_id: dataId,
+    data_sebelum: dataSebelum,
+    data_sesudah: dataSesudah,
+    waktu_aktivitas: nowIso,
+  };
+
+  const existingLocal = getLocalItem<RiwayatAktivitas[]>('mbg_audit_logs', []);
+  setLocalItem('mbg_audit_logs', [localEntry, ...existingLocal].slice(0, 100));
+
   try {
+    const isUuid = (val: string | null) =>
+      !!val && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
     await supabase.from('riwayat_aktivitas').insert({
       aktivitas,
       tabel_terkait: tabelTerkait,
-      data_id: dataId,
+      data_id: isUuid(dataId) ? dataId : null,
       data_sebelum: dataSebelum,
       data_sesudah: dataSesudah,
-      pengguna_id: penggunaId,
-      waktu_aktivitas: new Date().toISOString(),
+      pengguna_id: isUuid(penggunaId) ? penggunaId : null,
+      waktu_aktivitas: nowIso,
     });
   } catch (err) {
     console.warn('Audit log notice (offline/rls):', err);
@@ -1241,4 +1263,718 @@ export interface CandidateStudent {
   jurusan: string;
   sudah_menerima: boolean;
   waktu_penerimaan?: string | null;
+}
+
+// ============================================================
+// TAHAP 1 & 5 RBAC AUTH: DUAL-MODE STUDENT LOGIN & PHONE NORMALIZER
+// ============================================================
+
+export function normalizePhone628(rawPhone: string): string {
+  const digits = (rawPhone || '').replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.startsWith('08')) {
+    return '628' + digits.slice(2);
+  }
+  if (digits.startsWith('8')) {
+    return '628' + digits.slice(1);
+  }
+  if (digits.startsWith('6208')) {
+    return '628' + digits.slice(4);
+  }
+  return digits;
+}
+
+export function isValidPhone628(phone: string): boolean {
+  const clean = (phone || '').trim();
+  return /^628\d{7,13}$/.test(clean);
+}
+
+export const SEED_STUDENT_PHONES: Record<string, string> = {
+  '1000000001': '6281234567890', // Alroy Theola Ardanta (XII RPL 1 - Perwakilan Kelas)
+  '1000000002': '6281234567891', // Annisa Rahmawati (XII RPL 1)
+  '1000000003': '6281234567892', // Bagas Pratama (XII RPL 1)
+  '1000000004': '6281234567893', // Cantika Dewi (XII RPL 1)
+  '1000000005': '6281234567894', // Dimas Aditya (XII RPL 1)
+  '1000000006': '6281234567895', // Eka Putri Lestari (XII RPL 1)
+  '1000000026': '6281234567896', // Joko Prabowo (XII RPL 2 - Perwakilan Kelas)
+  '1000000027': '6281234567897', // Kurnia Ramadhan (XII RPL 2)
+  '1000000051': '6281234567898', // Olivia Zahra (XII TKJ 1 - Perwakilan Kelas)
+};
+
+export async function authenticateStudentByNameAndPhone(
+  nama: string,
+  noHp: string
+): Promise<{ student?: StudentAuthProfile; error?: string }> {
+  const cleanName = (nama || '').trim();
+  const normalizedPhone = normalizePhone628(noHp);
+
+  if (!cleanName || cleanName.length < 2) {
+    return { error: 'Harap masukkan Nama Lengkap siswa yang valid.' };
+  }
+
+  if (!isValidPhone628(normalizedPhone)) {
+    return {
+      error: 'Format Nomor HP wajib diawali 628xxx (contoh: 6281234567890, minimal 10 digit).',
+    };
+  }
+
+  const altPhone08 = '0' + normalizedPhone.slice(2);
+
+  // 1. Cek ke tabel `students` (Skema v1.2) di Supabase
+  try {
+    const { data: dbStudents } = await supabase
+      .from('students')
+      .select('*, classes:id_kelas(id, nama_kelas, jurusan)')
+      .ilike('nama_lengkap', `%${cleanName}%`)
+      .in('no_hp', [normalizedPhone, altPhone08])
+      .limit(1);
+
+    if (dbStudents && dbStudents.length > 0) {
+      const s = dbStudents[0] as any;
+      const cls = Array.isArray(s.classes) ? s.classes[0] : s.classes;
+      const fallbackCls = SEED_CLASSES.find((c) => c.id === s.id_kelas);
+      return {
+        student: {
+          nisn: s.nisn,
+          nama_lengkap: s.nama_lengkap,
+          no_hp: normalizedPhone,
+          id_kelas: s.id_kelas,
+          nama_kelas: cls?.nama_kelas || fallbackCls?.nama_kelas || 'XII RPL 1',
+          jurusan: cls?.jurusan || s.jurusan || fallbackCls?.jurusan || 'RPL',
+          is_perwakilan_kelas: !!s.is_perwakilan_kelas,
+        },
+      };
+    }
+  } catch {
+    // Lanjut ke tabel siswa legacy / localStorage
+  }
+
+  // 2. Cek ke tabel `siswa` (jika memakai skema siswa)
+  try {
+    const { data: legacyStudents } = await supabase
+      .from('siswa')
+      .select('*, kelas:kelas_id(id, nama_kelas, jurusan)')
+      .ilike('nama', `%${cleanName}%`)
+      .in('no_hp', [normalizedPhone, altPhone08])
+      .limit(1);
+
+    if (legacyStudents && legacyStudents.length > 0) {
+      const s = legacyStudents[0] as any;
+      const cls = Array.isArray(s.kelas) ? s.kelas[0] : s.kelas;
+      return {
+        student: {
+          nisn: s.nisn || s.id,
+          nama_lengkap: s.nama,
+          no_hp: normalizedPhone,
+          id_kelas: s.kelas_id || SEED_CLASSES[0].id,
+          nama_kelas: cls?.nama_kelas || 'XII RPL 1',
+          jurusan: cls?.jurusan || 'RPL',
+          is_perwakilan_kelas: false,
+        },
+      };
+    }
+  } catch {
+    // Lanjut ke localStorage & SEED_STUDENTS
+  }
+
+  // 3. Cek dari data siswa hasil Import / LocalStorage (`mbg_imported_students`)
+  const importedStudents = getLocalItem<StudentAuthProfile[]>('mbg_imported_students', []);
+  const foundImported = importedStudents.find(
+    (s) =>
+      s.nama_lengkap.toLowerCase().includes(cleanName.toLowerCase()) &&
+      normalizePhone628(s.no_hp) === normalizedPhone
+  );
+  if (foundImported) {
+    return { student: { ...foundImported, no_hp: normalizedPhone } };
+  }
+
+  // 4. Cek dari SEED_STUDENTS (Offline-First Demo)
+  const foundSeed = SEED_STUDENTS.find((s) =>
+    s.nama_lengkap.toLowerCase().includes(cleanName.toLowerCase())
+  );
+  if (foundSeed) {
+    const expectedPhone = SEED_STUDENT_PHONES[foundSeed.nisn];
+    // Izinkan login jika cocok dengan SEED_STUDENT_PHONES atau jika siswa demo login dengan format 628xxx valid
+    if (!expectedPhone || expectedPhone === normalizedPhone || normalizedPhone.startsWith('628')) {
+      return {
+        student: {
+          nisn: foundSeed.nisn,
+          nama_lengkap: foundSeed.nama_lengkap,
+          no_hp: normalizedPhone,
+          id_kelas: foundSeed.id_kelas,
+          nama_kelas: foundSeed.nama_kelas,
+          jurusan: foundSeed.jurusan,
+          is_perwakilan_kelas: foundSeed.is_perwakilan_kelas,
+        },
+      };
+    }
+  }
+
+  return {
+    error:
+      'Data siswa dengan kombinasi Nama dan Nomor HP tersebut tidak ditemukan. Pastikan Nomor HP telah terdaftar di Data Siswa.',
+  };
+}
+
+// ============================================================
+// TAHAP 3: MASTER MENU & CAMPAIGN MANAGER (SUPER ADMIN MARCOMM UBSI)
+// ============================================================
+
+export const SEED_CAMPAIGNS: CrmCampaign[] = [
+  {
+    id: 'camp-ubsi-rpl-01',
+    judul_promo: 'Beasiswa Talenta Digital UBSI 100% (Khusus Jurusan IT/RPL/TKJ)',
+    banner_image_url:
+      'https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=900&q=80',
+    target_tingkat: 'XII',
+    target_jurusan: ['RPL', 'TKJ', 'IPA'],
+    rekomendasi_fakultas_ubsi: 'Fakultas Teknik & Informatika (FTI) - S1 Rekayasa Perangkat Lunak',
+    cta_url_template:
+      'https://wa.me/6281299998888?text=Halo%20Tim%20PMB%20UBSI,%20saya%20siswa%20MBG%20tertarik%20info%20Beasiswa%20Talenta%20Digital%20FTI%20UBSI',
+    poin_interaksi: 2,
+    status_aktif: true,
+  },
+  {
+    id: 'camp-ubsi-feb-02',
+    judul_promo: 'Beasiswa Prestasi Akademik & Non-Akademik Universitas BSI',
+    banner_image_url:
+      'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&w=900&q=80',
+    target_tingkat: 'XII',
+    target_jurusan: ['AKUNTANSI', 'IPS', 'UMUM', 'RPL', 'TKJ'],
+    rekomendasi_fakultas_ubsi: 'Fakultas Ekonomi & Bisnis (FEB) / Ilmu Komunikasi (FIK)',
+    cta_url_template:
+      'https://wa.me/6281299998888?text=Halo%20Tim%20Marcomm%20UBSI,%20saya%20ingin%20konsultasi%20pendaftaran%20kuliah%20dan%20beasiswa%20UBSI',
+    poin_interaksi: 1,
+    status_aktif: true,
+  },
+];
+
+export async function getAllCrmCampaigns(): Promise<CrmCampaign[]> {
+  const localCampaigns = getLocalItem<CrmCampaign[]>('mbg_crm_campaigns', []);
+  const statusMap = getLocalItem<Record<string, boolean>>('mbg_crm_campaign_status', {});
+
+  try {
+    const { data, error } = await supabase.from('crm_campaigns').select('*');
+    if (!error && data && data.length > 0) {
+      const merged: CrmCampaign[] = data.map((row: any) => ({
+        id: row.id,
+        judul_promo: row.judul_promo,
+        banner_image_url: row.banner_image_url || null,
+        target_tingkat: row.target_tingkat || 'XII',
+        target_jurusan: Array.isArray(row.target_jurusan) ? row.target_jurusan : ['UMUM'],
+        rekomendasi_fakultas_ubsi: row.rekomendasi_fakultas_ubsi || 'Fakultas Teknik & Informatika',
+        cta_url_template: row.cta_url_template || 'https://bsi.ac.id',
+        poin_interaksi: row.poin_interaksi ?? 1,
+        status_aktif:
+          typeof row.status_aktif === 'boolean'
+            ? row.status_aktif
+            : statusMap[row.id] !== undefined
+            ? statusMap[row.id]
+            : true,
+      }));
+      setLocalItem('mbg_crm_campaigns', merged);
+      return merged;
+    }
+  } catch {
+    // Fallback ke localStorage
+  }
+
+  if (localCampaigns.length > 0) {
+    return localCampaigns.map((c) => ({
+      ...c,
+      status_aktif: statusMap[c.id] !== undefined ? statusMap[c.id] : c.status_aktif ?? true,
+    }));
+  }
+
+  setLocalItem('mbg_crm_campaigns', SEED_CAMPAIGNS);
+  return SEED_CAMPAIGNS;
+}
+
+export async function getActiveCrmCampaigns(jurusan?: string): Promise<CrmCampaign[]> {
+  const all = await getAllCrmCampaigns();
+  const active = all.filter((c) => c.status_aktif !== false);
+  if (!jurusan) return active;
+
+  const matched = active.filter(
+    (c) =>
+      !c.target_jurusan ||
+      c.target_jurusan.length === 0 ||
+      c.target_jurusan.some(
+        (j) =>
+          j.toUpperCase() === jurusan.toUpperCase() ||
+          jurusan.toUpperCase().includes(j.toUpperCase()) ||
+          j.toUpperCase() === 'UMUM'
+      )
+  );
+  return matched.length > 0 ? matched : active;
+}
+
+export async function saveCrmCampaign(
+  campaign: Partial<CrmCampaign> & { judul_promo: string },
+  penggunaId?: string
+): Promise<CrmCampaign> {
+  const all = await getAllCrmCampaigns();
+  const isEdit = !!campaign.id && all.some((c) => c.id === campaign.id);
+  const id =
+    campaign.id ||
+    (typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `camp-${Date.now()}`);
+
+  const newRecord: CrmCampaign = {
+    id,
+    judul_promo: campaign.judul_promo.trim(),
+    banner_image_url: campaign.banner_image_url?.trim() || null,
+    target_tingkat: campaign.target_tingkat || 'XII',
+    target_jurusan:
+      campaign.target_jurusan && campaign.target_jurusan.length > 0
+        ? campaign.target_jurusan
+        : ['RPL', 'TKJ', 'UMUM'],
+    rekomendasi_fakultas_ubsi:
+      campaign.rekomendasi_fakultas_ubsi?.trim() || 'Fakultas Teknik & Informatika (FTI)',
+    cta_url_template:
+      campaign.cta_url_template?.trim() ||
+      'https://wa.me/6281299998888?text=Halo%20PMB%20UBSI,%20saya%20ingin%20info%20beasiswa',
+    poin_interaksi: Number(campaign.poin_interaksi) || 1,
+    status_aktif: campaign.status_aktif ?? true,
+  };
+
+  // Simpan status_aktif di map lokal
+  const statusMap = getLocalItem<Record<string, boolean>>('mbg_crm_campaign_status', {});
+  statusMap[id] = newRecord.status_aktif ?? true;
+  setLocalItem('mbg_crm_campaign_status', statusMap);
+
+  try {
+    const dbPayload: any = {
+      id,
+      judul_promo: newRecord.judul_promo,
+      banner_image_url: newRecord.banner_image_url,
+      target_tingkat: newRecord.target_tingkat,
+      target_jurusan: newRecord.target_jurusan,
+      rekomendasi_fakultas_ubsi: newRecord.rekomendasi_fakultas_ubsi,
+      cta_url_template: newRecord.cta_url_template,
+      poin_interaksi: newRecord.poin_interaksi,
+    };
+    const { data, error } = await supabase
+      .from('crm_campaigns')
+      .upsert(dbPayload)
+      .select()
+      .maybeSingle();
+    if (!error && data) {
+      newRecord.id = data.id;
+    }
+  } catch {
+    // Tetap simpan ke localStorage
+  }
+
+  const updatedList = isEdit
+    ? all.map((c) => (c.id === id ? newRecord : c))
+    : [newRecord, ...all];
+  setLocalItem('mbg_crm_campaigns', updatedList);
+
+  await logActivity(
+    isEdit ? 'UPDATE_CRM_CAMPAIGN' : 'CREATE_CRM_CAMPAIGN',
+    'crm_campaigns',
+    newRecord.id,
+    null,
+    newRecord,
+    penggunaId || null
+  );
+
+  return newRecord;
+}
+
+export async function toggleCrmCampaignStatus(
+  id: string,
+  statusAktif: boolean,
+  penggunaId?: string
+): Promise<CrmCampaign[]> {
+  const all = await getAllCrmCampaigns();
+  const statusMap = getLocalItem<Record<string, boolean>>('mbg_crm_campaign_status', {});
+  statusMap[id] = statusAktif;
+  setLocalItem('mbg_crm_campaign_status', statusMap);
+
+  const updated = all.map((c) => (c.id === id ? { ...c, status_aktif: statusAktif } : c));
+  setLocalItem('mbg_crm_campaigns', updated);
+
+  try {
+    await supabase.from('crm_campaigns').update({ status_aktif: statusAktif } as any).eq('id', id);
+  } catch {
+    // Abaikan jika kolom status_aktif belum dimigrasi di DB, karena statusMap lokal tetap menjaga state
+  }
+
+  await logActivity(
+    statusAktif ? 'ACTIVATE_CRM_CAMPAIGN' : 'DEACTIVATE_CRM_CAMPAIGN',
+    'crm_campaigns',
+    id,
+    { status_aktif: !statusAktif },
+    { status_aktif: statusAktif },
+    penggunaId || null
+  );
+
+  return updated;
+}
+
+export async function deleteCrmCampaign(id: string, penggunaId?: string): Promise<CrmCampaign[]> {
+  const all = await getAllCrmCampaigns();
+  const target = all.find((c) => c.id === id);
+  const updated = all.filter((c) => c.id !== id);
+  setLocalItem('mbg_crm_campaigns', updated);
+
+  try {
+    await supabase.from('crm_campaigns').delete().eq('id', id);
+  } catch {
+    // Abaikan jika offline
+  }
+
+  await logActivity(
+    'DELETE_CRM_CAMPAIGN',
+    'crm_campaigns',
+    id,
+    target || null,
+    null,
+    penggunaId || null
+  );
+
+  return updated;
+}
+
+export async function syncMasterDataDapodik(penggunaId?: string): Promise<{
+  success: boolean;
+  totalKelas: number;
+  totalSiswa: number;
+  timestamp: string;
+}> {
+  const nowIso = new Date().toISOString();
+
+  // Sinkronkan akun siswa dari SEED_STUDENTS beserta nomor HP 628xxx ke localStorage & Supabase
+  const existingImported = getLocalItem<StudentAuthProfile[]>('mbg_imported_students', []);
+  const mapByKey = new Map<string, StudentAuthProfile>();
+
+  for (const item of existingImported) {
+    const key = `${item.nama_lengkap.toLowerCase()}|${normalizePhone628(item.no_hp)}`;
+    mapByKey.set(key, item);
+  }
+
+  for (const seed of SEED_STUDENTS) {
+    const phone = SEED_STUDENT_PHONES[seed.nisn] || `62812000${seed.nisn.slice(-5)}`;
+    const profile: StudentAuthProfile = {
+      nisn: seed.nisn,
+      nama_lengkap: seed.nama_lengkap,
+      no_hp: phone,
+      id_kelas: seed.id_kelas,
+      nama_kelas: seed.nama_kelas,
+      jurusan: seed.jurusan,
+      is_perwakilan_kelas: seed.is_perwakilan_kelas,
+    };
+    const key = `${profile.nama_lengkap.toLowerCase()}|${profile.no_hp}`;
+    mapByKey.set(key, profile);
+  }
+
+  const syncedStudents = Array.from(mapByKey.values());
+  setLocalItem('mbg_imported_students', syncedStudents);
+
+  // Upsert ke tabel `students` di Supabase bila terkoneksi
+  try {
+    const toUpsert = syncedStudents.map((s) => ({
+      nisn: s.nisn,
+      id_kelas: s.id_kelas,
+      nama_lengkap: s.nama_lengkap,
+      no_hp: s.no_hp,
+      jurusan: s.jurusan,
+      is_perwakilan_kelas: s.is_perwakilan_kelas,
+    }));
+    await supabase.from('students').upsert(toUpsert, { onConflict: 'nisn' });
+  } catch {
+    // Offline fallback
+  }
+
+  await logActivity(
+    'SYNC_MASTER_DATA_DAPODIK',
+    'students',
+    null,
+    null,
+    {
+      school: SEED_SCHOOL.nama_sekolah,
+      npsn: SEED_SCHOOL.npsn,
+      synced_classes: SEED_CLASSES.length,
+      synced_students: syncedStudents.length,
+    },
+    penggunaId || null
+  );
+
+  return {
+    success: true,
+    totalKelas: SEED_CLASSES.length,
+    totalSiswa: syncedStudents.reduce((acc) => acc + 1, 0),
+    timestamp: nowIso,
+  };
+}
+
+// ============================================================
+// TAHAP 4: CORRECTION MODE (KEPALA SEKOLAH / SUPER ADMIN)
+// ============================================================
+
+export async function correctClassAttendance(params: {
+  idKelas: string;
+  namaKelas: string;
+  totalSiswa: number;
+  jumlahHadirBaru: number;
+  jumlahAbsenBaru: number;
+  alasanKoreksi: string;
+  penggunaId?: string | null;
+  namaPengguna?: string | null;
+}): Promise<{ success: boolean; message: string }> {
+  const today = getJakartaDateString();
+  const hadir = Math.max(0, Math.min(params.totalSiswa, Number(params.jumlahHadirBaru) || 0));
+  const absen = Math.max(0, Number(params.jumlahAbsenBaru) ?? params.totalSiswa - hadir);
+  const nowIso = new Date().toISOString();
+
+  const localAtt = getLocalItem<any[]>(`mbg_attendances_${today}`, []);
+  const existingIdx = localAtt.findIndex((a) => a.id_kelas === params.idKelas);
+  const prevData =
+    existingIdx >= 0
+      ? {
+          jumlah_hadir: localAtt[existingIdx].jumlah_hadir,
+          jumlah_absen: localAtt[existingIdx].jumlah_absen,
+          status_ambil: localAtt[existingIdx].status_ambil,
+        }
+      : { jumlah_hadir: 0, jumlah_absen: params.totalSiswa, status_ambil: 'MENUNGGU' };
+
+  const newStatus: AttendanceStatus = hadir > 0 ? 'SUDAH_TERIMA_MBG' : 'MENUNGGU';
+  const targetClass = SEED_CLASSES.find((c) => c.id === params.idKelas);
+
+  if (existingIdx >= 0) {
+    localAtt[existingIdx] = {
+      ...localAtt[existingIdx],
+      jumlah_hadir: hadir,
+      jumlah_absen: absen,
+      status_ambil: newStatus,
+      waktu_terima_kelas: localAtt[existingIdx].waktu_terima_kelas || nowIso,
+    };
+  } else {
+    localAtt.push({
+      id: `da-${params.idKelas}-${Date.now()}`,
+      id_kelas: params.idKelas,
+      id_uji: 'corrected-session',
+      tanggal: today,
+      jumlah_hadir: hadir,
+      jumlah_absen: absen,
+      status_ambil: newStatus,
+      waktu_terima_kelas: nowIso,
+      classes: targetClass,
+    });
+  }
+  setLocalItem(`mbg_attendances_${today}`, localAtt);
+
+  // Update di Supabase `daily_attendances` jika ada baris hari ini
+  let attendanceId: string | null = null;
+  try {
+    const { data: existingRow } = await supabase
+      .from('daily_attendances')
+      .select('id, jumlah_hadir, jumlah_absen')
+      .eq('id_kelas', params.idKelas)
+      .eq('tanggal', today)
+      .maybeSingle();
+
+    if (existingRow?.id) {
+      attendanceId = existingRow.id;
+      await supabase
+        .from('daily_attendances')
+        .update({
+          jumlah_hadir: hadir,
+          jumlah_absen: absen,
+          status_ambil: newStatus,
+          waktu_terima_kelas: nowIso,
+        })
+        .eq('id', existingRow.id);
+    }
+  } catch {
+    // Offline fallback
+  }
+
+  // Catat ke Audit Log dengan label wajib "CORRECTION_BY_KEPSEK"
+  await logActivity(
+    'CORRECTION_BY_KEPSEK',
+    'daily_attendances',
+    attendanceId,
+    {
+      kelas: params.namaKelas,
+      ...prevData,
+    },
+    {
+      kelas: params.namaKelas,
+      jumlah_hadir: hadir,
+      jumlah_absen: absen,
+      status_ambil: newStatus,
+      alasan_koreksi: params.alasanKoreksi.trim() || 'Koreksi rekapitulasi pasca-operasional',
+      dikoreksi_oleh: params.namaPengguna || 'Kepala Sekolah',
+    },
+    params.penggunaId || null
+  );
+
+  // Tambahkan ke live activity feed
+  const timeStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+  const localLogs = getLocalItem<any[]>(`mbg_logs_${today}`, []);
+  localLogs.unshift({
+    id: `log-corr-${Date.now()}`,
+    nama_kelas: params.namaKelas,
+    deskripsi: `[KOREKSI KEPSEK] Data ${params.namaKelas} diperbarui menjadi ${hadir} Hadir / ${absen} Absen (${timeStr} WIB)`,
+    waktu: timeStr,
+    waktu_ambil: nowIso,
+    tipe_klaim: 'KOLEKTIF_KELAS',
+    jumlah_porsi: hadir,
+  });
+  setLocalItem(`mbg_logs_${today}`, localLogs.slice(0, 30));
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('mbg-live-activity'));
+  }
+
+  return {
+    success: true,
+    message: `Data kelas ${params.namaKelas} berhasil dikoreksi (${hadir} Hadir, ${absen} Absen) & tercatat di Audit Log (CORRECTION_BY_KEPSEK).`,
+  };
+}
+
+// ============================================================
+// TAHAP 5: AUTO-ACCOUNT GENERATION (STUDENT IMPORT ENGINE)
+// ============================================================
+
+export async function importStudentsWithAutoAccount(params: {
+  rows: Array<{
+    nama: string;
+    nisn?: string | null;
+    kelas_id: string;
+    nama_kelas?: string;
+    jurusan?: string;
+    email?: string | null;
+    no_hp?: string | null;
+  }>;
+  penggunaId?: string | null;
+}): Promise<{
+  insertedCount: number;
+  skippedDuplicateCount: number;
+  autoAccountsCreated: number;
+  message: string;
+}> {
+  const existingLocal = getLocalItem<StudentAuthProfile[]>('mbg_imported_students', []);
+  const dedupSet = new Set<string>();
+
+  // Daftarkan kombinasi nama + no_hp yang sudah ada di sekolah
+  for (const s of existingLocal) {
+    dedupSet.add(`${s.nama_lengkap.trim().toLowerCase()}|${normalizePhone628(s.no_hp)}`);
+  }
+  for (const seed of SEED_STUDENTS) {
+    const seedPhone = SEED_STUDENT_PHONES[seed.nisn] || '';
+    if (seedPhone) {
+      dedupSet.add(`${seed.nama_lengkap.trim().toLowerCase()}|${seedPhone}`);
+    }
+  }
+
+  const validLegacyInsert: any[] = [];
+  const validV12Upsert: any[] = [];
+  const newProfiles: StudentAuthProfile[] = [];
+  let skippedDuplicateCount = 0;
+  let autoAccountsCreated = 0;
+
+  for (const row of params.rows) {
+    const cleanNama = (row.nama || '').trim();
+    if (!cleanNama) {
+      skippedDuplicateCount++;
+      continue;
+    }
+
+    const rawPhone = (row.no_hp || '').trim();
+    const normalizedPhone = rawPhone
+      ? normalizePhone628(rawPhone)
+      : `62813${String(Math.floor(1000000 + Math.random() * 9000000))}`;
+
+    const dedupKey = `${cleanNama.toLowerCase()}|${normalizedPhone}`;
+    if (dedupSet.has(dedupKey)) {
+      skippedDuplicateCount++;
+      continue;
+    }
+    dedupSet.add(dedupKey);
+
+    const generatedNisn =
+      row.nisn && String(row.nisn).trim().length >= 5
+        ? String(row.nisn).trim().slice(0, 10)
+        : String(Math.floor(1000000000 + Math.random() * 9000000000));
+
+    const targetCls = SEED_CLASSES.find((c) => c.id === row.kelas_id);
+    const namaKelas = row.nama_kelas || targetCls?.nama_kelas || 'XII RPL 1';
+    const jurusan = row.jurusan || targetCls?.jurusan || 'RPL';
+
+    validLegacyInsert.push({
+      nama: cleanNama,
+      nisn: generatedNisn,
+      kelas_id: row.kelas_id,
+      email: row.email ? row.email.trim() : null,
+      no_hp: normalizedPhone,
+      status_aktif: true,
+    });
+
+    validV12Upsert.push({
+      nisn: generatedNisn,
+      id_kelas: row.kelas_id,
+      nama_lengkap: cleanNama,
+      no_hp: normalizedPhone,
+      email: row.email ? row.email.trim() : null,
+      jurusan,
+      is_perwakilan_kelas: false,
+    });
+
+    newProfiles.push({
+      nisn: generatedNisn,
+      nama_lengkap: cleanNama,
+      no_hp: normalizedPhone,
+      id_kelas: row.kelas_id,
+      nama_kelas: namaKelas,
+      jurusan,
+      is_perwakilan_kelas: false,
+    });
+
+    if (isValidPhone628(normalizedPhone)) {
+      autoAccountsCreated++;
+    }
+  }
+
+  if (newProfiles.length > 0) {
+    setLocalItem('mbg_imported_students', [...newProfiles, ...existingLocal]);
+
+    // Simpan ke tabel `students` (Skema v1.2 - Basis Login Siswa)
+    try {
+      await supabase.from('students').upsert(validV12Upsert, { onConflict: 'nisn' });
+    } catch {
+      // Abaikan jika tabel tidak tersedia/offline
+    }
+
+    // Simpan juga ke tabel `siswa` (jika dipakai oleh UI manajemen siswa)
+    try {
+      await supabase.from('siswa').insert(validLegacyInsert);
+    } catch {
+      // Abaikan jika offline
+    }
+
+    await logActivity(
+      'AUTO_ACCOUNT_IMPORT_SISWA',
+      'students',
+      null,
+      null,
+      {
+        inserted: newProfiles.length,
+        skipped_duplicates: skippedDuplicateCount,
+        auto_accounts_628: autoAccountsCreated,
+      },
+      params.penggunaId || null
+    );
+  }
+
+  return {
+    insertedCount: newProfiles.length,
+    skippedDuplicateCount,
+    autoAccountsCreated,
+    message: `Berhasil memproses ${newProfiles.length} siswa (${autoAccountsCreated} akun login otomatis dengan No. HP 628xxx aktif, ${skippedDuplicateCount} duplikat dilewati).`,
+  };
 }

@@ -15,6 +15,7 @@ import {
   Building,
   RotateCw,
   Search,
+  Edit2,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '@/lib/supabase/client';
@@ -25,11 +26,27 @@ import {
   formatIndonesianDateTime,
   getJakartaDateString,
 } from '@/lib/utils';
-import { getTodayDistribution, getMonitoringOverview, SEED_CLASSES, getClassRoster } from '@/lib/services';
+import {
+  getTodayDistribution,
+  getMonitoringOverview,
+  SEED_CLASSES,
+  getClassRoster,
+  correctClassAttendance,
+} from '@/lib/services';
+import { Modal, ModalInput, ModalActions } from '@/components/ui/ModalField';
 
 export default function LaporanPage() {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
+  const canCorrectData =
+    role === 'kepala_sekolah' || role === 'super_admin' || role === 'admin';
   const [activeTab, setActiveTab] = useState<'harian' | 'siswa' | 'kelas'>('harian');
+
+  const [editingClass, setEditingClass] = useState<any | null>(null);
+  const [corrHadir, setCorrHadir] = useState(0);
+  const [corrAbsen, setCorrAbsen] = useState(0);
+  const [corrReason, setCorrReason] = useState('');
+  const [submittingCorrection, setSubmittingCorrection] = useState(false);
+  const [correctionFeedback, setCorrectionFeedback] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(getJakartaDateString());
@@ -58,6 +75,8 @@ export default function LaporanPage() {
         tingkat: c.tingkat,
         jurusan: c.jurusan,
         total_siswa_dapodik: c.total_siswa,
+        jumlah_hadir: c.jumlah_hadir,
+        jumlah_absen: c.jumlah_absen,
         siswa: Array.from({ length: c.total_siswa }, (_, i) => ({ id: `s-${i}` })),
       }));
       setKelasList(mappedClasses as any);
@@ -448,42 +467,154 @@ export default function LaporanPage() {
 
       {/* TAB 3: LAPORAN PER KELAS (PRD 9.3) */}
       {activeTab === 'kelas' && (
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200">
-                <tr>
-                  <th className="py-3 px-4">Nama Kelas</th>
-                  <th className="py-3 px-4">Jurusan</th>
-                  <th className="py-3 px-4">Total Siswa</th>
-                  <th className="py-3 px-4">Sudah Menerima</th>
-                  <th className="py-3 px-4">Belum Tercatat</th>
-                  <th className="py-3 px-4">Capaian (%)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {kelasList.map((k: any) => {
-                  const total = k.siswa?.length || 0;
-                  const sudah = validDiterima.filter((r) => r.kelas === k.nama_kelas).length;
-                  const belum = Math.max(0, total - sudah);
-                  const pct = total > 0 ? ((sudah / total) * 100).toFixed(0) : '0';
+        <div className="space-y-4">
+          {correctionFeedback && (
+            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-bold flex items-center justify-between">
+              <span>{correctionFeedback}</span>
+              <button
+                onClick={() => setCorrectionFeedback(null)}
+                className="underline text-emerald-800"
+              >
+                Tutup
+              </button>
+            </div>
+          )}
 
-                  return (
-                    <tr key={k.id} className="hover:bg-slate-50 transition">
-                      <td className="py-3.5 px-4 font-bold text-slate-900">{k.nama_kelas}</td>
-                      <td className="py-3.5 px-4 text-slate-600">{k.jurusan}</td>
-                      <td className="py-3.5 px-4 font-mono font-bold text-slate-800">{total}</td>
-                      <td className="py-3.5 px-4 font-mono font-bold text-emerald-600">{sudah}</td>
-                      <td className="py-3.5 px-4 font-mono font-bold text-amber-600">{belum}</td>
-                      <td className="py-3.5 px-4 font-bold text-brand-blue">{pct}%</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200">
+                  <tr>
+                    <th className="py-3 px-4">Nama Kelas</th>
+                    <th className="py-3 px-4">Jurusan</th>
+                    <th className="py-3 px-4">Total Siswa</th>
+                    <th className="py-3 px-4">Sudah Menerima</th>
+                    <th className="py-3 px-4">Belum Tercatat</th>
+                    <th className="py-3 px-4">Capaian (%)</th>
+                    {canCorrectData && <th className="py-3 px-4 text-right">Koreksi Kepsek</th>}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {kelasList.map((k: any) => {
+                    const total = k.total_siswa_dapodik || k.siswa?.length || 0;
+                    const sudah =
+                      typeof k.jumlah_hadir === 'number'
+                        ? k.jumlah_hadir
+                        : validDiterima.filter((r) => r.kelas === k.nama_kelas).length;
+                    const belum =
+                      typeof k.jumlah_absen === 'number'
+                        ? k.jumlah_absen
+                        : Math.max(0, total - sudah);
+                    const pct = total > 0 ? ((sudah / total) * 100).toFixed(0) : '0';
+
+                    return (
+                      <tr key={k.id} className="hover:bg-slate-50 transition">
+                        <td className="py-3.5 px-4 font-bold text-slate-900">{k.nama_kelas}</td>
+                        <td className="py-3.5 px-4 text-slate-600">{k.jurusan}</td>
+                        <td className="py-3.5 px-4 font-mono font-bold text-slate-800">{total}</td>
+                        <td className="py-3.5 px-4 font-mono font-bold text-emerald-600">{sudah}</td>
+                        <td className="py-3.5 px-4 font-mono font-bold text-amber-600">{belum}</td>
+                        <td className="py-3.5 px-4 font-bold text-brand-blue">{pct}%</td>
+                        {canCorrectData && (
+                          <td className="py-3.5 px-4 text-right">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingClass({ ...k, total, sudah, belum });
+                                setCorrHadir(sudah);
+                                setCorrAbsen(belum);
+                                setCorrReason('Koreksi rekapitulasi oleh Kepala Sekolah');
+                              }}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-800 text-xs font-bold border border-purple-200 transition active:scale-95"
+                            >
+                              <Edit2 className="w-3 h-3" />
+                              Edit Data
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
+
+      {/* Modal Koreksi Data oleh Kepala Sekolah / Super Admin */}
+      <Modal
+        isOpen={!!editingClass}
+        onClose={() => setEditingClass(null)}
+        title={`Koreksi Rekapitulasi ${editingClass?.nama_kelas || ''}`}
+        description="Perubahan akan dicatat ke Audit Log dengan label CORRECTION_BY_KEPSEK."
+        size="sm"
+      >
+        {editingClass && (
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setSubmittingCorrection(true);
+              try {
+                const res = await correctClassAttendance({
+                  idKelas: editingClass.id,
+                  namaKelas: editingClass.nama_kelas,
+                  totalSiswa: editingClass.total,
+                  jumlahHadirBaru: corrHadir,
+                  jumlahAbsenBaru: corrAbsen,
+                  alasanKoreksi: corrReason,
+                  penggunaId: user?.id,
+                  namaPengguna: user?.nama || 'Kepala Sekolah',
+                });
+                setEditingClass(null);
+                setCorrectionFeedback(res.message);
+                await loadReportData();
+              } finally {
+                setSubmittingCorrection(false);
+              }
+            }}
+            className="space-y-4"
+          >
+            <div className="grid grid-cols-2 gap-3">
+              <ModalInput
+                label="Jumlah Hadir"
+                type="number"
+                min={0}
+                max={editingClass.total}
+                required
+                value={String(corrHadir)}
+                onChange={(e) => {
+                  const val = Math.max(0, Math.min(editingClass.total, Number(e.target.value) || 0));
+                  setCorrHadir(val);
+                  setCorrAbsen(Math.max(0, editingClass.total - val));
+                }}
+              />
+              <ModalInput
+                label="Jumlah Absen"
+                type="number"
+                min={0}
+                max={editingClass.total}
+                required
+                value={String(corrAbsen)}
+                onChange={(e) => setCorrAbsen(Math.max(0, Number(e.target.value) || 0))}
+              />
+            </div>
+
+            <ModalInput
+              label="Alasan Koreksi"
+              required
+              value={corrReason}
+              onChange={(e) => setCorrReason(e.target.value)}
+            />
+
+            <ModalActions
+              onCancel={() => setEditingClass(null)}
+              submitLabel="Simpan Koreksi"
+              submitting={submittingCorrection}
+            />
+          </form>
+        )}
+      </Modal>
     </div>
   );
 }

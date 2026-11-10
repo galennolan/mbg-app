@@ -8,6 +8,7 @@ export interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
+  description?: string;
   children: ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
   className?: string;
@@ -32,6 +33,7 @@ export function Modal({
   isOpen,
   onClose,
   title,
+  description,
   children,
   size = 'md',
   className,
@@ -107,10 +109,15 @@ export function Modal({
         )}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between p-5 border-b border-slate-100 sticky top-0 bg-white rounded-t-3xl z-10">
-          <h3 id="modal-title" className="font-bold text-lg text-slate-900">
-            {title}
-          </h3>
+        <div className="flex items-start justify-between p-5 border-b border-slate-100 sticky top-0 bg-white rounded-t-3xl z-10">
+          <div>
+            <h3 id="modal-title" className="font-bold text-lg text-slate-900">
+              {title}
+            </h3>
+            {description && (
+              <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{description}</p>
+            )}
+          </div>
           {!hideCloseButton && (
             <button
               type="button"

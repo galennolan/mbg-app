@@ -33,17 +33,21 @@ import {
   submitClassRepresentativeClaim,
   submitIndividualStudentClaim,
   searchStudentsForConfirmation,
+  getActiveCrmCampaigns,
   SEED_CLASSES,
   SEED_SCHOOL,
 } from '@/lib/services';
-import { OrganolepticTest, StudentRecord, Kelas } from '@/lib/types';
+import { OrganolepticTest, StudentRecord, Kelas, CrmCampaign } from '@/lib/types';
 import { formatIndonesianDate, getJakartaDateString } from '@/lib/utils';
 import { Modal } from '@/components/ui/ModalField';
+import { useAuth } from '@/lib/auth-context';
 
 export default function StudentPortalPage() {
+  const { student } = useAuth();
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<OrganolepticTest | null>(null);
   const [classes, setClasses] = useState<Kelas[]>(SEED_CLASSES as any);
+  const [activeCampaigns, setActiveCampaigns] = useState<CrmCampaign[]>([]);
 
   // Verification step state
   const [verificationMode, setVerificationMode] = useState<'qr' | 'pin'>('pin');
@@ -169,7 +173,17 @@ export default function StudentPortalPage() {
       }
     }
     fetchRoster();
-  }, [selectedClassId, isVerified]);
+    // Fetch active CRM campaigns targeted to student's jurusan
+    const currentCls = classes.find((c) => c.id === selectedClassId);
+    const targetJurusan = student?.jurusan || currentCls?.jurusan;
+    getActiveCrmCampaigns(targetJurusan).then(setActiveCampaigns).catch(() => {});
+  }, [selectedClassId, isVerified, student, classes]);
+
+  useEffect(() => {
+    if (student?.id_kelas) {
+      setSelectedClassId(student.id_kelas);
+    }
+  }, [student]);
 
   // Handle PIN input box typing
   const handlePinChange = (index: number, value: string) => {
@@ -1073,28 +1087,34 @@ export default function StudentPortalPage() {
               </div>
             </div>
 
-            {/* Smart EdTech CRM Beasiswa UBSI Banner (DBD Section 3.3) */}
-            <div className="rounded-2xl bg-gradient-to-br from-blue-900 to-indigo-950 p-4 text-white text-left space-y-2 shadow-md">
-              <div className="flex items-center gap-2">
-                <GraduationCap className="w-5 h-5 text-cyan-300" />
-                <span className="text-xs font-black uppercase text-cyan-200">
-                  Info Kuliah & Beasiswa UBSI
-                </span>
+            {/* Smart EdTech CRM Beasiswa UBSI Banner (Controlled by Super Admin /admin/campaign) */}
+            {activeCampaigns.length > 0 && (
+              <div className="rounded-2xl bg-gradient-to-br from-blue-900 to-indigo-950 p-4 text-white text-left space-y-2 shadow-md overflow-hidden relative">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <GraduationCap className="w-5 h-5 text-cyan-300" />
+                    <span className="text-xs font-black uppercase text-cyan-200">
+                      {activeCampaigns[0].rekomendasi_fakultas_ubsi || 'Info Kuliah & Beasiswa UBSI'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold bg-white/15 px-2 py-0.5 rounded-full text-sky-200">
+                    +{activeCampaigns[0].poin_interaksi} Poin
+                  </span>
+                </div>
+                <p className="text-sm font-bold text-white leading-snug">
+                  {activeCampaigns[0].judul_promo}
+                </p>
+                <a
+                  href={activeCampaigns[0].cta_url_template || 'https://bsi.ac.id'}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-md transition active:scale-95"
+                >
+                  Konsultasi WhatsApp / Daftar PMB UBSI
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
               </div>
-              <p className="text-sm text-sky-100 leading-snug">
-                Dapatkan beasiswa kuliah hingga 100% di Universitas Bina Sarana Informatika untuk lulusan
-                SMK/SMA berprestasi!
-              </p>
-              <a
-                href="https://bsi.ac.id"
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-bold shadow-md transition"
-              >
-                Daftar PMB UBSI
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
-            </div>
+            )}
 
             <button
               type="button"
