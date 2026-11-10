@@ -58,7 +58,7 @@ export default function BottomNavigation() {
   const pathname = usePathname();
   const { role, isStudent, user } = useAuth();
 
-  if (pathname === '/login') return null;
+  if (pathname === '/login' || pathname === '/login-siswa') return null;
 
   const activeRole: RbacRole = user && role && !isStudent ? role : 'siswa';
 
@@ -97,8 +97,14 @@ export default function BottomNavigation() {
     >
       <div className={`mx-auto grid max-w-md ${colCountClass} gap-1.5`}>
         {displayItems.map(({ href, label, icon: Icon, primary }) => {
+          const isClassModule =
+            href === '/konfirmasi/kelas' &&
+            (pathname === '/konfirmasi/kelas' ||
+              pathname === '/admin/kelas' ||
+              pathname === '/siswa');
           const active =
             pathname === href ||
+            isClassModule ||
             (href !== '/' && href !== '/dashboard' && pathname.startsWith(`${href}/`));
           return (
             <Link

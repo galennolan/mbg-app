@@ -36,7 +36,7 @@ import {
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 
 export default function LaporanPage() {
-  const { user, role } = useAuth();
+  const { user, role, activeSchoolId } = useAuth();
   const notify = useNotify();
   const canCorrectData =
     role === 'kepala_sekolah' || role === 'super_admin' || role === 'admin';
@@ -66,10 +66,10 @@ export default function LaporanPage() {
   const loadReportData = async () => {
     setLoading(true);
     try {
-      const dist = await getTodayDistribution();
+      const dist = await getTodayDistribution(activeSchoolId);
       setDistribusi(dist as any);
 
-      const overview = await getMonitoringOverview();
+      const overview = await getMonitoringOverview(activeSchoolId);
       const mappedClasses = overview.classes.map((c) => ({
         id: c.id_kelas,
         nama_kelas: c.nama_kelas,
@@ -107,7 +107,7 @@ export default function LaporanPage() {
 
   useEffect(() => {
     loadReportData();
-  }, [selectedDate]);
+  }, [selectedDate, activeSchoolId]);
 
   // Calculations for Laporan Harian
   const validDiterima = receipts

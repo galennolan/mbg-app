@@ -11,23 +11,28 @@ import {
   Check,
   ArrowRight,
   Utensils,
+  Building2,
+  Users as UsersIcon,
+  Plus,
 } from 'lucide-react';
 import {
   getTodayOrganolepticSession,
   getClassRoster,
   submitClassRepresentativeClaim,
+  getClassesBySchool,
   SEED_CLASSES,
 } from '@/lib/services';
-import { OrganolepticTest, StudentRecord } from '@/lib/types';
+import { OrganolepticTest, StudentRecord, Kelas } from '@/lib/types';
 import { PageHeader, FeedbackBanner, Select, Input, Button, useNotify } from '@/components/ui';
-import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
+import ClassModuleTabs from '@/components/navigation/ClassModuleTabs';
 
 export default function KonfirmasiKelasPage() {
-  const { user } = useAuth();
+  const { user, activeSchoolId } = useAuth();
   const notify = useNotify();
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<OrganolepticTest | null>(null);
 
+  const [classList, setClassList] = useState<Kelas[]>(SEED_CLASSES as any);
   const [selectedClassId, setSelectedClassId] = useState(SEED_CLASSES[0].id);
   const [roster, setRoster] = useState<StudentRecord[]>([]);
   const [selectedNisns, setSelectedNisns] = useState<Set<string>>(new Set());
@@ -42,14 +47,30 @@ export default function KonfirmasiKelasPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const sess = await getTodayOrganolepticSession();
+      const sess = await getTodayOrganolepticSession(activeSchoolId);
       setSession(sess);
-      const list = await getClassRoster(selectedClassId);
-      setRoster(list);
 
-      // Default: Select all students who haven't received yet
-      const available = list.filter((s) => !s.sudah_ambil).map((s) => s.nisn);
-      setSelectedNisns(new Set(available));
+      // Fetch dynamic classes for active school
+      try {
+        const fetchedClasses = await getClassesBySchool(activeSchoolId);
+        if (fetchedClasses && fetchedClasses.length > 0) {
+          setClassList(fetchedClasses);
+          if (!selectedClassId || !fetchedClasses.some((c) => c.id === selectedClassId)) {
+            setSelectedClassId(fetchedClasses[0].id);
+          }
+        }
+      } catch (err) {
+        console.warn('Fallback to seed classes:', err);
+      }
+
+      if (selectedClassId) {
+        const list = await getClassRoster(selectedClassId);
+        setRoster(list);
+
+        // Default: Select all students who haven't received yet
+        const available = list.filter((s) => !s.sudah_ambil).map((s) => s.nisn);
+        setSelectedNisns(new Set(available));
+      }
     } catch (e: any) {
       setFeedback({ type: 'error', message: e.message || 'Gagal memuat data' });
     } finally {
@@ -59,7 +80,7 @@ export default function KonfirmasiKelasPage() {
 
   useEffect(() => {
     loadData();
-  }, [selectedClassId]);
+  }, [selectedClassId, activeSchoolId]);
 
   const toggleStudent = (nisn: string, sudahAmbil: boolean) => {
     if (sudahAmbil) return; // Locked!
@@ -139,65 +160,94 @@ export default function KonfirmasiKelasPage() {
 
   const hadirCount = selectedNisns.size;
   const absenCount = Math.max(0, roster.length - hadirCount);
-  const currentClass = SEED_CLASSES.find((c) => c.id === selectedClassId);
+  const currentClass =
+    classList.find((c) => c.id === selectedClassId) ||
+    SEED_CLASSES.find((c) => c.id === selectedClassId);
 
   return (
-    <ProtectedRoute allowedRoles={['guru_piket', 'kepala_sekolah', 'super_admin', 'admin', 'guru']}>
-      <div className="space-y-6 pb-24">
-        <PageHeader
-        title="Konfirmasi Kolektif Kelas (FR-3.2)"
-        subtitle="Checklist massal penerimaan MBG per kelas oleh Guru Piket atau Wali Kelas."
-        badgeText="STAFF MODE"
-      >
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={loadData}
-            loading={loading}
-            leftIcon={<RotateCw className="w-3.5 h-3.5" />}
-          >
-            Segarkan
-          </Button>
-          <Link
-            href="/dashboard"
-            className="micro-tap inline-flex items-center gap-1.5 min-h-[44px] px-4 py-2 rounded-xl bg-brand-navy hover:bg-slate-800 text-white text-xs font-bold shadow-sm transition"
-          >
-            Live Monitor
-            <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
+    <div className="space-y-6 pb-24">
+      <PageHeader
+          title="Konfirmasi Kolektif Kelas (FR-3.2)"
+          subtitle="Checklist massal penerimaan MBG per kelas oleh Guru Piket atau Wali Kelas."
+          badgeText="STAFF MODE"
+        >
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={loadData}
+              loading={loading}
+              leftIcon={<RotateCw className="w-3.5 h-3.5" />}
+            >
+              Segarkan
+            </Button>
+            <Link
+              href="/dashboard"
+              className="micro-tap inline-flex items-center gap-1.5 min-h-[44px] px-4 py-2 rounded-xl bg-brand-navy hover:bg-slate-800 text-white text-xs font-bold shadow-sm transition"
+            >
+              Live Monitor
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        </PageHeader>
+
+        {/* Master Data & Operasional Module Tabs */}
+        <ClassModuleTabs />
+
+        {feedback && (
+          <FeedbackBanner
+            type={feedback.type}
+            message={feedback.message}
+            onDismiss={() => setFeedback(null)}
+          />
+        )}
+
+        {/* Class Selector, Search Bar & Quick CRUD Links */}
+        <div className="micro-card rounded-2xl p-4 sm:p-5 space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+            <Select
+              label="Pilih Kelas"
+              value={selectedClassId}
+              onValueChange={(val) => setSelectedClassId(val)}
+              options={classList.map((c) => ({
+                value: c.id,
+                label: `${c.nama_kelas} (${c.jurusan || 'Umum'} • ${c.total_siswa_dapodik || 0} Siswa)`,
+              }))}
+            />
+
+            <Input
+              label="Filter Daftar Siswa"
+              value={searchRoster}
+              onChange={(e) => setSearchRoster(e.target.value)}
+              placeholder="Cari siswa atau NISN..."
+              leftIcon={<Search className="w-4 h-4" />}
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs text-slate-600 dark:text-slate-300">
+            <span className="flex items-center gap-1.5 font-medium">
+              <span>Mau menambah kelas baru atau memperbarui daftar murid?</span>
+            </span>
+            <div className="flex items-center gap-3">
+              <Link
+                href="/admin/kelas"
+                className="inline-flex items-center gap-1.5 font-bold text-brand-blue hover:text-blue-700 dark:text-cyan-400 dark:hover:text-cyan-300 transition-colors"
+              >
+                <Building2 className="w-3.5 h-3.5" />
+                + Tambah / Edit Kelas
+              </Link>
+              <span className="text-slate-300">|</span>
+              <Link
+                href="/siswa"
+                className="inline-flex items-center gap-1.5 font-bold text-brand-blue hover:text-blue-700 dark:text-cyan-400 dark:hover:text-cyan-300 transition-colors"
+              >
+                <UsersIcon className="w-3.5 h-3.5" />
+                + Kelola Siswa & Import Excel
+              </Link>
+            </div>
+          </div>
         </div>
-      </PageHeader>
-
-      {feedback && (
-        <FeedbackBanner
-          type={feedback.type}
-          message={feedback.message}
-          onDismiss={() => setFeedback(null)}
-        />
-      )}
-
-      {/* Class Selector & Search Bar */}
-      <div className="micro-card rounded-2xl p-4 sm:p-5 grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
-        <Select
-          label="Pilih Kelas"
-          value={selectedClassId}
-          onValueChange={(val) => setSelectedClassId(val)}
-          options={SEED_CLASSES.map((c) => ({
-            value: c.id,
-            label: `${c.nama_kelas} (${c.jurusan} • ${c.total_siswa_dapodik} Siswa)`,
-          }))}
-        />
-
-        <Input
-          label="Filter Daftar Siswa"
-          value={searchRoster}
-          onChange={(e) => setSearchRoster(e.target.value)}
-          placeholder="Cari siswa atau NISN..."
-          leftIcon={<Search className="w-4 h-4" />}
-        />
-      </div>
 
       {/* Roster Checklist */}
       <div className="micro-card rounded-2xl p-5 sm:p-6 space-y-4">
@@ -245,32 +295,29 @@ export default function KonfirmasiKelasPage() {
                     toggleStudent(student.nisn, isClaimed);
                   }
                 }}
-                className={`min-h-[52px] py-3.5 px-3 rounded-xl flex items-center justify-between gap-3 transition cursor-pointer select-none ${
-                  isClaimed
+                className={`min-h-[52px] py-3.5 px-3 rounded-xl flex items-center justify-between gap-3 transition cursor-pointer select-none ${isClaimed
                     ? 'opacity-60 bg-slate-50 cursor-not-allowed'
                     : isSelected
-                    ? 'bg-blue-50/70 border border-blue-200'
-                    : 'hover:bg-slate-50'
-                }`}
+                      ? 'bg-blue-50/70 border border-blue-200'
+                      : 'hover:bg-slate-50'
+                  }`}
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div
-                    className={`w-5 h-5 rounded-md border flex items-center justify-center transition flex-shrink-0 ${
-                      isClaimed
+                    className={`w-5 h-5 rounded-md border flex items-center justify-center transition flex-shrink-0 ${isClaimed
                         ? 'bg-emerald-600 border-emerald-600 text-white'
                         : isSelected
-                        ? 'bg-brand-blue border-brand-blue text-white'
-                        : 'border-slate-300 bg-white'
-                    }`}
+                          ? 'bg-brand-blue border-brand-blue text-white'
+                          : 'border-slate-300 bg-white'
+                      }`}
                   >
                     {(isSelected || isClaimed) && <Check className="w-3.5 h-3.5" />}
                   </div>
 
                   <div className="min-w-0">
                     <span
-                      className={`text-xs font-bold ${
-                        isClaimed ? 'text-slate-500 line-through' : 'text-slate-900'
-                      }`}
+                      className={`text-xs font-bold ${isClaimed ? 'text-slate-500 line-through' : 'text-slate-900'
+                        }`}
                     >
                       {student.nama_lengkap}
                     </span>
@@ -292,9 +339,8 @@ export default function KonfirmasiKelasPage() {
                     </span>
                   ) : (
                     <span
-                      className={`text-[11px] font-bold px-2 py-0.5 rounded-lg ${
-                        isSelected ? 'text-brand-blue' : 'text-slate-400'
-                      }`}
+                      className={`text-[11px] font-bold px-2 py-0.5 rounded-lg ${isSelected ? 'text-brand-blue' : 'text-slate-400'
+                        }`}
                     >
                       {isSelected ? 'Hadir' : 'Absen'}
                     </span>
@@ -330,7 +376,6 @@ export default function KonfirmasiKelasPage() {
           Kunci Konfirmasi Kelas ({hadirCount} Porsi)
         </Button>
       </div>
-      </div>
-    </ProtectedRoute>
+    </div>
   );
 }

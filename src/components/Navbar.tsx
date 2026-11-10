@@ -25,9 +25,11 @@ import {
   User,
   Megaphone,
   ExternalLink,
+  Building2,
+  Sparkles,
 } from 'lucide-react';
 import { SEED_SCHOOL } from '@/lib/services';
-import { Modal, Input, Button, useNotify } from '@/components/ui';
+import { Modal, ModalBody, ModalHeader, ModalFooter, Input, Button, useNotify } from '@/components/ui';
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -151,303 +153,229 @@ export default function Navbar() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const mobileModal =
-    mounted && mobileMenuOpen
-      ? createPortal(
-        <div
-          className="fixed inset-0 z-modal flex flex-col items-center justify-start overflow-y-auto bg-slate-950/80 p-3 sm:p-6 backdrop-blur-sm animate-fade-in"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Menu Navigasi Utama"
-        >
-          <div
-            className="fixed inset-0 -z-10"
+  const MobileNavModal = () => (
+    <Modal
+      isOpen={mobileMenuOpen}
+      onClose={() => setMobileMenuOpen(false)}
+      title="NUTRI KAMPUS HUB"
+      description="Sistem Operasional MBG • Universitas BSI"
+      size="xl"
+      className="bg-brand-navy-dark text-white border-slate-800"
+    >
+      <div className="space-y-6">
+        {/* Visual Header with BSI Logo - Inside Modal Content */}
+        <div className="flex items-center gap-4 pb-4 border-b border-white/10">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-brand-blue text-white shadow-sm">
+            <span className="text-sm font-black tracking-tighter">BSI</span>
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-black tracking-wide text-white">
+                NAVIGASI UTAMA
+              </h2>
+              <span className="inline-flex items-center gap-1 rounded-md border border-emerald-400/40 bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                Sesi Aktif
+              </span>
+            </div>
+            <p className="text-xs text-sky-200">Akses Cepat Layanan & Portal MBG</p>
+          </div>
+        </div>
+
+        {/* Segmented Control Role Switcher */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-[11px] font-bold text-sky-200/70 uppercase tracking-wider">
+            <span className="flex items-center gap-1.5">
+              <ShieldCheck className="h-3.5 w-3.5 text-cyan-400" aria-hidden="true" />
+              Role Switcher (RBAC)
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-slate-950/50 p-1.5">
+            <button
+              type="button"
+              onClick={() => setActiveRoleView('guru_piket')}
+              className={`min-h-[44px] flex items-center justify-center gap-2 rounded-xl py-2 px-3 text-xs font-bold transition-all micro-tap ${activeRoleView === 'guru_piket'
+                ? 'bg-brand-blue text-white shadow-elev-2'
+                : 'text-sky-300 hover:bg-white/5 hover:text-white'
+                }`}
+            >
+              <Truck className="h-4 w-4" aria-hidden="true" />
+              Guru Piket
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveRoleView('siswa')}
+              className={`min-h-[44px] flex items-center justify-center gap-2 rounded-xl py-2 px-3 text-xs font-bold transition-all micro-tap ${activeRoleView === 'siswa'
+                ? 'bg-brand-blue text-white shadow-elev-2'
+                : 'text-sky-300 hover:bg-white/5 hover:text-white'
+                }`}
+            >
+              <QrCode className="h-4 w-4" aria-hidden="true" />
+              Mode Siswa
+            </button>
+          </div>
+        </div>
+
+        {/* Navigation Menu Items */}
+        <div className="grid grid-cols-1 gap-3">
+          <Link
+            href="/"
             onClick={() => setMobileMenuOpen(false)}
-            aria-hidden="true"
-          />
-
-          <div className="relative my-auto w-full max-w-xl overflow-hidden rounded-3xl border border-slate-800 bg-brand-navy-dark p-5 text-white shadow-elev-5 sm:p-7 space-y-5 animate-sheet-up">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-white/10 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/20 bg-brand-blue text-white shadow-sm">
-                  <span className="text-sm font-black tracking-tighter">BSI</span>
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-sm font-black tracking-wide text-white">
-                      NUTRI KAMPUS HUB
-                    </h2>
-                    <span className="inline-flex items-center gap-1 rounded-md border border-emerald-400/40 bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                      Aktif
-                    </span>
-                  </div>
-                  <p className="text-[11px] font-medium text-sky-200">
-                    Sistem Operasional MBG • Universitas BSI
-                  </p>
-                </div>
+            className={`group flex items-center justify-between gap-4 rounded-2xl border p-4 transition-all micro-tap ${isActive('/')
+              ? 'border-cyan-400/50 bg-brand-blue/20'
+              : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
+              }`}
+          >
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-blue text-white shadow-sm group-hover:scale-105 transition-transform">
+                <QrCode className="h-6 w-6" aria-hidden="true" />
               </div>
-
-              <button
-                type="button"
-                onClick={() => setMobileMenuOpen(false)}
-                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl border border-white/15 bg-white/10 text-sky-200 hover:bg-white/20 hover:text-white micro-tap"
-                aria-label="Tutup menu navigasi"
-              >
-                <X className="h-5 w-5" aria-hidden="true" />
-              </button>
-            </div>
-
-            {/* Segmented Control Role Switcher */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-[11px] font-bold text-sky-200">
-                <span className="flex items-center gap-1.5">
-                  <ShieldCheck className="h-3.5 w-3.5 text-cyan-300" aria-hidden="true" />
-                  Mode Navigasi (RBAC):
-                </span>
-                <span className="font-mono text-[10px] text-sky-300">
-                  {activeRoleView === 'guru_piket' ? 'Staff Piket Aktif' : 'Portal Siswa Aktif'}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-1.5 rounded-2xl border border-white/10 bg-slate-950/70 p-1.5">
-                <button
-                  type="button"
-                  onClick={() => setActiveRoleView('guru_piket')}
-                  className={`min-h-[44px] flex items-center justify-center gap-2 rounded-xl py-2.5 px-3 text-xs font-bold micro-tap ${activeRoleView === 'guru_piket'
-                    ? 'bg-brand-blue text-white shadow-sm'
-                    : 'text-sky-300 hover:bg-white/5 hover:text-white'
-                    }`}
-                >
-                  <Truck className="h-4 w-4" aria-hidden="true" />
-                  Guru Piket
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveRoleView('siswa')}
-                  className={`min-h-[44px] flex items-center justify-center gap-2 rounded-xl py-2.5 px-3 text-xs font-bold micro-tap ${activeRoleView === 'siswa'
-                    ? 'bg-brand-blue text-white shadow-sm'
-                    : 'text-sky-300 hover:bg-white/5 hover:text-white'
-                    }`}
-                >
-                  <QrCode className="h-4 w-4" aria-hidden="true" />
-                  Siswa / Scan
-                </button>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-black text-white">Portal Siswa</h3>
+                  <span className="rounded-md border border-cyan-400/30 bg-cyan-400/10 px-1.5 py-0.5 text-[9px] font-bold text-cyan-300">
+                    Quick Access
+                  </span>
+                </div>
+                <p className="mt-0.5 text-[11px] text-sky-200/60 leading-tight">
+                  Scan QR atau input PIN harian.
+                </p>
               </div>
             </div>
+            <div className="h-8 w-8 flex items-center justify-center rounded-full bg-white/5 text-sky-300 group-hover:bg-brand-blue group-hover:text-white transition-colors">
+              <ExternalLink className="h-4 w-4" />
+            </div>
+          </Link>
 
-            {/* Navigation Menu Items */}
-            <div className="space-y-2.5">
-              <Link
-                href="/"
-                onClick={() => setMobileMenuOpen(false)}
-                className={`flex items-center justify-between gap-3 rounded-2xl border p-4 micro-tap ${isActive('/')
-                  ? 'border-cyan-400/70 bg-brand-blue/30'
-                  : 'border-white/10 bg-white/5 hover:border-white/25 hover:bg-white/10'
-                  }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-blue text-white">
-                    <QrCode className="h-5 w-5" aria-hidden="true" />
+          {isStaff && (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {[
+                { href: '/kedatangan', label: 'Kedatangan MBG', desc: 'Uji QC & Sampel', icon: Truck, color: 'blue' },
+                { href: '/dashboard', label: 'Live Monitor', desc: 'Anti-Fraud Feed', icon: Activity, color: 'emerald' },
+                { href: '/konfirmasi/kelas', label: 'Konfirmasi Kelas', desc: 'Checklist Massal', icon: Users, color: 'navy' },
+                { href: '/admin/kelas', label: 'Kelola Kelas', desc: 'CRUD Data Rombel', icon: Building2, color: 'blue' },
+                { href: '/siswa', label: 'Data Siswa & Import', desc: 'CRUD & Import Excel', icon: GraduationCap, color: 'emerald' },
+                { href: '/laporan', label: 'Laporan & SPPG', desc: 'Export Data Excel', icon: FileSpreadsheet, color: 'blue' },
+              ].map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`flex items-center gap-4 rounded-2xl border p-4 transition-all micro-tap ${isActive(item.href)
+                    ? 'border-blue-400/50 bg-brand-blue/20'
+                    : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
+                    }`}
+                >
+                  <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-${item.color === 'emerald' ? 'green' : item.color === 'navy' ? 'navy-light' : 'blue'} text-white shadow-sm`}>
+                    <item.icon className="h-5 w-5" aria-hidden="true" />
                   </div>
                   <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-black text-white">
-                        Portal Siswa (Scan Master QR)
-                      </h3>
-                      <span className="rounded-md border border-cyan-400/30 bg-cyan-400/20 px-2 py-0.5 text-[10px] font-bold text-cyan-200">
-                        Siswa
-                      </span>
-                    </div>
-                    <p className="mt-0.5 text-[11px] text-sky-200/80">
-                      Kamera scan QR atau input PIN 4-digit harian.
+                    <h4 className="text-xs font-black text-white">{item.label}</h4>
+                    <p className="mt-0.5 text-[10px] text-sky-200/60 leading-tight">
+                      {item.desc}
                     </p>
                   </div>
-                </div>
-              </Link>
-
-              {isStaff && (
-                <div className="grid grid-cols-1 gap-2.5 pt-1 sm:grid-cols-2">
-                  <Link
-                    href="/kedatangan"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={`flex items-center gap-3 rounded-2xl border p-3.5 micro-tap ${isActive('/kedatangan')
-                      ? 'border-blue-400/70 bg-brand-blue/30'
-                      : 'border-white/10 bg-white/5 hover:border-white/25 hover:bg-white/10'
-                      }`}
-                  >
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-blue text-white">
-                      <Truck className="h-4 w-4" aria-hidden="true" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-black text-white">Kedatangan MBG</h4>
-                      <p className="mt-0.5 text-[10px] text-sky-200/80">
-                        Uji QC, foto sampel & QR.
-                      </p>
-                    </div>
-                  </Link>
-
-                  <Link
-                    href="/dashboard"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={`flex items-center gap-3 rounded-2xl border p-3.5 micro-tap ${isActive('/dashboard')
-                      ? 'border-emerald-400/70 bg-emerald-600/30'
-                      : 'border-white/10 bg-white/5 hover:border-white/25 hover:bg-white/10'
-                      }`}
-                  >
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-green text-white">
-                      <Activity className="h-4 w-4" aria-hidden="true" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-black text-white">Live Monitor</h4>
-                      <p className="mt-0.5 text-[10px] text-sky-200/80">
-                        Feed anti-fraud & kuota kelas.
-                      </p>
-                    </div>
-                  </Link>
-
-                  <Link
-                    href="/konfirmasi/kelas"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={`flex items-center gap-3 rounded-2xl border p-3.5 micro-tap ${isActive('/konfirmasi/kelas')
-                      ? 'border-blue-400/70 bg-brand-blue/30'
-                      : 'border-white/10 bg-white/5 hover:border-white/25 hover:bg-white/10'
-                      }`}
-                  >
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-navy-light text-white">
-                      <Users className="h-4 w-4" aria-hidden="true" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-black text-white">Konfirmasi Kelas</h4>
-                      <p className="mt-0.5 text-[10px] text-sky-200/80">
-                        Checklist massal kolektif.
-                      </p>
-                    </div>
-                  </Link>
-
-                  <Link
-                    href="/laporan"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={`flex items-center gap-3 rounded-2xl border p-3.5 micro-tap ${isActive('/laporan')
-                      ? 'border-blue-400/70 bg-brand-blue/30'
-                      : 'border-white/10 bg-white/5 hover:border-white/25 hover:bg-white/10'
-                      }`}
-                  >
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-blue-700 text-white">
-                      <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-black text-white">Laporan & SPPG</h4>
-                      <p className="mt-0.5 text-[10px] text-sky-200/80">
-                        Export Excel & rekap ompreng.
-                      </p>
-                    </div>
-                  </Link>
-                </div>
-              )}
-
-              {isSuperAdmin && (
-                <div className="space-y-2 rounded-2xl border border-white/10 bg-white/5 p-3">
-                  <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-amber-300">
-                    <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
-                    Master Menu Super Admin (Marcomm UBSI)
-                  </span>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    <Link
-                      href="/admin/campaign"
-                      onClick={() => setMobileMenuOpen(false)}
-                      className="min-h-[44px] flex flex-col items-center justify-center rounded-xl border border-amber-400/30 bg-amber-500/10 p-2 text-center micro-tap hover:bg-amber-500/20"
-                    >
-                      <Megaphone className="mb-1 h-4 w-4 text-amber-300" aria-hidden="true" />
-                      <span className="text-[10px] font-bold text-white">Campaign CRM</span>
-                    </Link>
-                    <Link
-                      href="/siswa"
-                      onClick={() => setMobileMenuOpen(false)}
-                      className="min-h-[44px] flex flex-col items-center justify-center rounded-xl border border-white/10 bg-white/5 p-2 text-center micro-tap hover:bg-white/10"
-                    >
-                      <GraduationCap className="mb-1 h-4 w-4 text-sky-300" aria-hidden="true" />
-                      <span className="text-[10px] font-bold text-white">Data Siswa</span>
-                    </Link>
-                    <Link
-                      href="/admin/pengguna"
-                      onClick={() => setMobileMenuOpen(false)}
-                      className="min-h-[44px] flex flex-col items-center justify-center rounded-xl border border-white/10 bg-white/5 p-2 text-center micro-tap hover:bg-white/10"
-                    >
-                      <UserCheck className="mb-1 h-4 w-4 text-sky-300" aria-hidden="true" />
-                      <span className="text-[10px] font-bold text-white">Kelola Pengguna</span>
-                    </Link>
-                    <Link
-                      href="/admin/audit"
-                      onClick={() => setMobileMenuOpen(false)}
-                      className="min-h-[44px] flex flex-col items-center justify-center rounded-xl border border-white/10 bg-white/5 p-2 text-center micro-tap hover:bg-white/10"
-                    >
-                      <History className="mb-1 h-4 w-4 text-sky-300" aria-hidden="true" />
-                      <span className="text-[10px] font-bold text-white">Audit Log</span>
-                    </Link>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Modal Bottom: User Profile / Quick Login & Logout */}
-            <div className="space-y-2.5 border-t border-white/10 pt-3">
-              <div className="flex items-center justify-between gap-2 rounded-2xl border border-white/15 bg-white/5 p-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/20 bg-brand-blue text-white">
-                    <User className="h-5 w-5" aria-hidden="true" />
-                    <span
-                      className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-slate-950 ${isLoggedIn ? 'bg-emerald-400' : 'bg-amber-400'
-                        }`}
-                    />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <p className="truncate text-xs font-black text-white">{displayName}</p>
-                      <span className="rounded-md bg-brand-blue/40 border border-blue-400/30 px-1.5 py-0.5 text-[9px] font-bold text-cyan-200">
-                        {displayRoleLabel}
-                      </span>
-                    </div>
-                    <p className="truncate font-mono text-[10px] text-sky-300">{displaySub}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={handleOpenProfileModal}
-                  className="min-h-[44px] flex items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-white/10 py-2.5 px-3 text-xs font-bold text-white hover:bg-white/20 micro-tap"
-                >
-                  <User className="h-3.5 w-3.5 text-cyan-300" aria-hidden="true" />
-                  Profil
-                </button>
-
-                <Link
-                  href="/login"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="min-h-[44px] flex items-center justify-center gap-1.5 rounded-xl border border-blue-400/30 bg-brand-blue/40 py-2.5 px-3 text-xs font-bold text-sky-100 hover:bg-brand-blue/60 micro-tap"
-                >
-                  <LogIn className="h-3.5 w-3.5 text-sky-300" aria-hidden="true" />
-                  {isLoggedIn ? 'Ganti Akun' : 'Login'}
                 </Link>
+              ))}
+            </div>
+          )}
 
-                <button
-                  type="button"
-                  onClick={handleFullLogout}
-                  className="min-h-[44px] flex items-center justify-center gap-1.5 rounded-xl border border-red-500/30 bg-red-500/20 py-2.5 px-3 text-xs font-bold text-red-200 hover:bg-red-500/30 micro-tap"
+          {isSuperAdmin && (
+            <div className="mt-2 space-y-3 rounded-2xl border border-amber-400/20 bg-amber-400/5 p-4">
+              <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-amber-300">
+                <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                Admin Privileges
+              </span>
+              <div className="grid grid-cols-2 gap-2">
+                <Link
+                  href="/admin/campaign"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-2 rounded-xl border border-white/5 bg-white/5 p-3 hover:bg-white/10 transition-colors"
                 >
-                  <LogOut className="h-3.5 w-3.5 text-red-300" aria-hidden="true" />
-                  Logout
-                </button>
+                  <Megaphone className="h-4 w-4 text-amber-300" aria-hidden="true" />
+                  <span className="text-[10px] font-bold text-white">Campaign</span>
+                </Link>
+                <Link
+                  href="/admin/pengguna"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-2 rounded-xl border border-white/5 bg-white/5 p-3 hover:bg-white/10 transition-colors"
+                >
+                  <UserCheck className="h-4 w-4 text-sky-300" aria-hidden="true" />
+                  <span className="text-[10px] font-bold text-white">Pengguna</span>
+                </Link>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* User Quick Info & Profile Actions */}
+        <div className="mt-2 space-y-3 border-t border-white/10 pt-6">
+          <div className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-slate-900/50 p-4">
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-white/20 bg-brand-blue text-white shadow-elev-2">
+                <User className="h-6 w-6" aria-hidden="true" />
+                <span
+                  className={`absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full border-2 border-slate-950 ${isLoggedIn ? 'bg-emerald-400' : 'bg-amber-400'}`}
+                />
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-black text-white">{displayName}</p>
+                <div className="mt-0.5 flex items-center gap-2">
+                  <span className="rounded bg-brand-blue/30 px-1.5 py-0.5 text-[9px] font-bold text-cyan-200">
+                    {displayRoleLabel}
+                  </span>
+                  <p className="truncate font-mono text-[10px] text-sky-300/60">{displaySub}</p>
+                </div>
               </div>
             </div>
           </div>
-        </div>,
-        document.body
-      )
-      : null;
+
+          <div className="grid grid-cols-4 gap-2">
+            <button
+              type="button"
+              onClick={handleOpenProfileModal}
+              className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/5 py-3 px-1.5 text-[10px] font-bold text-white hover:bg-white/10 transition-colors micro-tap"
+            >
+              <User className="h-4 w-4 text-cyan-400" aria-hidden="true" />
+              Profil
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                window.dispatchEvent(new CustomEvent('mbg:show-splash'));
+              }}
+              className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-cyan-400/20 bg-cyan-500/10 py-3 px-1.5 text-[10px] font-bold text-cyan-200 hover:bg-cyan-500/20 transition-colors micro-tap"
+              title="Putar ulang splash screen mobile"
+            >
+              <Sparkles className="h-4 w-4 text-cyan-300" aria-hidden="true" />
+              Splash
+            </button>
+
+            <Link
+              href="/login"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-blue-400/20 bg-brand-blue/20 py-3 px-1.5 text-[10px] font-bold text-sky-100 hover:bg-brand-blue/30 transition-colors micro-tap"
+            >
+              <LogIn className="h-4 w-4 text-sky-400" aria-hidden="true" />
+              {isLoggedIn ? 'Ganti' : 'Login'}
+            </Link>
+
+            <button
+              type="button"
+              onClick={handleFullLogout}
+              className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-red-500/20 bg-red-500/10 py-3 px-1.5 text-[10px] font-bold text-red-200 hover:bg-red-500/20 transition-colors micro-tap"
+            >
+              <LogOut className="h-4 w-4 text-red-400" aria-hidden="true" />
+              Logout
+            </button>
+          </div>
+        </div>
+      </div>
+    </Modal>
+  );
 
   return (
     <>
@@ -529,6 +457,28 @@ export default function Navbar() {
                   </Link>
 
                   <Link
+                    href="/admin/kelas"
+                    className={`min-h-[40px] flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold micro-tap ${isActive('/admin/kelas')
+                      ? 'bg-brand-blue text-white shadow-sm'
+                      : 'text-sky-200 hover:bg-white/10 hover:text-white'
+                      }`}
+                  >
+                    <Building2 className="h-3.5 w-3.5" aria-hidden="true" />
+                    Data Kelas
+                  </Link>
+
+                  <Link
+                    href="/siswa"
+                    className={`min-h-[40px] flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold micro-tap ${isActive('/siswa')
+                      ? 'bg-brand-blue text-white shadow-sm'
+                      : 'text-sky-200 hover:bg-white/10 hover:text-white'
+                      }`}
+                  >
+                    <GraduationCap className="h-3.5 w-3.5" aria-hidden="true" />
+                    Data Siswa
+                  </Link>
+
+                  <Link
                     href="/laporan"
                     className={`min-h-[40px] flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold micro-tap ${isActive('/laporan')
                       ? 'bg-brand-blue text-white shadow-sm'
@@ -561,6 +511,20 @@ export default function Navbar() {
                           onClick={() => setAdminDropdownOpen(false)}
                         >
                           <Link
+                            href="/admin/sekolah"
+                            className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-cyan-200 hover:bg-white/10"
+                          >
+                            <Building2 className="h-4 w-4 text-cyan-300" aria-hidden="true" />
+                            Manajemen Sekolah (SaaS)
+                          </Link>
+                          <Link
+                            href="/admin/kelas"
+                            className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-sky-100 hover:bg-white/10"
+                          >
+                            <Users className="h-4 w-4 text-sky-300" aria-hidden="true" />
+                            Manajemen Kelas
+                          </Link>
+                          <Link
                             href="/admin/campaign"
                             className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-amber-200 hover:bg-white/10"
                           >
@@ -578,7 +542,7 @@ export default function Navbar() {
                             href="/admin/pengguna"
                             className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-sky-100 hover:bg-white/10"
                           >
-                            <Users className="h-4 w-4 text-sky-300" aria-hidden="true" />
+                            <UserCheck className="h-4 w-4 text-sky-300" aria-hidden="true" />
                             Kelola Pengguna
                           </Link>
                           <Link
@@ -817,6 +781,20 @@ export default function Navbar() {
                       </span>
                     </button>
 
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUserDropdownOpen(false);
+                        window.dispatchEvent(new CustomEvent('mbg:show-splash'));
+                      }}
+                      className="min-h-[44px] flex w-full items-center justify-between rounded-xl border border-cyan-200 bg-cyan-50/60 hover:bg-cyan-100/70 px-3.5 py-2.5 text-xs font-bold text-cyan-900 micro-tap"
+                    >
+                      <span className="flex items-center gap-2.5">
+                        <Sparkles className="h-4 w-4 text-cyan-600" aria-hidden="true" />
+                        Tampilkan Splash Screen Mobile
+                      </span>
+                    </button>
+
                     <Link
                       href="/login"
                       onClick={() => setUserDropdownOpen(false)}
@@ -846,7 +824,7 @@ export default function Navbar() {
           document.body
         )}
 
-      {mobileModal}
+      {mounted && mobileMenuOpen ? <MobileNavModal /> : null}
 
       {/* Modal Profil Pengguna Aktif */}
       <Modal

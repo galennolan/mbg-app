@@ -52,6 +52,7 @@ create table if not exists public.classes (
   tingkat varchar(10) not null,
   jurusan text check (jurusan in ('IPA', 'IPS', 'RPL', 'TKJ', 'AKUNTANSI', 'UMUM')),
   total_siswa_dapodik integer not null default 0,
+  status_aktif boolean not null default true,
   dibuat_pada timestamptz not null default now(),
   diperbarui_pada timestamptz not null default now()
 );
@@ -68,6 +69,7 @@ create table if not exists public.students (
   is_perwakilan_kelas boolean default false,
   lead_score integer default 0,
   lead_status text default 'COLD' check (lead_status in ('COLD', 'WARM', 'HOT')),
+  status_aktif boolean not null default true,
   dibuat_pada timestamptz not null default now(),
   diperbarui_pada timestamptz not null default now()
 );
@@ -132,7 +134,8 @@ create table if not exists public.crm_campaigns (
   target_jurusan text[],
   rekomendasi_fakultas_ubsi text,
   cta_url_template text,
-  poin_interaksi integer default 1
+  poin_interaksi integer default 1,
+  status_aktif boolean not null default true
 );
 
 create table if not exists public.crm_click_logs (
@@ -166,7 +169,7 @@ create index if not exists idx_organoleptic_tanggal on public.organoleptic_tests
 create index if not exists idx_student_mbg_logs_log on public.student_mbg_logs (id_log);
 
 -- ============================================================
--- RLS (Row Level Security)
+-- RLS (Row Level Security) - Multi-Tenant SaaS Isolation
 -- ============================================================
 alter table public.schools enable row level security;
 alter table public.pengguna enable row level security;
@@ -179,78 +182,100 @@ alter table public.riwayat_aktivitas enable row level security;
 alter table public.crm_campaigns enable row level security;
 alter table public.crm_click_logs enable row level security;
 
--- Schools: Public read, Admin manage
+-- Schools: Public read, Super Admin manage
 drop policy if exists "Public read schools" on public.schools;
 create policy "Public read schools" on public.schools for select using (true);
 drop policy if exists "Admin manage schools" on public.schools;
 create policy "Admin manage schools" on public.schools for all to authenticated using (
+  (auth.jwt() ->> 'peran') = 'super_admin' or
   exists (select 1 from public.pengguna where id = auth.uid() and peran = 'super_admin')
 );
 
--- Pengguna: User read own, Admin manage all
+-- Pengguna: User read own, Super Admin manage all
 drop policy if exists "User read own profile" on public.pengguna;
 create policy "User read own profile" on public.pengguna for select using (id = auth.uid());
 drop policy if exists "Super admin manage pengguna" on public.pengguna;
 create policy "Super admin manage pengguna" on public.pengguna for all to authenticated using (
+  (auth.jwt() ->> 'peran') = 'super_admin' or
   exists (select 1 from public.pengguna where id = auth.uid() and peran = 'super_admin')
 );
 
--- Classes: Guru/Admin read their school classes
+-- Classes: Public read for student portal, Guru/Kepsek manage own school, Super Admin manage all
+drop policy if exists "Public read classes" on public.classes;
+create policy "Public read classes" on public.classes for select using (true);
 drop policy if exists "Guru read school classes" on public.classes;
-create policy "Guru read school classes" on public.classes for select to authenticated using (
-  exists (select 1 from public.pengguna where id = auth.uid() and id_sekolah = public.classes.id_sekolah)
+drop policy if exists "Guru manage school classes" on public.classes;
+create policy "Guru manage school classes" on public.classes for all to authenticated using (
+  id_sekolah = nullif(auth.jwt() ->> 'id_sekolah', '')::uuid or
+  exists (select 1 from public.pengguna where id = auth.uid() and (id_sekolah = public.classes.id_sekolah or peran = 'super_admin'))
 );
 drop policy if exists "Super admin manage classes" on public.classes;
-create policy "Super admin manage classes" on public.classes for all to authenticated using (
-  exists (select 1 from public.pengguna where id = auth.uid() and peran = 'super_admin')
-);
 
--- Students: Guru/Admin read their school students
+-- Students: Public read for student verification, Guru/Kepsek manage own school, Super Admin manage all
+drop policy if exists "Public read students" on public.students;
+create policy "Public read students" on public.students for select using (true);
 drop policy if exists "Guru read school students" on public.students;
-create policy "Guru read school students" on public.students for select to authenticated using (
+drop policy if exists "Guru manage school students" on public.students;
+create policy "Guru manage school students" on public.students for all to authenticated using (
   exists (
-    select 1 from public.pengguna p
-    join public.classes c on c.id = public.students.id_kelas
-    where p.id = auth.uid() and p.id_sekolah = c.id_sekolah
+    select 1 from public.classes c
+    where c.id = public.students.id_kelas
+      and (
+        c.id_sekolah = nullif(auth.jwt() ->> 'id_sekolah', '')::uuid or
+        exists (
+          select 1 from public.pengguna p
+          where p.id = auth.uid() and (p.id_sekolah = c.id_sekolah or p.peran = 'super_admin')
+        )
+      )
   )
 );
 drop policy if exists "Super admin manage students" on public.students;
-create policy "Super admin manage students" on public.students for all to authenticated using (
-  exists (select 1 from public.pengguna where id = auth.uid() and peran = 'super_admin')
-);
 
--- Organoleptic Tests: Guru piket manage their tests
+-- Organoleptic Tests: Public read for QR/PIN verification, Guru piket/Kepsek manage their school tests
+drop policy if exists "Public read organoleptic tests" on public.organoleptic_tests;
+create policy "Public read organoleptic tests" on public.organoleptic_tests for select using (true);
 drop policy if exists "Guru manage organoleptic tests" on public.organoleptic_tests;
 create policy "Guru manage organoleptic tests" on public.organoleptic_tests for all to authenticated using (
   id_guru_piket = auth.uid() or
-  exists (select 1 from public.pengguna where id = auth.uid() and peran = 'super_admin')
+  id_sekolah = nullif(auth.jwt() ->> 'id_sekolah', '')::uuid or
+  exists (select 1 from public.pengguna where id = auth.uid() and (id_sekolah = public.organoleptic_tests.id_sekolah or peran = 'super_admin'))
 );
 drop policy if exists "Read organoleptic tests" on public.organoleptic_tests;
-create policy "Read organoleptic tests" on public.organoleptic_tests for select to authenticated using (
-  exists (
-    select 1 from public.pengguna p
-    where p.id = auth.uid() and p.id_sekolah = public.organoleptic_tests.id_sekolah
-  )
-);
 
--- Daily Attendances: Guru piket manage their school
+-- Daily Attendances: Public read, Guru piket/Kepsek manage their school
+drop policy if exists "Public read daily attendances" on public.daily_attendances;
+create policy "Public read daily attendances" on public.daily_attendances for select using (true);
 drop policy if exists "Guru manage daily attendances" on public.daily_attendances;
 create policy "Guru manage daily attendances" on public.daily_attendances for all to authenticated using (
   exists (
-    select 1 from public.pengguna p
-    join public.organoleptic_tests o on o.id = public.daily_attendances.id_uji
-    where p.id = auth.uid() and (p.id_sekolah = o.id_sekolah or p.peran = 'super_admin')
+    select 1 from public.organoleptic_tests o
+    where o.id = public.daily_attendances.id_uji
+      and (
+        o.id_sekolah = nullif(auth.jwt() ->> 'id_sekolah', '')::uuid or
+        exists (
+          select 1 from public.pengguna p
+          where p.id = auth.uid() and (p.id_sekolah = o.id_sekolah or p.peran = 'super_admin')
+        )
+      )
   )
 );
 
--- Student MBG Logs: Guru piket manage
+-- Student MBG Logs: Public read, Guru piket/Kepsek manage
+drop policy if exists "Public read student mbg logs" on public.student_mbg_logs;
+create policy "Public read student mbg logs" on public.student_mbg_logs for select using (true);
 drop policy if exists "Guru manage student mbg logs" on public.student_mbg_logs;
 create policy "Guru manage student mbg logs" on public.student_mbg_logs for all to authenticated using (
   exists (
-    select 1 from public.pengguna p
-    join public.daily_attendances d on d.id = public.student_mbg_logs.id_log
+    select 1 from public.daily_attendances d
     join public.organoleptic_tests o on o.id = d.id_uji
-    where p.id = auth.uid() and (p.id_sekolah = o.id_sekolah or p.peran = 'super_admin')
+    where d.id = public.student_mbg_logs.id_log
+      and (
+        o.id_sekolah = nullif(auth.jwt() ->> 'id_sekolah', '')::uuid or
+        exists (
+          select 1 from public.pengguna p
+          where p.id = auth.uid() and (p.id_sekolah = o.id_sekolah or p.peran = 'super_admin')
+        )
+      )
   )
 );
 
@@ -580,3 +605,37 @@ grant all on all sequences in schema public to anon, authenticated, service_role
 alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
 alter default privileges in schema public grant all on routines to anon, authenticated, service_role;
 alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
+
+-- ============================================================
+-- SEED MULTI-SEKOLAH DUMMY (MULTI-TENANT TESTING)
+-- ============================================================
+insert into public.schools (id, npsn, nama_sekolah, nama_kepala_sekolah, nip_kepala_sekolah, nama_sppg_mitra)
+values
+  ('11111111-1111-1111-1111-111111111111', '20220101', 'SMK Bina Sarana Informatika (UBSI Center)', 'Dr. Mochamad Wahyudi, M.M', '197508122005011002', 'SPPG Sehat Barokah Surakarta'),
+  ('11111111-1111-1111-1111-111111111112', '20327971', 'SMAN 1 Surakarta', 'Drs. Harminingsih, M.Pd', '196804151993032008', 'SPPG Nusantara Mandiri'),
+  ('11111111-1111-1111-1111-111111111113', '20327986', 'SMKN 2 Surakarta', 'Sugiyarso, S.Pd, M.Pd', '197011201995121003', 'SPPG Gizi Prima Solo'),
+  ('11111111-1111-1111-1111-111111111114', '20327974', 'SMAN 4 Surakarta', 'Drs. Yusmar Setyobudi, M.M', '196909101994031005', 'SPPG Berkah Mulia')
+on conflict (id) do nothing;
+
+insert into public.classes (id, id_sekolah, nama_kelas, tingkat, jurusan, total_siswa_dapodik, status_aktif)
+values
+  ('22222222-2222-2222-2222-222222222222', '11111111-1111-1111-1111-111111111111', 'XII RPL 1', 'XII', 'RPL', 25, true),
+  ('33333333-3333-3333-3333-333333333333', '11111111-1111-1111-1111-111111111111', 'XII RPL 2', 'XII', 'RPL', 25, true),
+  ('44444444-4444-4444-4444-444444444444', '11111111-1111-1111-1111-111111111111', 'XII TKJ 1', 'XII', 'TKJ', 17, true),
+  ('55555555-5555-5555-5555-555555555551', '11111111-1111-1111-1111-111111111112', 'XII IPA 1', 'XII', 'IPA', 32, true),
+  ('55555555-5555-5555-5555-555555555552', '11111111-1111-1111-1111-111111111112', 'XII IPS 1', 'XII', 'IPS', 30, true),
+  ('66666666-6666-6666-6666-666666666661', '11111111-1111-1111-1111-111111111113', 'XII TKJ A', 'XII', 'TKJ', 34, true),
+  ('77777777-7777-7777-7777-777777777771', '11111111-1111-1111-1111-111111111114', 'XII IPA A', 'XII', 'IPA', 30, true)
+on conflict (id) do nothing;
+
+insert into public.students (nisn, id_kelas, nama_lengkap, no_hp, jurusan, alergi_makanan, is_perwakilan_kelas, status_aktif)
+values
+  ('1000000001', '22222222-2222-2222-2222-222222222222', 'Alroy Theola Ardanta', '6281234567890', 'RPL', 'Alergi Kacang & Seafood', true, true),
+  ('1000000002', '22222222-2222-2222-2222-222222222222', 'Annisa Rahmawati', '6281234567891', 'RPL', null, false, true),
+  ('1000000003', '22222222-2222-2222-2222-222222222222', 'Bagas Pratama', '6281234567892', 'RPL', 'Alergi Telur', false, true),
+  ('1000000026', '33333333-3333-3333-3333-333333333333', 'Joko Prabowo', '6281234567896', 'RPL', null, true, true),
+  ('1000000051', '44444444-4444-4444-4444-444444444444', 'Olivia Zahra', '6281234567898', 'TKJ', null, true, true),
+  ('2000000001', '55555555-5555-5555-5555-555555555551', 'Rizky Aditya Saputra', '6281399001101', 'IPA', null, true, true),
+  ('3000000001', '66666666-6666-6666-6666-666666666661', 'Fajar Nugroho', '6281399002201', 'TKJ', 'Alergi Udang', true, true)
+on conflict (nisn) do nothing;
+

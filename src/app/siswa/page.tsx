@@ -38,10 +38,17 @@ import {
   useNotify,
 } from '@/components/ui';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
+import ClassModuleTabs from '@/components/navigation/ClassModuleTabs';
 
 export default function DataSiswaPage() {
-  const { user, role } = useAuth();
+  const { user, role, activeSchoolId } = useAuth();
   const notify = useNotify();
+  const canManageStudents =
+    role === 'guru_piket' ||
+    role === 'super_admin' ||
+    role === 'admin' ||
+    role === 'guru' ||
+    role === 'kepala_sekolah';
   const isAdmin = role === 'super_admin' || role === 'admin';
 
   const [loading, setLoading] = useState(true);
@@ -64,6 +71,8 @@ export default function DataSiswaPage() {
     kelas_id: '',
     email: '',
     no_hp: '',
+    alergi_makanan: '',
+    is_perwakilan_kelas: false,
     status_aktif: true,
   });
 
@@ -85,6 +94,8 @@ export default function DataSiswaPage() {
       kelas_id: kelasList[0]?.id || '',
       email: '',
       no_hp: '',
+      alergi_makanan: '',
+      is_perwakilan_kelas: false,
       status_aktif: true,
     });
   };
@@ -92,21 +103,32 @@ export default function DataSiswaPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      let resolvedClasses: Kelas[] = SEED_CLASSES as any;
+      let resolvedClasses: Kelas[] = [];
       try {
         const { data: v12Classes } = await supabase
           .from('classes')
           .select('*')
+          .eq('id_sekolah', activeSchoolId)
           .order('nama_kelas');
         if (v12Classes && v12Classes.length > 0) {
           resolvedClasses = v12Classes as Kelas[];
         }
       } catch {
-        // fallback SEED_CLASSES
+        // fallback
+      }
+
+      if (resolvedClasses.length === 0) {
+        resolvedClasses = (SEED_CLASSES as any[]).filter(
+          (c) => c.id_sekolah === activeSchoolId
+        ) as Kelas[];
+        if (resolvedClasses.length === 0) {
+          resolvedClasses = SEED_CLASSES as Kelas[];
+        }
       }
       setKelasList(resolvedClasses);
 
       const classById = new Map(resolvedClasses.map((c) => [c.id, c]));
+      const schoolClassIds = new Set(resolvedClasses.map((c) => c.id));
       const mergedMap = new Map<string, Siswa>();
 
       // 1. Load from v1.2 `students` table
@@ -114,6 +136,7 @@ export default function DataSiswaPage() {
         const { data: v12Students } = await supabase
           .from('students')
           .select('*')
+          .in('id_kelas', Array.from(schoolClassIds))
           .order('nama_lengkap');
         if (v12Students && v12Students.length > 0) {
           for (const st of v12Students as any[]) {
@@ -134,7 +157,7 @@ export default function DataSiswaPage() {
               is_perwakilan_kelas: !!st.is_perwakilan_kelas,
               lead_score: st.lead_score || 0,
               lead_status: st.lead_status || 'COLD',
-              status_aktif: true,
+              status_aktif: st.status_aktif !== false,
               dibuat_pada: st.dibuat_pada || '',
               diperbarui_pada: st.diperbarui_pada || '',
               kelas: cls,
@@ -151,29 +174,31 @@ export default function DataSiswaPage() {
           const rawLocal = localStorage.getItem('mbg_imported_students');
           const localImported = rawLocal ? JSON.parse(rawLocal) : [];
           for (const item of localImported) {
-            const cls = classById.get(item.id_kelas) || resolvedClasses[0];
-            const normPhone = normalizePhone628(item.no_hp || '');
-            const key = `${String(item.nama_lengkap).toLowerCase()}|${normPhone}`;
-            if (!mergedMap.has(key)) {
-              mergedMap.set(key, {
-                id: item.nisn,
-                nisn: item.nisn,
-                nama: item.nama_lengkap,
-                nama_lengkap: item.nama_lengkap,
-                id_kelas: item.id_kelas,
-                kelas_id: item.id_kelas,
-                no_hp: normPhone,
-                email: null,
-                jurusan: item.jurusan || cls?.jurusan || 'RPL',
-                alergi_makanan: null,
-                is_perwakilan_kelas: !!item.is_perwakilan_kelas,
-                lead_score: 0,
-                lead_status: 'COLD',
-                status_aktif: true,
-                dibuat_pada: '',
-                diperbarui_pada: '',
-                kelas: cls,
-              });
+            if (schoolClassIds.has(item.id_kelas) || !item.id_kelas) {
+              const cls = classById.get(item.id_kelas) || resolvedClasses[0];
+              const normPhone = normalizePhone628(item.no_hp || '');
+              const key = `${String(item.nama_lengkap).toLowerCase()}|${normPhone}`;
+              if (!mergedMap.has(key)) {
+                mergedMap.set(key, {
+                  id: item.nisn,
+                  nisn: item.nisn,
+                  nama: item.nama_lengkap,
+                  nama_lengkap: item.nama_lengkap,
+                  id_kelas: item.id_kelas || cls?.id,
+                  kelas_id: item.id_kelas || cls?.id,
+                  no_hp: normPhone,
+                  email: item.email || null,
+                  jurusan: item.jurusan || cls?.jurusan || 'RPL',
+                  alergi_makanan: item.alergi_makanan || null,
+                  is_perwakilan_kelas: !!item.is_perwakilan_kelas,
+                  lead_score: item.lead_score || 0,
+                  lead_status: item.lead_status || 'COLD',
+                  status_aktif: item.status_aktif !== false,
+                  dibuat_pada: '',
+                  diperbarui_pada: '',
+                  kelas: cls,
+                });
+              }
             }
           }
         } catch {
@@ -181,31 +206,33 @@ export default function DataSiswaPage() {
         }
       }
 
-      // 3. Fallback to SEED_STUDENTS if still empty
-      if (mergedMap.size === 0) {
-        for (const seed of SEED_STUDENTS) {
+      // 3. Fallback to SEED_STUDENTS for this school
+      for (const seed of SEED_STUDENTS) {
+        if (schoolClassIds.has(seed.id_kelas)) {
           const cls = classById.get(seed.id_kelas) || resolvedClasses[0];
           const phone = SEED_STUDENT_PHONES[seed.nisn] || `62812000${seed.nisn.slice(-5)}`;
           const key = `${seed.nama_lengkap.toLowerCase()}|${phone}`;
-          mergedMap.set(key, {
-            id: seed.nisn,
-            nisn: seed.nisn,
-            nama: seed.nama_lengkap,
-            nama_lengkap: seed.nama_lengkap,
-            id_kelas: seed.id_kelas,
-            kelas_id: seed.id_kelas,
-            no_hp: phone,
-            email: null,
-            jurusan: seed.jurusan,
-            alergi_makanan: seed.alergi_makanan,
-            is_perwakilan_kelas: seed.is_perwakilan_kelas,
-            lead_score: 0,
-            lead_status: 'COLD',
-            status_aktif: true,
-            dibuat_pada: '',
-            diperbarui_pada: '',
-            kelas: cls,
-          });
+          if (!mergedMap.has(key)) {
+            mergedMap.set(key, {
+              id: seed.nisn,
+              nisn: seed.nisn,
+              nama: seed.nama_lengkap,
+              nama_lengkap: seed.nama_lengkap,
+              id_kelas: seed.id_kelas,
+              kelas_id: seed.id_kelas,
+              no_hp: phone,
+              email: null,
+              jurusan: seed.jurusan,
+              alergi_makanan: seed.alergi_makanan,
+              is_perwakilan_kelas: seed.is_perwakilan_kelas,
+              lead_score: 0,
+              lead_status: 'COLD',
+              status_aktif: true,
+              dibuat_pada: '',
+              diperbarui_pada: '',
+              kelas: cls,
+            });
+          }
         }
       }
 
@@ -219,7 +246,7 @@ export default function DataSiswaPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [activeSchoolId]);
 
   // Save (Create or Update) Student with Auto-Account Generation (628xxx) & Deduplication
   const handleSaveStudent = async (e: React.FormEvent) => {
@@ -233,19 +260,18 @@ export default function DataSiswaPage() {
       ? normalizePhone628(formData.no_hp)
       : `62813${String(Math.floor(1000000 + Math.random() * 9000000))}`;
 
-    // Cek duplikasi Nama + No. HP di satu sekolah
-    const duplicate = students.find(
-      (s) =>
-        s.id !== editingStudent?.id &&
-        s.nama.trim().toLowerCase() === formData.nama.trim().toLowerCase() &&
-        normalizePhone628(s.no_hp || '') === normalizedPhone
-    );
-    if (duplicate) {
-      setFeedback({
-        type: 'error',
-        message: `Duplikasi ditolak: Siswa "${formData.nama}" dengan No. HP ${normalizedPhone} sudah terdaftar di sekolah ini.`,
-      });
-      return;
+    const cleanNisn = formData.nisn ? formData.nisn.trim() : '';
+
+    // Cek duplikasi NISN di satu sekolah jika sedang tambah data baru
+    if (cleanNisn && !editingStudent) {
+      const duplicateNisn = students.find((s) => s.nisn === cleanNisn);
+      if (duplicateNisn) {
+        setFeedback({
+          type: 'error',
+          message: `Duplikasi NISN: Siswa dengan NISN "${cleanNisn}" sudah terdaftar (${duplicateNisn.nama}).`,
+        });
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -255,15 +281,20 @@ export default function DataSiswaPage() {
         rows: [
           {
             nama: formData.nama.trim(),
-            nisn: formData.nisn ? formData.nisn.trim() : editingStudent?.nisn || null,
+            nisn: cleanNisn || editingStudent?.nisn || null,
             kelas_id: formData.kelas_id,
             nama_kelas: targetCls?.nama_kelas,
             jurusan: targetCls?.jurusan,
             email: formData.email ? formData.email.trim() : null,
             no_hp: normalizedPhone,
+            alergi_makanan: formData.alergi_makanan.trim() || null,
+            is_perwakilan_kelas: formData.is_perwakilan_kelas,
+            status_aktif: formData.status_aktif,
           },
         ],
         penggunaId: user?.id,
+        schoolId: activeSchoolId,
+        allowUpdate: !!editingStudent,
       });
 
       const msg = editingStudent
@@ -445,7 +476,9 @@ export default function DataSiswaPage() {
   });
 
   return (
-    <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
+    <ProtectedRoute
+      allowedRoles={['super_admin', 'admin', 'guru_piket', 'kepala_sekolah', 'guru']}
+    >
       <div className="space-y-6 pb-12">
         {/* Header */}
       <PageHeader
@@ -466,7 +499,7 @@ export default function DataSiswaPage() {
             </Button>
           )}
 
-          {isAdmin && (
+          {canManageStudents && (
             <>
               <Button
                 type="button"
@@ -494,6 +527,9 @@ export default function DataSiswaPage() {
           )}
         </div>
       </PageHeader>
+
+      {/* Master Data & Operasional Module Tabs */}
+      <ClassModuleTabs />
 
       {feedback && (
         <FeedbackBanner
@@ -558,7 +594,7 @@ export default function DataSiswaPage() {
                   <th className="py-3 px-4">NISN</th>
                   <th className="py-3 px-4">Kelas & Jurusan</th>
                   <th className="py-3 px-4">Status</th>
-                  {isAdmin && <th className="py-3 px-4 text-right">Aksi</th>}
+                  {canManageStudents && <th className="py-3 px-4 text-right">Aksi</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -586,7 +622,7 @@ export default function DataSiswaPage() {
                         </span>
                       )}
                     </td>
-                    {isAdmin && (
+                    {canManageStudents && (
                       <td className="py-3.5 px-4 text-right text-xs">
                         <button
                           type="button"
@@ -599,6 +635,8 @@ export default function DataSiswaPage() {
                               kelas_id: s.kelas_id,
                               email: s.email || '',
                               no_hp: s.no_hp || '',
+                              alergi_makanan: s.alergi_makanan || '',
+                              is_perwakilan_kelas: !!s.is_perwakilan_kelas,
                               status_aktif: s.status_aktif,
                             });
                             setShowAddModal(true);
@@ -649,7 +687,7 @@ export default function DataSiswaPage() {
             value={formData.nisn}
             onChange={(e) => setFormData({ ...formData, nisn: e.target.value })}
             placeholder="Contoh: 0061234567"
-            helperText="10 digit angka, opsional jika belum ada."
+            helperText="10 digit angka unik per siswa."
             inputMode="numeric"
             autoComplete="off"
           />
@@ -676,15 +714,30 @@ export default function DataSiswaPage() {
               autoComplete="email"
             />
             <ModalInput
-              label="No. HP (Opsional)"
+              label="No. WhatsApp / HP (Format 628xxx)"
               type="tel"
               value={formData.no_hp}
               onChange={(e) => setFormData({ ...formData, no_hp: e.target.value })}
               placeholder="0812345678"
               inputMode="tel"
               autoComplete="tel"
+              helperText="Awalan 08xx otomatis dinormalisasi ke 628xxx."
             />
           </div>
+
+          <ModalInput
+            label="Indikator Alergi Makanan (Opsional)"
+            value={formData.alergi_makanan}
+            onChange={(e) => setFormData({ ...formData, alergi_makanan: e.target.value })}
+            placeholder="Contoh: Alergi Udang / Kacang / Telur"
+            helperText="Peringatan keselamatan makanan ini akan muncul di daftar hadir operasional."
+          />
+
+          <ModalCheckbox
+            label="Tetapkan sebagai Ketua / Perwakilan Kelas"
+            checked={formData.is_perwakilan_kelas}
+            onChange={(checked) => setFormData({ ...formData, is_perwakilan_kelas: checked })}
+          />
 
           <ModalCheckbox
             label="Status Siswa Aktif"

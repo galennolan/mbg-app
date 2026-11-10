@@ -19,21 +19,26 @@ import {
   Layers,
   Edit2,
   Database,
+  Building2,
 } from 'lucide-react';
 import {
   getMonitoringOverview,
   subscribeToLiveUpdates,
   correctClassAttendance,
   syncMasterDataDapodik,
+  getAllSchools,
+  getGlobalMultiSchoolStats,
+  SEED_SCHOOL,
 } from '@/lib/services';
 import {
+  School,
   OrganolepticTest,
   ClassMonitoringStatus,
   LiveActivityFeedItem,
 } from '@/lib/types';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Modal, ModalInput, ModalActions } from '@/components/ui/ModalField';
-import { Button, FeedbackBanner, useNotify } from '@/components/ui';
+import { Button, Select, FeedbackBanner, useNotify } from '@/components/ui';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 
 function formatCurrentDateTime(date: Date) {
@@ -46,13 +51,22 @@ function formatCurrentDateTime(date: Date) {
 }
 
 export default function DashboardPage() {
-  const { user, role } = useAuth();
+  const { user, role, activeSchoolId, setActiveSchoolId } = useAuth();
   const notify = useNotify();
   const [currentDateTime, setCurrentDateTime] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [syncingMaster, setSyncingMaster] = useState(false);
   const [actionBanner, setActionBanner] = useState<string | null>(null);
+
+  // Tahap 3: Multi-Tenant Global Overview & Switch School View State (Super Admin)
+  const [schoolsList, setSchoolsList] = useState<School[]>([SEED_SCHOOL]);
+  const [globalStats, setGlobalStats] = useState({
+    totalSekolahAktif: 4,
+    totalKelasLintasSekolah: 7,
+    totalSiswaLintasSekolah: 193,
+    totalPorsiTerserapGlobal: 0,
+  });
 
   // Tahap 4: Correction Mode State (Kepala Sekolah & Super Admin)
   const canCorrectData =
@@ -84,7 +98,11 @@ export default function DashboardPage() {
 
   const loadData = useCallback(async () => {
     try {
-      const data = await getMonitoringOverview();
+      const [data, allSchools, gStats] = await Promise.all([
+        getMonitoringOverview(activeSchoolId),
+        getAllSchools(),
+        getGlobalMultiSchoolStats(),
+      ]);
       setSession(data.session);
       setClasses(data.classes);
       setLiveActivities(data.liveActivities);
@@ -92,13 +110,20 @@ export default function DashboardPage() {
       setTotalSisa(data.totalPorsiSisa);
       setTotalSiswa(data.totalSiswaSemua);
       setPersenSelesai(data.persenSelesai);
+      setSchoolsList(allSchools);
+      setGlobalStats({
+        totalSekolahAktif: gStats.totalSekolahAktif,
+        totalKelasLintasSekolah: gStats.totalKelasLintasSekolah,
+        totalSiswaLintasSekolah: gStats.totalSiswaLintasSekolah,
+        totalPorsiTerserapGlobal: gStats.totalPorsiTerserapGlobal,
+      });
     } catch (err) {
       console.error('Error loading monitoring overview:', err);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [activeSchoolId]);
 
   useEffect(() => {
     loadData();
@@ -108,6 +133,9 @@ export default function DashboardPage() {
     });
     return () => unsubscribe();
   }, [loadData]);
+
+  const currentSchool =
+    schoolsList.find((s) => s.id === activeSchoolId) || SEED_SCHOOL;
 
   const isTiba = session && session.kesimpulan === 'LAYAK_EDAR';
   const isDitolak = session && session.kesimpulan === 'TOLAK_RETUR';
@@ -164,9 +192,12 @@ export default function DashboardPage() {
   return (
     <ProtectedRoute allowedRoles={['guru_piket', 'kepala_sekolah', 'super_admin', 'admin', 'guru']}>
       <div className="space-y-6 pb-20">
-        {/* Top Page Header */}
+      {/* Top Page Header */}
       <PageHeader
         title="Live Monitoring Distribusi MBG (FR-4.1)"
+        subtitle={`${currentSchool.nama_sekolah} •NPSN: ${currentSchool.npsn} • Mitra: ${
+          currentSchool.nama_sppg_mitra || 'SPPG Mitra'
+        }`}
         badgeText={currentDateTime}
       >
         <div className="flex flex-wrap items-center gap-2">
@@ -206,6 +237,91 @@ export default function DashboardPage() {
           </Link>
         </div>
       </PageHeader>
+
+      {/* TAHAP 3 SAAS MULTI-TENANT: Global Dashboard & Switch School View (Super Admin Only) */}
+      {isSuperAdmin && (
+        <div className="rounded-2xl border border-slate-800 bg-brand-navy-dark text-white p-5 shadow-card space-y-4">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-white/10 pb-4">
+            <div className="flex items-start gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-brand-blue text-white flex items-center justify-center shrink-0 border border-white/20 shadow-sm">
+                <Building2 className="w-5 h-5 text-cyan-300" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[10px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/30 px-2.5 py-0.5 rounded-full">
+                    SaaS Multi-Tenant Control • Super Admin
+                  </span>
+                </div>
+                <h2 className="text-base font-black text-white mt-1">
+                  Global Overview Lintas Sekolah & Switch School View
+                </h2>
+                <p className="text-xs text-sky-200 mt-0.5">
+                  Pantau serapan MBG nasional/regional dan beralih antar sekolah mitra tanpa perlu
+                  keluar sesi.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-2.5 min-w-[290px]">
+              <div className="flex-1 text-slate-900">
+                <Select
+                  label="Switch School View (Pilih Sekolah)"
+                  value={activeSchoolId}
+                  onValueChange={(val) => {
+                    setActiveSchoolId(val);
+                    const picked = schoolsList.find((s) => s.id === val);
+                    if (picked) {
+                      notify.info(
+                        'Beralih Sekolah',
+                        `Menampilkan dashboard operasional ${picked.nama_sekolah}.`
+                      );
+                    }
+                  }}
+                  options={schoolsList.map((s) => ({
+                    value: s.id,
+                    label: `${s.nama_sekolah} (${s.npsn})`,
+                  }))}
+                />
+              </div>
+
+              <Link
+                href="/admin/sekolah"
+                className="micro-tap min-h-[44px] px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-xs font-bold text-white flex items-center justify-center gap-1.5 transition shrink-0"
+              >
+                <Building2 className="w-3.5 h-3.5 text-cyan-300" />
+                Kelola Sekolah
+              </Link>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div className="rounded-xl bg-white/5 border border-white/10 p-3">
+              <span className="text-sky-300 font-bold block">Total Sekolah Mitra</span>
+              <span className="text-xl font-black text-white mt-0.5 block">
+                {globalStats.totalSekolahAktif} Sekolah
+              </span>
+            </div>
+            <div className="rounded-xl bg-white/5 border border-white/10 p-3">
+              <span className="text-sky-300 font-bold block">Total Rombel / Kelas</span>
+              <span className="text-xl font-black text-cyan-300 mt-0.5 block">
+                {globalStats.totalKelasLintasSekolah} Kelas
+              </span>
+            </div>
+            <div className="rounded-xl bg-white/5 border border-white/10 p-3">
+              <span className="text-sky-300 font-bold block">Total Kuota Siswa</span>
+              <span className="text-xl font-black text-emerald-300 mt-0.5 block">
+                {globalStats.totalSiswaLintasSekolah} Siswa
+              </span>
+            </div>
+            <div className="rounded-xl bg-white/5 border border-white/10 p-3">
+              <span className="text-sky-300 font-bold block">Terserap Lintas Sekolah</span>
+              <span className="text-xl font-black text-amber-300 mt-0.5 block">
+                {globalStats.totalPorsiTerserapGlobal} Porsi
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {actionBanner && (
         <FeedbackBanner

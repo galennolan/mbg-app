@@ -5,12 +5,24 @@ import { supabase } from './supabase/client';
 import { Pengguna, StudentAuthProfile, UserRole } from './types';
 import { authenticateStudentByNameAndPhone } from './services';
 
+export interface GuestIdentity {
+  nama: string;
+  no_hp: string;
+  verified_at: string;
+}
+
 interface AuthContextType {
   user: Pengguna | null;
   authUser: any | null;
   role: UserRole | null;
+  id_sekolah: string;
+  activeSchoolId: string;
+  setActiveSchoolId: (schoolId: string) => void;
   student: StudentAuthProfile | null;
   isStudent: boolean;
+  isGuest: boolean;
+  guestIdentity: GuestIdentity | null;
+  setGuestIdentity: (identity: GuestIdentity | null) => void;
   loading: boolean;
   signIn: (email: string, kataSandi: string) => Promise<{ error?: string }>;
   signInStudent: (
@@ -25,12 +37,20 @@ interface AuthContextType {
   refreshProfile: () => Promise<void>;
 }
 
+const DEFAULT_SCHOOL_ID = '11111111-1111-1111-1111-111111111111';
+
 const AuthContext = createContext<AuthContextType>({
   user: null,
   authUser: null,
   role: null,
+  id_sekolah: DEFAULT_SCHOOL_ID,
+  activeSchoolId: DEFAULT_SCHOOL_ID,
+  setActiveSchoolId: () => {},
   student: null,
   isStudent: false,
+  isGuest: true,
+  guestIdentity: null,
+  setGuestIdentity: () => {},
   loading: true,
   signIn: async () => ({}),
   signInStudent: async () => ({}),
@@ -42,7 +62,8 @@ const AuthContext = createContext<AuthContextType>({
 
 const STUDENT_STORAGE_KEY = 'mbg_student_session';
 const STAFF_STORAGE_KEY = 'mbg_staff_session';
-const DEFAULT_SCHOOL_ID = '11111111-1111-1111-1111-111111111111';
+const GUEST_STORAGE_KEY = 'mbg_guest_identity';
+const ACTIVE_SCHOOL_STORAGE_KEY = 'mbg_active_school_id';
 
 const DEMO_STAFF_PROFILES: Record<'super_admin' | 'guru_piket' | 'kepala_sekolah', Pengguna> = {
   super_admin: {
@@ -77,11 +98,48 @@ const DEMO_STAFF_PROFILES: Record<'super_admin' | 'guru_piket' | 'kepala_sekolah
   },
 };
 
+function syncAuthCookies(roleVal: string | null, schoolIdVal: string | null) {
+  if (typeof document === 'undefined') return;
+  if (roleVal) {
+    document.cookie = `mbg_role=${encodeURIComponent(roleVal)}; path=/; max-age=604800; SameSite=Lax`;
+  } else {
+    document.cookie = 'mbg_role=; path=/; max-age=0; SameSite=Lax';
+  }
+  if (schoolIdVal) {
+    document.cookie = `mbg_school_id=${encodeURIComponent(schoolIdVal)}; path=/; max-age=604800; SameSite=Lax`;
+  } else {
+    document.cookie = 'mbg_school_id=; path=/; max-age=0; SameSite=Lax';
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [authUser, setAuthUser] = useState<any | null>(null);
   const [user, setUser] = useState<Pengguna | null>(null);
   const [student, setStudent] = useState<StudentAuthProfile | null>(null);
+  const [guestIdentity, setGuestIdentityState] = useState<GuestIdentity | null>(null);
+  const [activeSchoolId, setActiveSchoolIdState] = useState<string>(DEFAULT_SCHOOL_ID);
   const [loading, setLoading] = useState(true);
+
+  const setActiveSchoolId = (schoolId: string) => {
+    const cleanId = schoolId || DEFAULT_SCHOOL_ID;
+    setActiveSchoolIdState(cleanId);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(ACTIVE_SCHOOL_STORAGE_KEY, cleanId);
+      window.dispatchEvent(new CustomEvent('mbg-school-switched', { detail: cleanId }));
+    }
+    syncAuthCookies(user?.peran || (student ? 'siswa' : null), cleanId);
+  };
+
+  const setGuestIdentity = (identity: GuestIdentity | null) => {
+    setGuestIdentityState(identity);
+    if (typeof window !== 'undefined') {
+      if (identity) {
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify(identity));
+      } else {
+        localStorage.removeItem(GUEST_STORAGE_KEY);
+      }
+    }
+  };
 
   const resolveDefaultRoleFromEmail = (email: string): UserRole => {
     const lower = (email || '').toLowerCase();
@@ -101,8 +159,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (typeof window === 'undefined') return;
     if (profile) {
       localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(profile));
+      const schoolId = profile.id_sekolah || DEFAULT_SCHOOL_ID;
+      if (profile.peran !== 'super_admin') {
+        localStorage.setItem(ACTIVE_SCHOOL_STORAGE_KEY, schoolId);
+        setActiveSchoolIdState(schoolId);
+      }
+      syncAuthCookies(profile.peran, schoolId);
     } else {
       localStorage.removeItem(STAFF_STORAGE_KEY);
+      syncAuthCookies(null, null);
     }
   };
 
@@ -172,27 +237,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const initializeAuth = async () => {
       try {
-        // 1. Restore persistent Student or Staff Session from localStorage (Offline-First)
         if (typeof window !== 'undefined') {
+          const savedSchoolId = localStorage.getItem(ACTIVE_SCHOOL_STORAGE_KEY);
+          if (savedSchoolId) {
+            setActiveSchoolIdState(savedSchoolId);
+          }
+
+          const savedGuest = localStorage.getItem(GUEST_STORAGE_KEY);
+          if (savedGuest) {
+            try {
+              setGuestIdentityState(JSON.parse(savedGuest));
+            } catch {
+              localStorage.removeItem(GUEST_STORAGE_KEY);
+            }
+          }
+
           const savedStudent = localStorage.getItem(STUDENT_STORAGE_KEY);
           const savedStaff = localStorage.getItem(STAFF_STORAGE_KEY);
 
           if (savedStaff) {
             try {
-              setUser(JSON.parse(savedStaff));
+              const parsedStaff = JSON.parse(savedStaff) as Pengguna;
+              setUser(parsedStaff);
+              const targetSchool =
+                parsedStaff.peran === 'super_admin' && savedSchoolId
+                  ? savedSchoolId
+                  : parsedStaff.id_sekolah || DEFAULT_SCHOOL_ID;
+              setActiveSchoolIdState(targetSchool);
+              syncAuthCookies(parsedStaff.peran, targetSchool);
             } catch {
               localStorage.removeItem(STAFF_STORAGE_KEY);
             }
           } else if (savedStudent) {
             try {
-              setStudent(JSON.parse(savedStudent));
+              const parsedStudent = JSON.parse(savedStudent) as StudentAuthProfile;
+              setStudent(parsedStudent);
+              syncAuthCookies('siswa', savedSchoolId || DEFAULT_SCHOOL_ID);
             } catch {
               localStorage.removeItem(STUDENT_STORAGE_KEY);
             }
           }
         }
 
-        // 2. Check active Supabase session
         const {
           data: { session },
         } = await supabase.auth.getSession();
@@ -231,14 +317,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      // 1. Coba login lewat Supabase Auth (jika Email Provider aktif di Supabase Dashboard)
       const { data, error } = await supabase.auth.signInWithPassword({
         email: cleanEmail,
         password: kataSandi,
       });
 
       if (!error && data.user) {
-        // Periksa apakah akun dinonaktifkan di tabel pengguna
         try {
           const { data: dbCheck } = await supabase
             .from('pengguna')
@@ -263,8 +347,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return {};
       }
 
-      // 2. Cek ke tabel `public.pengguna` di Supabase Database berdasarkan email
-      //    (Hanya diizinkan jika menggunakan password standar `Password123!` bagi akun yang belum terdaftar di Supabase Auth)
       if (kataSandi === 'Password123!') {
         try {
           const { data: dbUser } = await supabase
@@ -286,10 +368,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             return {};
           }
         } catch {
-          // Lanjut ke pengecekan akun inisial resmi jika RLS pengguna belum dibuka
+          // Lanjut ke pengecekan akun inisial resmi
         }
 
-        // 3. Cek akun inisial resmi apabila tabel `pengguna` belum di-seed
         const initialAccounts: Record<string, Pengguna> = {
           'admin@mbg.sekolah.id': DEMO_STAFF_PROFILES.super_admin,
           'guru@mbg.sekolah.id': DEMO_STAFF_PROFILES.guru_piket,
@@ -360,6 +441,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
       saveStaffLocally(null);
       setStudent(res.student);
+      syncAuthCookies('siswa', activeSchoolId);
 
       if (typeof window !== 'undefined') {
         localStorage.setItem(STUDENT_STORAGE_KEY, JSON.stringify(res.student));
@@ -381,6 +463,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem(STUDENT_STORAGE_KEY);
       localStorage.removeItem(STAFF_STORAGE_KEY);
     }
+    syncAuthCookies(null, null);
     setAuthUser(null);
     setUser(null);
     setStudent(null);
@@ -404,14 +487,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const resolvedSchoolId =
+    user?.peran === 'super_admin'
+      ? activeSchoolId
+      : user?.id_sekolah || activeSchoolId || DEFAULT_SCHOOL_ID;
+
   return (
     <AuthContext.Provider
       value={{
         user,
         authUser,
         role: user?.peran || null,
+        id_sekolah: resolvedSchoolId,
+        activeSchoolId: resolvedSchoolId,
+        setActiveSchoolId,
         student,
         isStudent: !!student && !user,
+        isGuest: !user && !student,
+        guestIdentity,
+        setGuestIdentity,
         loading,
         signIn,
         signInStudent,

@@ -1,5 +1,6 @@
 import { supabase } from './supabase/client';
 import {
+  School,
   DistribusiMBG,
   Kelas,
   PenerimaanMBG,
@@ -40,6 +41,24 @@ function setLocalItem<T>(key: string, value: T): void {
   } catch (e) {
     console.warn('LocalStorage save error:', e);
   }
+}
+
+export function getActiveSchoolIdFromStorage(overrideSchoolId?: string): string {
+  if (overrideSchoolId) return overrideSchoolId;
+  if (typeof window !== 'undefined') {
+    const activeSwitch = localStorage.getItem('mbg_active_school_id');
+    if (activeSwitch) return activeSwitch;
+    try {
+      const staffRaw = localStorage.getItem('mbg_staff_session');
+      if (staffRaw) {
+        const parsed = JSON.parse(staffRaw);
+        if (parsed?.id_sekolah) return parsed.id_sekolah;
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return '11111111-1111-1111-1111-111111111111';
 }
 
 // ============================================================
@@ -93,18 +112,24 @@ export async function logActivity(
 // TAHAP 1: CORE MBG ARRIVAL & ORGANOLEPTIC TEST (DB + OFFLINE-FIRST)
 // ============================================================
 
-export async function getTodayOrganolepticSession(): Promise<OrganolepticTest | null> {
+export async function getTodayOrganolepticSession(
+  schoolId?: string
+): Promise<OrganolepticTest | null> {
   const today = getJakartaDateString();
+  const targetSchoolId = getActiveSchoolIdFromStorage(schoolId);
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('organoleptic_tests')
       .select('*')
       .eq('tanggal', today)
+      .eq('id_sekolah', targetSchoolId)
       .order('dibuat_pada', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .limit(1);
+
+    const { data, error } = await query.maybeSingle();
 
     if (data && !error) {
+      setLocalItem(`mbg_today_session_${today}_${targetSchoolId}`, data);
       setLocalItem(`mbg_today_session_${today}`, data);
       setLocalItem('mbg_active_session', data);
       return data as OrganolepticTest;
@@ -114,11 +139,23 @@ export async function getTodayOrganolepticSession(): Promise<OrganolepticTest | 
   }
 
   // Fallback to local storage (Offline-First)
+  const localBySchool = getLocalItem<OrganolepticTest | null>(
+    `mbg_today_session_${today}_${targetSchoolId}`,
+    null
+  );
+  if (localBySchool) return localBySchool;
+
   const localToday = getLocalItem<OrganolepticTest | null>(`mbg_today_session_${today}`, null);
-  if (localToday) return localToday;
+  if (localToday && (!schoolId || localToday.id_sekolah === targetSchoolId)) return localToday;
 
   const localActive = getLocalItem<OrganolepticTest | null>('mbg_active_session', null);
-  if (localActive && localActive.tanggal === today) return localActive;
+  if (
+    localActive &&
+    localActive.tanggal === today &&
+    (!schoolId || localActive.id_sekolah === targetSchoolId)
+  ) {
+    return localActive;
+  }
 
   return null;
 }
@@ -306,13 +343,19 @@ export async function triggerMBGArrivalSession(params: {
   }
 
   // Always persist session locally so PWA and all pages can access it instantly
+  setLocalItem(`mbg_today_session_${today}_${finalSchoolId}`, sessionResult);
   setLocalItem(`mbg_today_session_${today}`, sessionResult);
   setLocalItem('mbg_active_session', sessionResult);
 
-  // Initialize local attendances for classes
+  // Initialize local attendances for classes of this school
+  const schoolClasses = SEED_CLASSES.filter((c) => c.id_sekolah === finalSchoolId);
+  const targetClassesForInit = schoolClasses.length > 0 ? schoolClasses : SEED_CLASSES;
   const existingAttendances = getLocalItem<any[]>(`mbg_attendances_${today}`, []);
-  if (existingAttendances.length === 0) {
-    const initialAttendances = SEED_CLASSES.map((c) => ({
+  const hasSchoolAtt = existingAttendances.some(
+    (a) => a.classes?.id_sekolah === finalSchoolId || targetClassesForInit.some((c) => c.id === a.id_kelas)
+  );
+  if (!hasSchoolAtt) {
+    const initialAttendances = targetClassesForInit.map((c) => ({
       id: `da-${c.id}-${Date.now()}`,
       id_kelas: c.id,
       id_uji: sessionResult.id,
@@ -327,7 +370,7 @@ export async function triggerMBGArrivalSession(params: {
       waktu_kembali_ompreng: null,
       classes: c,
     }));
-    setLocalItem(`mbg_attendances_${today}`, initialAttendances);
+    setLocalItem(`mbg_attendances_${today}`, [...existingAttendances, ...initialAttendances]);
   }
 
   // Dispatch events to notify UI, student app, and push notification banners
@@ -336,7 +379,7 @@ export async function triggerMBGArrivalSession(params: {
     window.dispatchEvent(
       new CustomEvent('mbg-push-notification', {
         detail: {
-          title: '🍽️ MBG Tiba di Sekolah!',
+          title: 'MBG Tiba di Sekolah!',
           body: `Distribusi telah dibuka. Master QR & PIN (${kodePinHarian}) siap digunakan.`,
           timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
         },
@@ -361,6 +404,7 @@ export async function updateOrganolepticQC(
       .maybeSingle();
 
     if (data && !error) {
+      setLocalItem(`mbg_today_session_${session.tanggal}_${session.id_sekolah}`, data);
       setLocalItem(`mbg_today_session_${session.tanggal}`, data);
       setLocalItem('mbg_active_session', data);
       return data as OrganolepticTest;
@@ -370,6 +414,7 @@ export async function updateOrganolepticQC(
   }
 
   // Fallback to local storage update
+  setLocalItem(`mbg_today_session_${session.tanggal}_${session.id_sekolah}`, updatedSession);
   setLocalItem(`mbg_today_session_${session.tanggal}`, updatedSession);
   setLocalItem('mbg_active_session', updatedSession);
   return updatedSession;
@@ -379,7 +424,7 @@ export async function updateOrganolepticQC(
 // TAHAP 2: MONITORING & REALTIME FEED
 // ============================================================
 
-export async function getMonitoringOverview(): Promise<{
+export async function getMonitoringOverview(schoolId?: string): Promise<{
   session: OrganolepticTest | null;
   classes: ClassMonitoringStatus[];
   liveActivities: LiveActivityFeedItem[];
@@ -389,61 +434,55 @@ export async function getMonitoringOverview(): Promise<{
   persenSelesai: number;
 }> {
   const today = getJakartaDateString();
-  const session = await getTodayOrganolepticSession();
-
-  if (!session) {
-    return {
-      session: null,
-      classes: [],
-      liveActivities: [],
-      totalPorsiTerserap: 0,
-      totalPorsiSisa: 0,
-      totalSiswaSemua: 0,
-      persenSelesai: 0,
-    };
-  }
+  const targetSchoolId = getActiveSchoolIdFromStorage(schoolId);
+  const session = await getTodayOrganolepticSession(targetSchoolId);
+  const schoolClasses = await getClassesBySchool(targetSchoolId);
 
   let attendances: any[] = [];
   let liveLogs: any[] = [];
 
-  // 1. Try Supabase
-  try {
-    const { data: dbAttendances, error: attError } = await supabase
-      .from('daily_attendances')
-      .select('*, classes(*)')
-      .eq('id_uji', session.id);
+  // 1. Try Supabase if session exists
+  if (session) {
+    try {
+      const { data: dbAttendances, error: attError } = await supabase
+        .from('daily_attendances')
+        .select('*, classes(*)')
+        .eq('id_uji', session.id);
 
-    if (!attError && dbAttendances && dbAttendances.length > 0) {
-      attendances = dbAttendances;
-      const daIds = attendances.map((a) => a.id);
-      if (daIds.length > 0) {
-        const { data: allLogs } = await supabase
-          .from('student_mbg_logs')
-          .select('*, daily_attendances!inner(classes(nama_kelas))')
-          .in('id_log', daIds)
-          .order('waktu_ambil', { ascending: false })
-          .limit(20);
-        liveLogs = allLogs || [];
+      if (!attError && dbAttendances && dbAttendances.length > 0) {
+        attendances = dbAttendances;
+        const daIds = attendances.map((a) => a.id);
+        if (daIds.length > 0) {
+          const { data: allLogs } = await supabase
+            .from('student_mbg_logs')
+            .select('*, daily_attendances!inner(classes(nama_kelas))')
+            .in('id_log', daIds)
+            .order('waktu_ambil', { ascending: false })
+            .limit(20);
+          liveLogs = allLogs || [];
+        }
       }
+    } catch (e) {
+      console.warn('Supabase monitoring fetch notice:', e);
     }
-  } catch (e) {
-    console.warn('Supabase monitoring fetch notice:', e);
   }
 
-  // 2. If Supabase has no attendances or errored, load from localStorage
+  // 2. If Supabase has no attendances or errored, load from localStorage filtered by school classes
+  const schoolClassIds = new Set(schoolClasses.map((c) => c.id));
   if (attendances.length === 0) {
-    const localAtt = getLocalItem<any[]>(`mbg_attendances_${today}`, []);
+    const localAtt = getLocalItem<any[]>(`mbg_attendances_${today}`, []).filter((a) =>
+      schoolClassIds.has(a.id_kelas)
+    );
     if (localAtt.length > 0) {
       attendances = localAtt;
     } else {
-      // Initialize from SEED_CLASSES
-      attendances = SEED_CLASSES.map((c) => ({
+      attendances = schoolClasses.map((c) => ({
         id: `da-${c.id}`,
         id_kelas: c.id,
-        id_uji: session.id,
+        id_uji: session?.id || 'pending',
         tanggal: today,
         jumlah_hadir: 0,
-        jumlah_absen: c.total_siswa_dapodik,
+        jumlah_absen: c.total_siswa_dapodik || 30,
         status_ambil: 'MENUNGGU',
         classes: c,
       }));
@@ -452,7 +491,10 @@ export async function getMonitoringOverview(): Promise<{
 
   // Load local live logs if liveLogs is empty
   if (liveLogs.length === 0) {
-    const localLogs = getLocalItem<any[]>(`mbg_logs_${today}`, []);
+    const schoolClassNames = new Set(schoolClasses.map((c) => c.nama_kelas));
+    const localLogs = getLocalItem<any[]>(`mbg_logs_${today}`, []).filter(
+      (l) => !l.nama_kelas || schoolClassNames.has(l.nama_kelas)
+    );
     liveLogs = localLogs;
   }
 
@@ -460,15 +502,18 @@ export async function getMonitoringOverview(): Promise<{
   let totalPorsiTerserap = 0;
 
   const classes: ClassMonitoringStatus[] = attendances.map((da: any) => {
-    const c = da.classes || SEED_CLASSES.find((sc) => sc.id === da.id_kelas) || {
-      id: da.id_kelas,
-      nama_kelas: 'Kelas',
-      jurusan: 'UMUM',
-      tingkat: 'X',
-      total_siswa_dapodik: 36,
-    };
+    const c =
+      da.classes ||
+      schoolClasses.find((sc) => sc.id === da.id_kelas) ||
+      SEED_CLASSES.find((sc) => sc.id === da.id_kelas) || {
+        id: da.id_kelas,
+        nama_kelas: 'Kelas',
+        jurusan: 'UMUM',
+        tingkat: 'X',
+        total_siswa_dapodik: 30,
+      };
     const hadir = da.jumlah_hadir || 0;
-    const total = c.total_siswa_dapodik || 36;
+    const total = c.total_siswa_dapodik || 30;
     const persen = total > 0 ? Math.round((hadir / total) * 100) : 0;
 
     totalSiswaSemua += total;
@@ -484,13 +529,17 @@ export async function getMonitoringOverview(): Promise<{
       jumlah_absen: da.jumlah_absen !== undefined ? da.jumlah_absen : Math.max(0, total - hadir),
       status_ambil: da.status_ambil || 'MENUNGGU',
       persen,
-      waktu_terima: da.waktu_terima_kelas,
+      waktu_terima: da.waktu_terima_kelas || null,
     };
   });
 
   const liveActivities: LiveActivityFeedItem[] = liveLogs.map((l: any) => {
     const className = l.daily_attendances?.classes?.nama_kelas || l.nama_kelas || 'Kelas';
-    const time = l.waktu || (l.waktu_ambil ? new Date(l.waktu_ambil).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '10:00');
+    const time =
+      l.waktu ||
+      (l.waktu_ambil
+        ? new Date(l.waktu_ambil).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+        : '10:00');
     return {
       id: l.id || `act-${Math.random()}`,
       nama_kelas: className,
@@ -506,7 +555,8 @@ export async function getMonitoringOverview(): Promise<{
   });
 
   const totalPorsiSisa = Math.max(0, totalSiswaSemua - totalPorsiTerserap);
-  const persenSelesai = totalSiswaSemua > 0 ? Math.round((totalPorsiTerserap / totalSiswaSemua) * 100) : 0;
+  const persenSelesai =
+    totalSiswaSemua > 0 ? Math.round((totalPorsiTerserap / totalSiswaSemua) * 100) : 0;
 
   return {
     session,
@@ -1007,8 +1057,8 @@ export function subscribeToLiveUpdates(callback: () => void) {
 // BACKWARD COMPATIBILITY & UTILS
 // ============================================================
 
-export async function getTodayDistribution(): Promise<DistribusiMBG | null> {
-  const session = await getTodayOrganolepticSession();
+export async function getTodayDistribution(schoolId?: string): Promise<DistribusiMBG | null> {
+  const session = await getTodayOrganolepticSession(schoolId);
   if (!session) return null;
   return {
     id: session.id,
@@ -1106,19 +1156,55 @@ export async function confirmStudentSelf(studentId: string) {
 }
 
 // ============================================================
-// CONSTANTS & SEED DATA (OFFLINE-FIRST)
+// CONSTANTS & SEED DATA (OFFLINE-FIRST MULTI-TENANT)
 // ============================================================
 
-export const SEED_SCHOOL = {
+export const SEED_SCHOOL: School = {
   id: '11111111-1111-1111-1111-111111111111',
   npsn: '20220101',
   nama_sekolah: 'SMK Bina Sarana Informatika (UBSI Center)',
   nama_kepala_sekolah: 'Dr. Mochamad Wahyudi, M.M',
   nip_kepala_sekolah: '197508122005011002',
-  nama_sppg_mitra: 'SPPG Sehat Barokah',
+  nama_sppg_mitra: 'SPPG Sehat Barokah Surakarta',
+  dibuat_pada: '2026-01-01T00:00:00.000Z',
+  diperbarui_pada: '2026-01-01T00:00:00.000Z',
 };
 
-export const SEED_CLASSES = [
+export const SEED_SCHOOLS: School[] = [
+  SEED_SCHOOL,
+  {
+    id: '11111111-1111-1111-1111-111111111112',
+    npsn: '20327971',
+    nama_sekolah: 'SMAN 1 Surakarta',
+    nama_kepala_sekolah: 'Drs. Harminingsih, M.Pd',
+    nip_kepala_sekolah: '196804151993032008',
+    nama_sppg_mitra: 'SPPG Nusantara Mandiri',
+    dibuat_pada: '2026-01-02T00:00:00.000Z',
+    diperbarui_pada: '2026-01-02T00:00:00.000Z',
+  },
+  {
+    id: '11111111-1111-1111-1111-111111111113',
+    npsn: '20327986',
+    nama_sekolah: 'SMKN 2 Surakarta',
+    nama_kepala_sekolah: 'Sugiyarso, S.Pd, M.Pd',
+    nip_kepala_sekolah: '197011201995121003',
+    nama_sppg_mitra: 'SPPG Gizi Prima Solo',
+    dibuat_pada: '2026-01-03T00:00:00.000Z',
+    diperbarui_pada: '2026-01-03T00:00:00.000Z',
+  },
+  {
+    id: '11111111-1111-1111-1111-111111111114',
+    npsn: '20327974',
+    nama_sekolah: 'SMAN 4 Surakarta',
+    nama_kepala_sekolah: 'Drs. Yusmar Setyobudi, M.M',
+    nip_kepala_sekolah: '196909101994031005',
+    nama_sppg_mitra: 'SPPG Berkah Mulia',
+    dibuat_pada: '2026-01-04T00:00:00.000Z',
+    diperbarui_pada: '2026-01-04T00:00:00.000Z',
+  },
+];
+
+export const SEED_CLASSES: Kelas[] = [
   {
     id: '22222222-2222-2222-2222-222222222222',
     id_sekolah: '11111111-1111-1111-1111-111111111111',
@@ -1152,6 +1238,50 @@ export const SEED_CLASSES = [
     dibuat_pada: '',
     diperbarui_pada: '',
   },
+  {
+    id: '55555555-5555-5555-5555-555555555551',
+    id_sekolah: '11111111-1111-1111-1111-111111111112',
+    nama_kelas: 'XII IPA 1',
+    tingkat: 'XII',
+    jurusan: 'IPA',
+    total_siswa_dapodik: 32,
+    status_aktif: true,
+    dibuat_pada: '',
+    diperbarui_pada: '',
+  },
+  {
+    id: '55555555-5555-5555-5555-555555555552',
+    id_sekolah: '11111111-1111-1111-1111-111111111112',
+    nama_kelas: 'XII IPS 1',
+    tingkat: 'XII',
+    jurusan: 'IPS',
+    total_siswa_dapodik: 30,
+    status_aktif: true,
+    dibuat_pada: '',
+    diperbarui_pada: '',
+  },
+  {
+    id: '66666666-6666-6666-6666-666666666661',
+    id_sekolah: '11111111-1111-1111-1111-111111111113',
+    nama_kelas: 'XII TKJ A',
+    tingkat: 'XII',
+    jurusan: 'TKJ',
+    total_siswa_dapodik: 34,
+    status_aktif: true,
+    dibuat_pada: '',
+    diperbarui_pada: '',
+  },
+  {
+    id: '77777777-7777-7777-7777-777777777771',
+    id_sekolah: '11111111-1111-1111-1111-111111111114',
+    nama_kelas: 'XII IPA A',
+    tingkat: 'XII',
+    jurusan: 'IPA',
+    total_siswa_dapodik: 30,
+    status_aktif: true,
+    dibuat_pada: '',
+    diperbarui_pada: '',
+  },
 ];
 
 export const SEED_STUDENTS: StudentRecord[] = [
@@ -1161,7 +1291,7 @@ export const SEED_STUDENTS: StudentRecord[] = [
     id_kelas: '22222222-2222-2222-2222-222222222222',
     nama_kelas: 'XII RPL 1',
     jurusan: 'RPL',
-    alergi_makanan: '⚠️ Alergi Kacang & Seafood',
+    alergi_makanan: 'Alergi Kacang & Seafood',
     is_perwakilan_kelas: true,
     sudah_ambil: false,
     waktu_ambil: null,
@@ -1183,7 +1313,7 @@ export const SEED_STUDENTS: StudentRecord[] = [
     id_kelas: '22222222-2222-2222-2222-222222222222',
     nama_kelas: 'XII RPL 1',
     jurusan: 'RPL',
-    alergi_makanan: '⚠️ Alergi Telur',
+    alergi_makanan: 'Alergi Telur',
     is_perwakilan_kelas: false,
     sudah_ambil: false,
     waktu_ambil: null,
@@ -1216,7 +1346,7 @@ export const SEED_STUDENTS: StudentRecord[] = [
     id_kelas: '22222222-2222-2222-2222-222222222222',
     nama_kelas: 'XII RPL 1',
     jurusan: 'RPL',
-    alergi_makanan: '⚠️ Alergi Susu Sapi (Laktosa)',
+    alergi_makanan: 'Alergi Susu Sapi (Laktosa)',
     is_perwakilan_kelas: false,
     sudah_ambil: false,
     waktu_ambil: null,
@@ -1238,7 +1368,7 @@ export const SEED_STUDENTS: StudentRecord[] = [
     id_kelas: '33333333-3333-3333-3333-333333333333',
     nama_kelas: 'XII RPL 2',
     jurusan: 'RPL',
-    alergi_makanan: '⚠️ Alergi Udang',
+    alergi_makanan: 'Alergi Udang',
     is_perwakilan_kelas: false,
     sudah_ambil: false,
     waktu_ambil: null,
@@ -1249,6 +1379,50 @@ export const SEED_STUDENTS: StudentRecord[] = [
     id_kelas: '44444444-4444-4444-4444-444444444444',
     nama_kelas: 'XII TKJ 1',
     jurusan: 'TKJ',
+    alergi_makanan: null,
+    is_perwakilan_kelas: true,
+    sudah_ambil: false,
+    waktu_ambil: null,
+  },
+  {
+    nisn: '2000000001',
+    nama_lengkap: 'Rizky Aditya Saputra',
+    id_kelas: '55555555-5555-5555-5555-555555555551',
+    nama_kelas: 'XII IPA 1',
+    jurusan: 'IPA',
+    alergi_makanan: null,
+    is_perwakilan_kelas: true,
+    sudah_ambil: false,
+    waktu_ambil: null,
+  },
+  {
+    nisn: '2000000002',
+    nama_lengkap: 'Nabila Putri Kusuma',
+    id_kelas: '55555555-5555-5555-5555-555555555552',
+    nama_kelas: 'XII IPS 1',
+    jurusan: 'IPS',
+    alergi_makanan: 'Alergi Ikan Laut',
+    is_perwakilan_kelas: true,
+    sudah_ambil: false,
+    waktu_ambil: null,
+  },
+  {
+    nisn: '3000000001',
+    nama_lengkap: 'Fajar Nugroho',
+    id_kelas: '66666666-6666-6666-6666-666666666661',
+    nama_kelas: 'XII TKJ A',
+    jurusan: 'TKJ',
+    alergi_makanan: 'Alergi Udang',
+    is_perwakilan_kelas: true,
+    sudah_ambil: false,
+    waktu_ambil: null,
+  },
+  {
+    nisn: '4000000001',
+    nama_lengkap: 'Ayu Sekar Arum',
+    id_kelas: '77777777-7777-7777-7777-777777777771',
+    nama_kelas: 'XII IPA A',
+    jurusan: 'IPA',
     alergi_makanan: null,
     is_perwakilan_kelas: true,
     sudah_ambil: false,
@@ -1299,6 +1473,10 @@ export const SEED_STUDENT_PHONES: Record<string, string> = {
   '1000000026': '6281234567896', // Joko Prabowo (XII RPL 2 - Perwakilan Kelas)
   '1000000027': '6281234567897', // Kurnia Ramadhan (XII RPL 2)
   '1000000051': '6281234567898', // Olivia Zahra (XII TKJ 1 - Perwakilan Kelas)
+  '2000000001': '6281399001101', // Rizky Aditya Saputra (SMAN 1 Surakarta)
+  '2000000002': '6281399001102', // Nabila Putri Kusuma (SMAN 1 Surakarta)
+  '3000000001': '6281399002201', // Fajar Nugroho (SMKN 2 Surakarta)
+  '4000000001': '6281399003301', // Ayu Sekar Arum (SMAN 4 Surakarta)
 };
 
 export async function authenticateStudentByNameAndPhone(
@@ -1837,8 +2015,17 @@ export async function correctClassAttendance(params: {
 }
 
 // ============================================================
-// TAHAP 5: AUTO-ACCOUNT GENERATION (STUDENT IMPORT ENGINE)
+// TAHAP 5: AUTO-ACCOUNT GENERATION (STUDENT IMPORT & CRUD ENGINE)
 // ============================================================
+
+export interface ExtendedStudentProfile extends StudentAuthProfile {
+  email?: string | null;
+  alergi_makanan?: string | null;
+  lead_score?: number;
+  lead_status?: 'COLD' | 'WARM' | 'HOT';
+  status_aktif?: boolean;
+  id_sekolah?: string;
+}
 
 export async function importStudentsWithAutoAccount(params: {
   rows: Array<{
@@ -1849,33 +2036,45 @@ export async function importStudentsWithAutoAccount(params: {
     jurusan?: string;
     email?: string | null;
     no_hp?: string | null;
+    alergi_makanan?: string | null;
+    is_perwakilan_kelas?: boolean;
+    status_aktif?: boolean;
   }>;
   penggunaId?: string | null;
+  schoolId?: string | null;
+  allowUpdate?: boolean;
 }): Promise<{
   insertedCount: number;
   skippedDuplicateCount: number;
   autoAccountsCreated: number;
   message: string;
 }> {
-  const existingLocal = getLocalItem<StudentAuthProfile[]>('mbg_imported_students', []);
+  const targetSchoolId = getActiveSchoolIdFromStorage(params.schoolId || undefined);
+  const existingLocal = getLocalItem<ExtendedStudentProfile[]>('mbg_imported_students', []);
   const dedupSet = new Set<string>();
+  const nisnSet = new Set<string>();
 
-  // Daftarkan kombinasi nama + no_hp yang sudah ada di sekolah
-  for (const s of existingLocal) {
-    dedupSet.add(`${s.nama_lengkap.trim().toLowerCase()}|${normalizePhone628(s.no_hp)}`);
-  }
-  for (const seed of SEED_STUDENTS) {
-    const seedPhone = SEED_STUDENT_PHONES[seed.nisn] || '';
-    if (seedPhone) {
-      dedupSet.add(`${seed.nama_lengkap.trim().toLowerCase()}|${seedPhone}`);
+  if (!params.allowUpdate) {
+    for (const s of existingLocal) {
+      dedupSet.add(`${s.nama_lengkap.trim().toLowerCase()}|${normalizePhone628(s.no_hp)}`);
+      if (s.nisn) nisnSet.add(s.nisn);
+    }
+    for (const seed of SEED_STUDENTS) {
+      const seedPhone = SEED_STUDENT_PHONES[seed.nisn] || '';
+      if (seedPhone) {
+        dedupSet.add(`${seed.nama_lengkap.trim().toLowerCase()}|${seedPhone}`);
+      }
+      nisnSet.add(seed.nisn);
     }
   }
 
   const validLegacyInsert: any[] = [];
   const validV12Upsert: any[] = [];
-  const newProfiles: StudentAuthProfile[] = [];
+  const newProfiles: ExtendedStudentProfile[] = [];
   let skippedDuplicateCount = 0;
   let autoAccountsCreated = 0;
+
+  const allClasses = await getClassesBySchool(targetSchoolId);
 
   for (const row of params.rows) {
     const cleanNama = (row.nama || '').trim();
@@ -1889,49 +2088,61 @@ export async function importStudentsWithAutoAccount(params: {
       ? normalizePhone628(rawPhone)
       : `62813${String(Math.floor(1000000 + Math.random() * 9000000))}`;
 
+    const cleanNisn =
+      row.nisn && String(row.nisn).trim().length >= 5
+        ? String(row.nisn).replace(/\D/g, '').slice(0, 10).padStart(10, '0')
+        : String(Math.floor(1000000000 + Math.random() * 9000000000));
+
     const dedupKey = `${cleanNama.toLowerCase()}|${normalizedPhone}`;
-    if (dedupSet.has(dedupKey)) {
+    if (!params.allowUpdate && (dedupSet.has(dedupKey) || (row.nisn && nisnSet.has(cleanNisn)))) {
       skippedDuplicateCount++;
       continue;
     }
     dedupSet.add(dedupKey);
+    nisnSet.add(cleanNisn);
 
-    const generatedNisn =
-      row.nisn && String(row.nisn).trim().length >= 5
-        ? String(row.nisn).trim().slice(0, 10)
-        : String(Math.floor(1000000000 + Math.random() * 9000000000));
-
-    const targetCls = SEED_CLASSES.find((c) => c.id === row.kelas_id);
+    const targetCls =
+      allClasses.find((c) => c.id === row.kelas_id) ||
+      SEED_CLASSES.find((c) => c.id === row.kelas_id);
     const namaKelas = row.nama_kelas || targetCls?.nama_kelas || 'XII RPL 1';
     const jurusan = row.jurusan || targetCls?.jurusan || 'RPL';
+    const alergi = row.alergi_makanan ? row.alergi_makanan.trim() : null;
+    const isPerwakilan = !!row.is_perwakilan_kelas;
+    const isAktif = row.status_aktif ?? true;
 
     validLegacyInsert.push({
       nama: cleanNama,
-      nisn: generatedNisn,
+      nisn: cleanNisn,
       kelas_id: row.kelas_id,
       email: row.email ? row.email.trim() : null,
       no_hp: normalizedPhone,
-      status_aktif: true,
+      status_aktif: isAktif,
     });
 
     validV12Upsert.push({
-      nisn: generatedNisn,
+      nisn: cleanNisn,
       id_kelas: row.kelas_id,
       nama_lengkap: cleanNama,
       no_hp: normalizedPhone,
       email: row.email ? row.email.trim() : null,
       jurusan,
-      is_perwakilan_kelas: false,
+      alergi_makanan: alergi,
+      is_perwakilan_kelas: isPerwakilan,
+      status_aktif: isAktif,
     });
 
     newProfiles.push({
-      nisn: generatedNisn,
+      nisn: cleanNisn,
       nama_lengkap: cleanNama,
       no_hp: normalizedPhone,
       id_kelas: row.kelas_id,
       nama_kelas: namaKelas,
       jurusan,
-      is_perwakilan_kelas: false,
+      is_perwakilan_kelas: isPerwakilan,
+      email: row.email ? row.email.trim() : null,
+      alergi_makanan: alergi,
+      status_aktif: isAktif,
+      id_sekolah: targetSchoolId,
     });
 
     if (isValidPhone628(normalizedPhone)) {
@@ -1940,7 +2151,37 @@ export async function importStudentsWithAutoAccount(params: {
   }
 
   if (newProfiles.length > 0) {
-    setLocalItem('mbg_imported_students', [...newProfiles, ...existingLocal]);
+    const newNisns = new Set(newProfiles.map((p) => p.nisn));
+    const filteredExisting = existingLocal.filter((e) => !newNisns.has(e.nisn));
+    setLocalItem('mbg_imported_students', [...newProfiles, ...filteredExisting]);
+
+    // Update local class rosters so Student Portal immediately sees added/edited students
+    for (const prof of newProfiles) {
+      const rosterKey = `mbg_roster_${prof.id_kelas}`;
+      const existingRoster = getLocalItem<StudentRecord[]>(rosterKey, []);
+      const baseRoster =
+        existingRoster.length > 0
+          ? existingRoster
+          : SEED_STUDENTS.filter((s) => s.id_kelas === prof.id_kelas);
+      const foundIdx = baseRoster.findIndex((r) => r.nisn === prof.nisn);
+      const record: StudentRecord = {
+        nisn: prof.nisn,
+        nama_lengkap: prof.nama_lengkap,
+        id_kelas: prof.id_kelas,
+        nama_kelas: prof.nama_kelas,
+        jurusan: prof.jurusan,
+        alergi_makanan: prof.alergi_makanan || null,
+        is_perwakilan_kelas: prof.is_perwakilan_kelas,
+        sudah_ambil: foundIdx >= 0 ? baseRoster[foundIdx].sudah_ambil : false,
+        waktu_ambil: foundIdx >= 0 ? baseRoster[foundIdx].waktu_ambil : null,
+      };
+      if (foundIdx >= 0) {
+        baseRoster[foundIdx] = record;
+        setLocalItem(rosterKey, baseRoster);
+      } else {
+        setLocalItem(rosterKey, [...baseRoster, record]);
+      }
+    }
 
     // Simpan ke tabel `students` (Skema v1.2 - Basis Login Siswa)
     try {
@@ -1957,11 +2198,12 @@ export async function importStudentsWithAutoAccount(params: {
     }
 
     await logActivity(
-      'AUTO_ACCOUNT_IMPORT_SISWA',
+      params.allowUpdate ? 'UPDATE_DATA_SISWA' : 'AUTO_ACCOUNT_IMPORT_SISWA',
       'students',
       null,
       null,
       {
+        school_id: targetSchoolId,
         inserted: newProfiles.length,
         skipped_duplicates: skippedDuplicateCount,
         auto_accounts_628: autoAccountsCreated,
@@ -1976,4 +2218,528 @@ export async function importStudentsWithAutoAccount(params: {
     autoAccountsCreated,
     message: `Berhasil memproses ${newProfiles.length} siswa (${autoAccountsCreated} akun login otomatis dengan No. HP 628xxx aktif, ${skippedDuplicateCount} duplikat dilewati).`,
   };
+}
+
+// ============================================================
+// TAHAP 1 & 3 SAAS MULTI-TENANT: MANAJEMEN SEKOLAH & GLOBAL STATS
+// ============================================================
+
+export async function getAllSchools(): Promise<School[]> {
+  const localSchools = getLocalItem<School[]>('mbg_schools_store', []);
+
+  try {
+    const { data, error } = await supabase
+      .from('schools')
+      .select('*')
+      .order('nama_sekolah');
+    if (!error && data && data.length > 0) {
+      const mergedMap = new Map<string, School>();
+      for (const s of SEED_SCHOOLS) mergedMap.set(s.id, s);
+      for (const s of localSchools) mergedMap.set(s.id, s);
+      for (const s of data as School[]) mergedMap.set(s.id, s);
+      const list = Array.from(mergedMap.values());
+      setLocalItem('mbg_schools_store', list);
+      return list;
+    }
+  } catch {
+    // Fallback to local store
+  }
+
+  if (localSchools.length > 0) {
+    return localSchools;
+  }
+
+  setLocalItem('mbg_schools_store', SEED_SCHOOLS);
+  return SEED_SCHOOLS;
+}
+
+export async function getSchoolById(schoolId?: string): Promise<School> {
+  const targetId = getActiveSchoolIdFromStorage(schoolId);
+  const all = await getAllSchools();
+  return all.find((s) => s.id === targetId) || SEED_SCHOOL;
+}
+
+export async function saveSchool(
+  school: Partial<School> & { npsn: string; nama_sekolah: string },
+  penggunaId?: string | null
+): Promise<School> {
+  const all = await getAllSchools();
+  const isEdit = !!school.id && all.some((s) => s.id === school.id);
+  const nowIso = new Date().toISOString();
+
+  // Check duplicate NPSN
+  const duplicateNpsn = all.find(
+    (s) => s.npsn.trim() === school.npsn.trim() && s.id !== school.id
+  );
+  if (duplicateNpsn) {
+    throw new Error(
+      `NPSN ${school.npsn} sudah terdaftar untuk sekolah "${duplicateNpsn.nama_sekolah}".`
+    );
+  }
+
+  const id =
+    school.id ||
+    (typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `11111111-1111-4111-8111-${Date.now().toString().slice(-12)}`);
+
+  const newRecord: School = {
+    id,
+    npsn: school.npsn.trim(),
+    nama_sekolah: school.nama_sekolah.trim(),
+    nama_kepala_sekolah: school.nama_kepala_sekolah?.trim() || null,
+    nip_kepala_sekolah: school.nip_kepala_sekolah?.trim() || null,
+    nama_sppg_mitra: school.nama_sppg_mitra?.trim() || 'SPPG Mitra Bergizi',
+    dibuat_pada: school.dibuat_pada || nowIso,
+    diperbarui_pada: nowIso,
+  };
+
+  try {
+    const { data, error } = await supabase
+      .from('schools')
+      .upsert({
+        id: newRecord.id,
+        npsn: newRecord.npsn,
+        nama_sekolah: newRecord.nama_sekolah,
+        nama_kepala_sekolah: newRecord.nama_kepala_sekolah,
+        nip_kepala_sekolah: newRecord.nip_kepala_sekolah,
+        nama_sppg_mitra: newRecord.nama_sppg_mitra,
+        diperbarui_pada: nowIso,
+      })
+      .select()
+      .maybeSingle();
+
+    if (!error && data) {
+      newRecord.id = data.id;
+    }
+  } catch {
+    // Offline fallback
+  }
+
+  const updated = isEdit
+    ? all.map((s) => (s.id === id ? newRecord : s))
+    : [newRecord, ...all];
+  setLocalItem('mbg_schools_store', updated);
+
+  await logActivity(
+    isEdit ? 'UPDATE_SEKOLAH_MITRA' : 'CREATE_SEKOLAH_MITRA',
+    'schools',
+    newRecord.id,
+    null,
+    newRecord,
+    penggunaId || null
+  );
+
+  return newRecord;
+}
+
+export async function deleteSchool(
+  id: string,
+  penggunaId?: string | null
+): Promise<School[]> {
+  if (id === SEED_SCHOOL.id) {
+    throw new Error('Sekolah pusat utama (UBSI Center) tidak dapat dihapus.');
+  }
+  const all = await getAllSchools();
+  const target = all.find((s) => s.id === id);
+  const updated = all.filter((s) => s.id !== id);
+  setLocalItem('mbg_schools_store', updated);
+
+  try {
+    await supabase.from('schools').delete().eq('id', id);
+  } catch {
+    // Offline fallback
+  }
+
+  await logActivity(
+    'DELETE_SEKOLAH_MITRA',
+    'schools',
+    id,
+    target || null,
+    null,
+    penggunaId || null
+  );
+
+  return updated;
+}
+
+export async function getGlobalMultiSchoolStats(): Promise<{
+  totalSekolahAktif: number;
+  totalKelasLintasSekolah: number;
+  totalSiswaLintasSekolah: number;
+  totalPorsiTerserapGlobal: number;
+  schoolsSummary: Array<{
+    school: School;
+    totalKelas: number;
+    totalSiswa: number;
+  }>;
+}> {
+  const schools = await getAllSchools();
+  const localClasses = getLocalItem<Kelas[]>('mbg_classes_store', []);
+  const allClassesMap = new Map<string, Kelas>();
+  for (const c of SEED_CLASSES) allClassesMap.set(c.id, c);
+  for (const c of localClasses) allClassesMap.set(c.id, c);
+
+  try {
+    const { data: dbClasses } = await supabase.from('classes').select('*');
+    if (dbClasses) {
+      for (const c of dbClasses as Kelas[]) allClassesMap.set(c.id, c);
+    }
+  } catch {
+    // fallback
+  }
+
+  const allClasses = Array.from(allClassesMap.values()).filter(
+    (c) => c.status_aktif !== false
+  );
+
+  const today = getJakartaDateString();
+  const localAtt = getLocalItem<any[]>(`mbg_attendances_${today}`, []);
+  const totalPorsiTerserapGlobal = localAtt.reduce(
+    (acc, item) => acc + (Number(item.jumlah_hadir) || 0),
+    0
+  );
+
+  const schoolsSummary = schools.map((school) => {
+    const schoolCls = allClasses.filter((c) => c.id_sekolah === school.id);
+    const totalSiswa = schoolCls.reduce(
+      (sum, c) => sum + (Number(c.total_siswa_dapodik) || 30),
+      0
+    );
+    return {
+      school,
+      totalKelas: schoolCls.length,
+      totalSiswa,
+    };
+  });
+
+  const totalSiswaLintasSekolah = schoolsSummary.reduce(
+    (acc, s) => acc + s.totalSiswa,
+    0
+  );
+
+  return {
+    totalSekolahAktif: schools.length,
+    totalKelasLintasSekolah: allClasses.length,
+    totalSiswaLintasSekolah,
+    totalPorsiTerserapGlobal,
+    schoolsSummary,
+  };
+}
+
+// ============================================================
+// TAHAP 4: MASTER DATA CRUD KELAS (GURU PIKET & SUPER ADMIN)
+// ============================================================
+
+export async function getClassesBySchool(schoolId?: string): Promise<Kelas[]> {
+  const targetSchoolId = getActiveSchoolIdFromStorage(schoolId);
+  const localClasses = getLocalItem<Kelas[]>('mbg_classes_store', []);
+
+  try {
+    const { data, error } = await supabase
+      .from('classes')
+      .select('*')
+      .eq('id_sekolah', targetSchoolId)
+      .order('tingkat')
+      .order('nama_kelas');
+
+    if (!error && data && data.length > 0) {
+      const mergedMap = new Map<string, Kelas>();
+      for (const sc of SEED_CLASSES.filter((c) => c.id_sekolah === targetSchoolId)) {
+        mergedMap.set(sc.id, sc);
+      }
+      for (const lc of localClasses.filter((c) => c.id_sekolah === targetSchoolId)) {
+        mergedMap.set(lc.id, lc);
+      }
+      for (const dbc of data as Kelas[]) {
+        mergedMap.set(dbc.id, {
+          ...dbc,
+          status_aktif: dbc.status_aktif ?? true,
+        });
+      }
+      return Array.from(mergedMap.values());
+    }
+  } catch {
+    // Fallback to local
+  }
+
+  const combinedMap = new Map<string, Kelas>();
+  for (const sc of SEED_CLASSES.filter((c) => c.id_sekolah === targetSchoolId)) {
+    combinedMap.set(sc.id, sc);
+  }
+  for (const lc of localClasses.filter((c) => c.id_sekolah === targetSchoolId)) {
+    combinedMap.set(lc.id, lc);
+  }
+
+  return Array.from(combinedMap.values());
+}
+
+export async function saveClassRecord(
+  kelas: Partial<Kelas> & {
+    nama_kelas: string;
+    tingkat: string;
+    jurusan: string;
+  },
+  schoolId?: string,
+  penggunaId?: string | null
+): Promise<Kelas> {
+  const targetSchoolId = getActiveSchoolIdFromStorage(kelas.id_sekolah || schoolId);
+  const localClasses = getLocalItem<Kelas[]>('mbg_classes_store', []);
+  const allKnown = [...SEED_CLASSES, ...localClasses];
+  const isEdit = !!kelas.id && allKnown.some((c) => c.id === kelas.id);
+  const nowIso = new Date().toISOString();
+
+  const id =
+    kelas.id ||
+    (typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `22222222-2222-4222-8222-${Date.now().toString().slice(-12)}`);
+
+  const newRecord: Kelas = {
+    id,
+    id_sekolah: targetSchoolId,
+    nama_kelas: kelas.nama_kelas.trim(),
+    tingkat: kelas.tingkat.trim(),
+    jurusan: kelas.jurusan.trim().toUpperCase(),
+    total_siswa_dapodik: Number(kelas.total_siswa_dapodik) || 30,
+    status_aktif: kelas.status_aktif ?? true,
+    dibuat_pada: kelas.dibuat_pada || nowIso,
+    diperbarui_pada: nowIso,
+  };
+
+  try {
+    const validJurusan = ['IPA', 'IPS', 'RPL', 'TKJ', 'AKUNTANSI', 'UMUM'].includes(
+      newRecord.jurusan
+    )
+      ? newRecord.jurusan
+      : 'UMUM';
+
+    const { data, error } = await supabase
+      .from('classes')
+      .upsert({
+        id: newRecord.id,
+        id_sekolah: targetSchoolId,
+        nama_kelas: newRecord.nama_kelas,
+        tingkat: newRecord.tingkat,
+        jurusan: validJurusan,
+        total_siswa_dapodik: newRecord.total_siswa_dapodik,
+        diperbarui_pada: nowIso,
+      })
+      .select()
+      .maybeSingle();
+
+    if (!error && data) {
+      newRecord.id = data.id;
+    }
+  } catch {
+    // Offline fallback
+  }
+
+  const filteredLocal = localClasses.filter((c) => c.id !== newRecord.id);
+  setLocalItem('mbg_classes_store', [newRecord, ...filteredLocal]);
+
+  await logActivity(
+    isEdit ? 'UPDATE_KELAS' : 'CREATE_KELAS',
+    'classes',
+    newRecord.id,
+    null,
+    newRecord,
+    penggunaId || null
+  );
+
+  return newRecord;
+}
+
+export async function deleteClassRecord(
+  id: string,
+  schoolId?: string,
+  penggunaId?: string | null
+): Promise<Kelas[]> {
+  const localClasses = getLocalItem<Kelas[]>('mbg_classes_store', []);
+  const target =
+    localClasses.find((c) => c.id === id) || SEED_CLASSES.find((c) => c.id === id);
+  const updatedLocal = localClasses.filter((c) => c.id !== id);
+  setLocalItem('mbg_classes_store', updatedLocal);
+
+  try {
+    await supabase.from('classes').delete().eq('id', id);
+  } catch {
+    // Offline fallback
+  }
+
+  await logActivity(
+    'DELETE_KELAS',
+    'classes',
+    id,
+    target || null,
+    null,
+    penggunaId || null
+  );
+
+  return getClassesBySchool(schoolId);
+}
+
+// ============================================================
+// TAHAP 5: GUEST MODE AD-HOC VERIFICATION, CRM SCORING & STORAGE
+// ============================================================
+
+export async function verifyOrRegisterGuestStudent(params: {
+  nama: string;
+  noHp: string;
+  classId: string;
+}): Promise<{
+  valid: boolean;
+  message: string;
+  profile?: StudentAuthProfile;
+}> {
+  const cleanName = (params.nama || '').trim();
+  const normalizedPhone = normalizePhone628(params.noHp);
+
+  if (!cleanName || cleanName.length < 2) {
+    return {
+      valid: false,
+      message: 'Harap masukkan Nama Lengkap perwakilan atau siswa (minimal 2 karakter).',
+    };
+  }
+
+  if (!isValidPhone628(normalizedPhone)) {
+    return {
+      valid: false,
+      message: 'Nomor HP harus valid (contoh: 081234567890 atau 6281234567890).',
+    };
+  }
+
+  // 1. Try matching existing student first
+  const authRes = await authenticateStudentByNameAndPhone(cleanName, normalizedPhone);
+  if (authRes.student) {
+    return {
+      valid: true,
+      message: `Identitas terverifikasi sebagai ${authRes.student.nama_lengkap}.`,
+      profile: authRes.student,
+    };
+  }
+
+  // 2. Guest Mode Ad-Hoc: If not yet registered or phone differs, match by name in class roster or register ad-hoc guest identity
+  const roster = await getClassRoster(params.classId);
+  const matchedRoster = roster.find(
+    (r) => r.nama_lengkap.trim().toLowerCase() === cleanName.toLowerCase()
+  );
+
+  const targetClass =
+    SEED_CLASSES.find((c) => c.id === params.classId) ||
+    (await getClassesBySchool()).find((c) => c.id === params.classId);
+
+  const guestProfile: StudentAuthProfile = {
+    nisn:
+      matchedRoster?.nisn ||
+      String(Math.floor(1000000000 + Math.random() * 9000000000)),
+    nama_lengkap: matchedRoster?.nama_lengkap || cleanName,
+    no_hp: normalizedPhone,
+    id_kelas: params.classId,
+    nama_kelas: targetClass?.nama_kelas || 'XII RPL 1',
+    jurusan: targetClass?.jurusan || 'RPL',
+    is_perwakilan_kelas: matchedRoster?.is_perwakilan_kelas ?? true,
+  };
+
+  // Persist guest identity to imported students so future logins also work
+  const existingLocal = getLocalItem<ExtendedStudentProfile[]>('mbg_imported_students', []);
+  setLocalItem('mbg_imported_students', [
+    guestProfile,
+    ...existingLocal.filter((s) => s.nisn !== guestProfile.nisn),
+  ]);
+
+  return {
+    valid: true,
+    message: `Verifikasi Ad-Hoc Guest berhasil (${guestProfile.nama_lengkap} • ${guestProfile.no_hp}).`,
+    profile: guestProfile,
+  };
+}
+
+export async function recordCrmBannerClick(params: {
+  nisn: string | null;
+  campaignId: string;
+  poinInteraksi?: number;
+}): Promise<{
+  newLeadScore: number;
+  newLeadStatus: 'COLD' | 'WARM' | 'HOT';
+}> {
+  const points = Number(params.poinInteraksi) || 1;
+  const targetNisn = params.nisn || '1000000001';
+
+  // Update local lead scores map
+  const scoreMap = getLocalItem<Record<string, number>>('mbg_crm_lead_scores', {});
+  const nextScore = (scoreMap[targetNisn] || 0) + points;
+  scoreMap[targetNisn] = nextScore;
+  setLocalItem('mbg_crm_lead_scores', scoreMap);
+
+  const nextStatus: 'COLD' | 'WARM' | 'HOT' =
+    nextScore >= 3 ? 'HOT' : nextScore >= 1 ? 'WARM' : 'COLD';
+
+  // Insert to Supabase crm_click_logs (which triggers tr_crm_click_score in DB)
+  try {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      params.campaignId
+    );
+    if (isUuid) {
+      await supabase.from('crm_click_logs').insert({
+        nisn: targetNisn,
+        id_campaign: params.campaignId,
+        waktu_klik: new Date().toISOString(),
+      });
+    }
+  } catch {
+    // Offline fallback
+  }
+
+  await logActivity(
+    'CRM_BANNER_CLICK',
+    'crm_click_logs',
+    null,
+    null,
+    {
+      nisn: targetNisn,
+      campaign_id: params.campaignId,
+      added_points: points,
+      new_lead_score: nextScore,
+      new_lead_status: nextStatus,
+    },
+    null
+  );
+
+  return {
+    newLeadScore: nextScore,
+    newLeadStatus: nextStatus,
+  };
+}
+
+export async function uploadFileWithFallback(params: {
+  dataUrl: string;
+  folder: 'sampel' | 'ttd';
+  fileName?: string;
+}): Promise<string> {
+  if (!params.dataUrl) return '';
+
+  // Try uploading to Supabase Storage bucket `mbg-assets` if online
+  if (typeof navigator !== 'undefined' && navigator.onLine && params.dataUrl.startsWith('data:')) {
+    try {
+      const res = await fetch(params.dataUrl);
+      const blob = await res.blob();
+      const ext = blob.type.includes('png') ? 'png' : 'jpg';
+      const path = `${params.folder}/${params.fileName || Date.now()}.${ext}`;
+      const { data, error } = await supabase.storage
+        .from('mbg-assets')
+        .upload(path, blob, { upsert: true, contentType: blob.type });
+
+      if (!error && data?.path) {
+        const { data: pubUrl } = supabase.storage.from('mbg-assets').getPublicUrl(data.path);
+        if (pubUrl?.publicUrl) {
+          return pubUrl.publicUrl;
+        }
+      }
+    } catch {
+      // Fallback to Base64 DataURL for offline-first resilience
+    }
+  }
+
+  return params.dataUrl;
 }

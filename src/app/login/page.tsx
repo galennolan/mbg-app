@@ -21,7 +21,7 @@ import { Input, Button, Alert, useNotify } from '@/components/ui';
 export default function LoginPage() {
   const router = useRouter();
   const notify = useNotify();
-  const { signIn, signInStudent, user, isStudent } = useAuth();
+  const { signIn, signInStudent, loginAsDemoRole, user, isStudent } = useAuth();
 
   // Dual-Mode Login Tab State ('staff' | 'student')
   const [loginMode, setLoginMode] = useState<'staff' | 'student'>('staff');
@@ -78,7 +78,7 @@ export default function LoginPage() {
       if (res.error) {
         if (res.error.toLowerCase().includes('invalid login credentials')) {
           setErrorMsg(
-            'Email atau kata sandi salah. Pastikan akun petugas Anda terdaftar dan aktif.'
+            'Email atau kata sandi salah. Gunakan tombol Simulasi Cepat di bawah jika baru pertama kali mencoba.'
           );
         } else {
           setErrorMsg(res.error);
@@ -131,6 +131,53 @@ export default function LoginPage() {
     }
   };
 
+  // Helper to register/sign-in initial Staff accounts (Super Admin, Guru Piket, Kepala Sekolah)
+  const handleCreateInitialAccount = async (
+    role: 'super_admin' | 'guru_piket' | 'kepala_sekolah'
+  ) => {
+    const emailMap = {
+      super_admin: 'admin@mbg.sekolah.id',
+      guru_piket: 'guru@mbg.sekolah.id',
+      kepala_sekolah: 'kepsek@mbg.sekolah.id',
+    };
+    const targetEmail = emailMap[role];
+    const targetPassword = 'Password123!';
+    setEmail(targetEmail);
+    setPassword(targetPassword);
+    setLoading(true);
+    setErrorMsg('');
+    setInfoMsg('');
+
+    try {
+      await loginAsDemoRole(role);
+      notify.success('Sesi Demo Aktif', `Masuk sebagai ${role.replace('_', ' ').toUpperCase()}.`);
+      router.push('/dashboard');
+    } catch (e: any) {
+      setErrorMsg(e.message || 'Gagal menyiapkan akun.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Helper for 1-Click Student Demo Login
+  const handleQuickStudentLogin = async (nama: string, phone: string) => {
+    setNamaSiswa(nama);
+    setNoHpSiswa(phone);
+    setLoading(true);
+    setErrorMsg('');
+    try {
+      const res = await signInStudent(nama, phone);
+      if (res.error) {
+        setErrorMsg(res.error);
+      } else {
+        notify.success('Selamat Datang', `Masuk sebagai ${nama}.`);
+        router.push('/');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="max-w-md mx-auto py-6 sm:py-10 px-4">
       <div className="bg-white rounded-3xl shadow-elevated border border-slate-200 overflow-hidden">
@@ -161,11 +208,10 @@ export default function LoginPage() {
                 setErrorMsg('');
                 setInfoMsg('');
               }}
-              className={`micro-tap min-h-[42px] flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-black transition ${
-                loginMode === 'staff'
-                  ? 'bg-brand-blue text-white shadow-sm'
-                  : 'text-sky-200/80 hover:text-white hover:bg-white/5'
-              }`}
+              className={`micro-tap min-h-[42px] flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-black transition ${loginMode === 'staff'
+                ? 'bg-brand-blue text-white shadow-sm'
+                : 'text-sky-200/80 hover:text-white hover:bg-white/5'
+                }`}
             >
               <ShieldCheck className="w-4 h-4" />
               Login Petugas
@@ -178,11 +224,10 @@ export default function LoginPage() {
                 setErrorMsg('');
                 setInfoMsg('');
               }}
-              className={`micro-tap min-h-[42px] flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-black transition ${
-                loginMode === 'student'
-                  ? 'bg-brand-blue text-white shadow-sm'
-                  : 'text-sky-200/80 hover:text-white hover:bg-white/5'
-              }`}
+              className={`micro-tap min-h-[42px] flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-black transition ${loginMode === 'student'
+                ? 'bg-brand-blue text-white shadow-sm'
+                : 'text-sky-200/80 hover:text-white hover:bg-white/5'
+                }`}
             >
               <GraduationCap className="w-4 h-4" />
               Login Siswa
@@ -246,6 +291,39 @@ export default function LoginPage() {
                   Masuk Sebagai Petugas
                 </Button>
               </form>
+
+              {/* Quick Helper for Initial RBAC Testing / Setup */}
+              <div className="pt-4 border-t border-slate-200 text-center space-y-2.5">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                  Simulasi Cepat RBAC (1-Klik Masuk)
+                </span>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleCreateInitialAccount('super_admin')}
+                    className="micro-tap min-h-[42px] py-2 px-2 text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-900 rounded-xl border border-amber-200 transition text-center"
+                  >
+                    Super Admin
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleCreateInitialAccount('guru_piket')}
+                    className="micro-tap min-h-[42px] py-2 px-2 text-xs font-bold bg-blue-50 hover:bg-blue-100 text-blue-900 rounded-xl border border-blue-200 transition text-center"
+                  >
+                    Guru Piket
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleCreateInitialAccount('kepala_sekolah')}
+                    className="micro-tap min-h-[42px] py-2 px-2 text-xs font-bold bg-purple-50 hover:bg-purple-100 text-purple-900 rounded-xl border border-purple-200 transition text-center"
+                  >
+                    Kepala Sekolah
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Password default: <code className="font-mono font-bold">Password123!</code>
+                </p>
+              </div>
             </>
           ) : (
             /* ==================== TAB 2: LOGIN SISWA (NAMA + NO. HP 628xxx) ==================== */
@@ -271,11 +349,10 @@ export default function LoginPage() {
                       Nomor HP WhatsApp (628xxx) <span className="text-red-600">*</span>
                     </label>
                     <span
-                      className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        phoneValid
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          : 'bg-amber-50 text-amber-800 border border-amber-200'
-                      }`}
+                      className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${phoneValid
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : 'bg-amber-50 text-amber-800 border border-amber-200'
+                        }`}
                     >
                       {phoneValid ? (
                         <>
@@ -311,6 +388,48 @@ export default function LoginPage() {
                   Masuk Portal Siswa
                 </Button>
               </form>
+
+              {/* Quick Demo Student Accounts */}
+              <div className="pt-4 border-t border-slate-200 space-y-2">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-center gap-1">
+                  Akun Siswa Demo (1-Klik Masuk)
+                </span>
+                <div className="grid grid-cols-1 gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleQuickStudentLogin('Alroy Theola Ardanta', '6281234567890')
+                    }
+                    className="micro-tap w-full min-h-[48px] py-2.5 px-3 text-left text-xs bg-cyan-50/70 hover:bg-cyan-100/80 text-slate-800 rounded-xl border border-cyan-200 transition flex items-center justify-between"
+                  >
+                    <div>
+                      <span className="font-black block text-brand-navy">
+                        Alroy Theola Ardanta (XII RPL 1)
+                      </span>
+                      <span className="text-[10px] text-slate-600 font-mono">
+                        HP: 6281234567890 • Perwakilan Kelas
+                      </span>
+                    </div>
+                    <ArrowRight className="w-3.5 h-3.5 text-cyan-700" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleQuickStudentLogin('Olivia Zahra', '6281234567898')}
+                    className="micro-tap w-full min-h-[48px] py-2.5 px-3 text-left text-xs bg-slate-50 hover:bg-slate-100 text-slate-800 rounded-xl border border-slate-200 transition flex items-center justify-between"
+                  >
+                    <div>
+                      <span className="font-black block text-brand-navy">
+                        Olivia Zahra (XII TKJ 1)
+                      </span>
+                      <span className="text-[10px] text-slate-600 font-mono">
+                        HP: 6281234567898 • Perwakilan Kelas
+                      </span>
+                    </div>
+                    <ArrowRight className="w-3.5 h-3.5 text-slate-500" />
+                  </button>
+                </div>
+              </div>
             </>
           )}
 

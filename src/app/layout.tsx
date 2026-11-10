@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { AuthProvider } from '@/lib/auth-context';
 import { NotificationProvider } from '@/components/ui/NotificationProvider';
+import { SplashScreen } from '@/components/ui';
 import Navbar from '@/components/Navbar';
 import BottomNavigation from '@/components/navigation/BottomNavigation';
 import PwaRegistrar from '@/components/PwaRegistrar';
@@ -23,6 +24,7 @@ export default function RootLayout({
       <body className="min-h-screen flex flex-col bg-surface-canvas antialiased selection:bg-brand-blue selection:text-white">
         <AuthProvider>
           <NotificationProvider>
+            <SplashScreen />
             <PwaRegistrar />
             <Navbar />
             <main className="flex-1 w-full max-w-7xl mx-auto p-4 pb-24 sm:p-6 sm:pb-24 lg:p-8 lg:pb-8">

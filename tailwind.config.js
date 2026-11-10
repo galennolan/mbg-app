@@ -93,6 +93,10 @@ module.exports = {
           '25%': { transform: 'translateX(-4px)' },
           '75%': { transform: 'translateX(4px)' },
         },
+        shimmer: {
+          '0%': { transform: 'translateX(-100%)' },
+          '100%': { transform: 'translateX(100%)' },
+        },
       },
       animation: {
         'fade-in': 'fade-in 180ms cubic-bezier(0.22, 1, 0.36, 1)',
@@ -101,6 +105,7 @@ module.exports = {
         'pop-in': 'pop-in 280ms cubic-bezier(0.34, 1.56, 0.64, 1)',
         'toast-in': 'toast-in 220ms cubic-bezier(0.22, 1, 0.36, 1)',
         'shake-error': 'shake-error 240ms ease-in-out',
+        shimmer: 'shimmer 1.5s infinite',
       },
     },
   },

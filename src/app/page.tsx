@@ -30,17 +30,22 @@ import {
   getClassRoster,
   submitClassRepresentativeClaim,
   getActiveCrmCampaigns,
+  verifyOrRegisterGuestStudent,
+  recordCrmBannerClick,
+  normalizePhone628,
   SEED_CLASSES,
   SEED_SCHOOL,
 } from '@/lib/services';
 import { OrganolepticTest, StudentRecord, Kelas, CrmCampaign } from '@/lib/types';
-import { formatIndonesianDate, getJakartaDateString } from '@/lib/utils';
-import { Modal } from '@/components/ui/ModalField';
+import { formatIndonesianDate, getJakartaDateString, formatWIBTime } from '@/lib/utils';
+import { Modal, ModalInput, ModalActions } from '@/components/ui/ModalField';
 import { PageHeader, Input, Select, Button, Alert, useNotify } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
+import { enqueueOfflineClaim, getPendingOfflineClaims, clearSyncedOfflineClaim } from '@/lib/offline-queue';
+import { subscribeBrowserPushNotification, getBrowserPushState } from '@/lib/push-notification';
 
 export default function StudentPortalPage() {
-  const { student, user } = useAuth();
+  const { student, user, isGuest, guestIdentity, setGuestIdentity, activeSchoolId } = useAuth();
   const notify = useNotify();
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<OrganolepticTest | null>(null);
@@ -67,6 +72,16 @@ export default function StudentPortalPage() {
   const [selectedNisns, setSelectedNisns] = useState<Set<string>>(new Set());
   const [searchRoster, setSearchRoster] = useState('');
   const [submittingClaim, setSubmittingClaim] = useState(false);
+
+  // Guest Mode ad-hoc confirmation modal
+  const [showGuestModal, setShowGuestModal] = useState(false);
+  const [guestNameInput, setGuestNameInput] = useState('');
+  const [guestPhoneInput, setGuestPhoneInput] = useState('');
+  const [guestModalError, setGuestModalError] = useState('');
+
+  // Web Push Subscription state
+  const [pushSubState, setPushSubState] = useState(() => getBrowserPushState());
+  const [subscribingPush, setSubscribingPush] = useState(false);
 
   // Success Confirmation Modal
   const [claimSuccess, setClaimSuccess] = useState<{
@@ -156,7 +171,50 @@ export default function StudentPortalPage() {
       }
     };
     window.addEventListener('mbg-push-notification', handlePushEvent);
-    return () => window.removeEventListener('mbg-push-notification', handlePushEvent);
+
+    // Sync pending offline claims when internet reconnects
+    const handleOnlineSync = async () => {
+      try {
+        const pending = await getPendingOfflineClaims();
+        if (pending.length > 0) {
+          notify.info('Sinkronisasi Offline', `Mengirim ${pending.length} antrean data tersimpan...`);
+          for (const item of pending) {
+            try {
+              if (item.classId && item.attendedNisns && item.attendedNisns.length > 0) {
+                const res = await submitClassRepresentativeClaim({
+                  classId: item.classId,
+                  attendedNisns: item.attendedNisns,
+                  pinOrToken: item.pinOrToken,
+                });
+                if (res.success) {
+                  await clearSyncedOfflineClaim(item.id);
+                }
+              } else {
+                await clearSyncedOfflineClaim(item.id);
+              }
+            } catch (err) {
+              console.warn('Sync claim failed for item', item.id, err);
+            }
+          }
+          notify.success('Sinkronisasi Berhasil', 'Seluruh data offline berhasil disinkronkan ke server.');
+          if (selectedClassId) {
+            getClassRoster(selectedClassId).then(setRoster).catch(() => {});
+          }
+        }
+      } catch (err) {
+        console.error('Online sync error:', err);
+      }
+    };
+    window.addEventListener('online', handleOnlineSync);
+    // Also try on mount in case we are already online with pending queue
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
+      handleOnlineSync();
+    }
+
+    return () => {
+      window.removeEventListener('mbg-push-notification', handlePushEvent);
+      window.removeEventListener('online', handleOnlineSync);
+    };
   }, []);
 
   // Update roster when class changes or verified
@@ -489,22 +547,62 @@ export default function StudentPortalPage() {
     }
   };
 
-  // Submit Claim (FR-3.2, FR-3.3)
+  // Submit Claim (FR-3.2, FR-3.3 + Guest Mode verification + Offline Queue)
   const handleSubmitClaim = async () => {
     if (selectedNisns.size === 0) {
       notify.warning('Belum Ada Siswa Terpilih', 'Pilih minimal 1 siswa yang hadir untuk menerima MBG.');
       return;
     }
 
+    // Guest Mode Check: if user is not logged in as staff nor student and has not set ad-hoc guest identity, prompt modal
+    if (isGuest && !guestIdentity) {
+      setGuestModalError('');
+      setShowGuestModal(true);
+      return;
+    }
+
+    await executeSubmitClaim();
+  };
+
+  const executeSubmitClaim = async () => {
     setSubmittingClaim(true);
     const pinOrToken = session?.kode_pin_harian || pinDigits.join('') || qrInput;
     const currentClass = classes.find((c) => c.id === selectedClassId);
+
+    // If device is offline, enqueue claim in IndexedDB for Background Sync
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      try {
+        await enqueueOfflineClaim({
+          type: 'KOLEKTIF_KELAS',
+          classId: selectedClassId,
+          attendedNisns: Array.from(selectedNisns),
+          pinOrToken,
+        });
+
+        notify.warning(
+          'Tersimpan Offline',
+          `${selectedNisns.size} porsi telah diantrikan di IndexedDB lokal dan otomatis disinkronkan saat online.`
+        );
+        setClaimSuccess({
+          berhasilCount: selectedNisns.size,
+          dilewatiCount: 0,
+          message: 'Penerimaan disimpan di memori offline lokal perangkat.',
+          className: currentClass?.nama_kelas || 'Kelas',
+        });
+      } catch (err: any) {
+        notify.error('Gagal Simpan Offline', err?.message || 'Gagal menyimpan ke IndexedDB.');
+      } finally {
+        setSubmittingClaim(false);
+      }
+      return;
+    }
 
     try {
       const res = await submitClassRepresentativeClaim({
         classId: selectedClassId,
         attendedNisns: Array.from(selectedNisns),
         pinOrToken: pinOrToken,
+        perwakilanNisn: student?.nisn || guestIdentity?.no_hp,
       });
 
       if (res.success) {
@@ -528,6 +626,65 @@ export default function StudentPortalPage() {
       notify.error('Gagal Menyimpan Klaim', err.message || 'Gagal menyimpan klaim porsi.');
     } finally {
       setSubmittingClaim(false);
+    }
+  };
+
+  const handleConfirmGuestIdentity = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setGuestModalError('');
+    if (!guestNameInput.trim() || !guestPhoneInput.trim()) {
+      setGuestModalError('Nama dan Nomor HP wajib diisi untuk verifikasi ad-hoc.');
+      return;
+    }
+
+    const res = await verifyOrRegisterGuestStudent({
+      nama: guestNameInput,
+      noHp: guestPhoneInput,
+      classId: selectedClassId,
+    });
+
+    if (!res.valid) {
+      setGuestModalError(res.message);
+      return;
+    }
+
+    setGuestIdentity({
+      nama: res.profile?.nama_lengkap || guestNameInput.trim(),
+      no_hp: res.profile?.no_hp || normalizePhone628(guestPhoneInput),
+      verified_at: new Date().toISOString(),
+    });
+
+    setShowGuestModal(false);
+    notify.success('Verifikasi Guest Berhasil', res.message);
+    await executeSubmitClaim();
+  };
+
+  const handleToggleWebPush = async () => {
+    setSubscribingPush(true);
+    try {
+      const res = await subscribeBrowserPushNotification();
+      if (res.success) {
+        notify.success('Push Notification Aktif', res.message);
+        setPushSubState(getBrowserPushState());
+      } else {
+        notify.warning('Pemberitahuan Push', res.message);
+      }
+    } finally {
+      setSubscribingPush(false);
+    }
+  };
+
+  const handleCrmBannerClick = async (campaign: CrmCampaign) => {
+    try {
+      const nisnTarget = student?.nisn || guestIdentity?.no_hp || null;
+      await recordCrmBannerClick({
+        nisn: nisnTarget,
+        campaignId: campaign.id,
+        poinInteraksi: campaign.poin_interaksi,
+      });
+      notify.info('Lead CRM Tercatat', `+${campaign.poin_interaksi} Poin minat beasiswa UBSI.`);
+    } catch {
+      // ignore
     }
   };
 
@@ -579,6 +736,17 @@ export default function StudentPortalPage() {
         badgeText="PWA SISWA & PERWAKILAN KELAS"
       >
         <div className="flex items-center gap-2.5">
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={handleToggleWebPush}
+            loading={subscribingPush}
+            leftIcon={<Bell className="w-3.5 h-3.5 text-brand-blue" />}
+          >
+            {pushSubState.subscribed ? 'Push Notif Aktif' : 'Aktifkan Notifikasi'}
+          </Button>
+
           <Link
             href="/dashboard"
             className="micro-tap inline-flex items-center gap-1.5 min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold border border-slate-200 transition"
@@ -942,7 +1110,7 @@ export default function StudentPortalPage() {
                           )}
                         </div>
                         <p className="text-[11px] text-slate-500 font-mono">
-                          NISN: {studentItem.nisn} • {studentItem.nama_kelas}
+                          {studentItem.nama_kelas}
                         </p>
                       </div>
                     </div>
@@ -957,10 +1125,17 @@ export default function StudentPortalPage() {
                       )}
 
                       {isAlreadyClaimed ? (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                          Sudah Ambil
-                        </span>
+                        <div className="flex flex-col items-end gap-1">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            Sudah Ambil
+                          </span>
+                          {studentItem.waktu_ambil && (
+                            <span className="text-[10px] font-mono text-slate-400">
+                              {formatWIBTime(studentItem.waktu_ambil)}
+                            </span>
+                          )}
+                        </div>
                       ) : (
                         <span
                           className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-lg ${
@@ -1064,7 +1239,7 @@ export default function StudentPortalPage() {
                     </span>
                   </div>
                   <span className="text-[10px] font-bold bg-white/15 px-2 py-0.5 rounded-full text-sky-200">
-                    +{activeCampaigns[0].poin_interaksi} Poin
+                    +{activeCampaigns[0].poin_interaksi} Poin Lead
                   </span>
                 </div>
                 <p className="text-sm font-bold text-white leading-snug">
@@ -1074,6 +1249,7 @@ export default function StudentPortalPage() {
                   href={activeCampaigns[0].cta_url_template || 'https://bsi.ac.id'}
                   target="_blank"
                   rel="noreferrer"
+                  onClick={() => handleCrmBannerClick(activeCampaigns[0])}
                   className="micro-tap inline-flex items-center gap-1.5 min-h-[44px] px-3.5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-sm transition"
                 >
                   Konsultasi WhatsApp / Daftar PMB UBSI
@@ -1092,6 +1268,44 @@ export default function StudentPortalPage() {
             </Button>
           </div>
         )}
+      </Modal>
+
+      {/* Modal Guest Mode Ad-Hoc Identity Verification */}
+      <Modal
+        isOpen={showGuestModal}
+        onClose={() => setShowGuestModal(false)}
+        title="Verifikasi Identitas Siswa (Guest Mode)"
+        description="Tanpa perlu login akun, masukkan Nama Lengkap & Nomor HP (628xxx) sebagai bukti serah terima porsi MBG."
+        size="sm"
+      >
+        <form onSubmit={handleConfirmGuestIdentity} className="space-y-4">
+          {guestModalError && <Alert variant="error" message={guestModalError} />}
+
+          <ModalInput
+            label="Nama Lengkap Siswa / Perwakilan"
+            required
+            value={guestNameInput}
+            onChange={(e) => setGuestNameInput(e.target.value)}
+            placeholder="Contoh: Alroy Theola Ardanta"
+            autoComplete="name"
+          />
+
+          <ModalInput
+            label="Nomor WhatsApp / HP"
+            type="tel"
+            required
+            value={guestPhoneInput}
+            onChange={(e) => setGuestPhoneInput(e.target.value)}
+            placeholder="081234567890"
+            helperText="Format 08xx otomatis dinormalisasi ke 628xxx."
+            autoComplete="tel"
+          />
+
+          <ModalActions
+            onCancel={() => setShowGuestModal(false)}
+            submitLabel="Verifikasi & Lanjut Kunci Klaim"
+          />
+        </form>
       </Modal>
     </div>
   );
