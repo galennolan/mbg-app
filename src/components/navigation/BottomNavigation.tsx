@@ -25,7 +25,7 @@ const MENU_ITEMS: NavItemConfig[] = [
     href: '/dashboard',
     label: 'Monitor',
     icon: Home,
-    allowedRoles: ['siswa', 'guru_piket', 'kepala_sekolah', 'super_admin', 'admin', 'guru'],
+    allowedRoles: ['guru_piket', 'kepala_sekolah', 'super_admin', 'admin', 'guru'],
   },
   {
     href: '/kedatangan',
@@ -60,17 +60,13 @@ export default function BottomNavigation() {
 
   if (pathname === '/login') return null;
 
-  // Tentukan kategori role aktif untuk RBAC filtering
-  const activeRole: RbacRole = isStudent
-    ? 'siswa'
-    : role || 'guru_piket';
+  const activeRole: RbacRole = user && role && !isStudent ? role : 'siswa';
 
   const filteredItems = MENU_ITEMS.filter((item) => item.allowedRoles.includes(activeRole)).slice(
     0,
     5
   );
 
-  // Jika mode siswa, tambahkan akses cepat profil/login di bilah bawah
   const displayItems =
     activeRole === 'siswa' && !user
       ? [
@@ -86,7 +82,9 @@ export default function BottomNavigation() {
       : filteredItems;
 
   const colCountClass =
-    displayItems.length <= 3
+    displayItems.length <= 2
+      ? 'grid-cols-2'
+      : displayItems.length === 3
       ? 'grid-cols-3'
       : displayItems.length === 4
       ? 'grid-cols-4'
@@ -94,10 +92,10 @@ export default function BottomNavigation() {
 
   return (
     <nav
-      className="mobile-bottom-nav fixed inset-x-0 bottom-0 z-40 border-t border-white/20 bg-blue-950/90 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-12px_36px_rgba(15,30,54,0.3)] backdrop-blur-2xl lg:hidden"
-      aria-label="Navigasi utama"
+      className="mobile-bottom-nav fixed inset-x-0 bottom-0 z-bottom-nav border-t border-white/15 bg-brand-navy-dark/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-elev-4 backdrop-blur-md lg:hidden"
+      aria-label="Navigasi utama perangkat seluler"
     >
-      <div className={`mx-auto grid max-w-md ${colCountClass} gap-1`}>
+      <div className={`mx-auto grid max-w-md ${colCountClass} gap-1.5`}>
         {displayItems.map(({ href, label, icon: Icon, primary }) => {
           const active =
             pathname === href ||
@@ -106,27 +104,27 @@ export default function BottomNavigation() {
             <Link
               key={href}
               href={href}
-              className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-[10px] font-bold transition-all duration-200 active:scale-95 ${
+              className={`min-h-[52px] flex flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-bold micro-tap ${
                 primary
                   ? 'text-cyan-300'
                   : active
-                  ? 'bg-white/15 text-white shadow-sm'
-                  : 'text-sky-200/70 hover:text-white hover:bg-white/10'
+                  ? 'bg-white/15 text-white'
+                  : 'text-sky-200/75 hover:text-white hover:bg-white/10'
               }`}
               aria-current={active ? 'page' : undefined}
             >
               <span
-                className={`flex h-8 w-8 items-center justify-center rounded-xl transition-transform duration-200 ${
+                className={`flex h-7 w-7 items-center justify-center rounded-lg transition-transform duration-150 ${
                   primary
-                    ? 'bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/30 scale-105'
+                    ? 'bg-brand-blue text-white shadow-sm'
                     : active
                     ? 'scale-105'
                     : ''
                 }`}
               >
-                <Icon className="h-4 w-4" />
+                <Icon className="h-4 w-4" aria-hidden="true" />
               </span>
-              {label}
+              <span className="truncate max-w-full px-1">{label}</span>
             </Link>
           );
         })}

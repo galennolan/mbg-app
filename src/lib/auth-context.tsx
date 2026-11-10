@@ -17,7 +17,6 @@ interface AuthContextType {
     nama: string,
     no_hp: string
   ) => Promise<{ error?: string; student?: StudentAuthProfile }>;
-  loginAsDemoRole: (role: 'super_admin' | 'guru_piket' | 'kepala_sekolah') => Promise<void>;
   updateProfileName: (newName: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -32,7 +31,6 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   signIn: async () => ({}),
   signInStudent: async () => ({}),
-  loginAsDemoRole: async () => {},
   updateProfileName: async () => {},
   signOut: async () => {},
   refreshProfile: async () => {},
@@ -224,6 +222,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = async (email: string, kataSandi: string) => {
     const cleanEmail = (email || '').trim().toLowerCase();
+    if (!cleanEmail || !kataSandi) {
+      return { error: 'Email dan kata sandi wajib diisi.' };
+    }
+
     try {
       // 1. Coba login lewat Supabase Auth (jika Email Provider aktif di Supabase Dashboard)
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -232,6 +234,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (!error && data.user) {
+        // Periksa apakah akun dinonaktifkan di tabel pengguna
+        try {
+          const { data: dbCheck } = await supabase
+            .from('pengguna')
+            .select('status_aktif')
+            .eq('id', data.user.id)
+            .maybeSingle();
+
+          if (dbCheck && dbCheck.status_aktif === false) {
+            await supabase.auth.signOut();
+            return { error: 'Akun pengguna ini sedang dinonaktifkan oleh Super Admin.' };
+          }
+        } catch {
+          // Abaikan jika gagal query status_aktif
+        }
+
         if (typeof window !== 'undefined') {
           localStorage.removeItem(STUDENT_STORAGE_KEY);
         }
@@ -241,92 +259,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return {};
       }
 
-      // 2. Cek langsung ke tabel `public.pengguna` di Supabase Database berdasarkan email
-      try {
-        const { data: dbUser } = await supabase
-          .from('pengguna')
-          .select('*')
-          .ilike('email', cleanEmail)
-          .maybeSingle();
+      // 2. Cek ke tabel `public.pengguna` di Supabase Database berdasarkan email
+      //    (Hanya diizinkan jika menggunakan password standar `Password123!` bagi akun yang belum terdaftar di Supabase Auth)
+      if (kataSandi === 'Password123!') {
+        try {
+          const { data: dbUser } = await supabase
+            .from('pengguna')
+            .select('*')
+            .ilike('email', cleanEmail)
+            .maybeSingle();
 
-        if (dbUser) {
-          if (dbUser.status_aktif === false) {
-            return { error: 'Akun pengguna ini sedang dinonaktifkan oleh Super Admin.' };
+          if (dbUser) {
+            if (dbUser.status_aktif === false) {
+              return { error: 'Akun pengguna ini sedang dinonaktifkan oleh Super Admin.' };
+            }
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem(STUDENT_STORAGE_KEY);
+            }
+            setStudent(null);
+            setUser(dbUser as Pengguna);
+            saveStaffLocally(dbUser as Pengguna);
+            return {};
           }
+        } catch {
+          // Lanjut ke pengecekan akun inisial resmi jika RLS pengguna belum dibuka
+        }
+
+        // 3. Cek akun inisial resmi apabila tabel `pengguna` belum di-seed
+        const initialAccounts: Record<string, Pengguna> = {
+          'admin@mbg.sekolah.id': DEMO_STAFF_PROFILES.super_admin,
+          'guru@mbg.sekolah.id': DEMO_STAFF_PROFILES.guru_piket,
+          'kepsek@mbg.sekolah.id': DEMO_STAFF_PROFILES.kepala_sekolah,
+        };
+
+        const matchedInitial = initialAccounts[cleanEmail];
+        if (matchedInitial) {
           if (typeof window !== 'undefined') {
             localStorage.removeItem(STUDENT_STORAGE_KEY);
           }
           setStudent(null);
-          setUser(dbUser as Pengguna);
-          saveStaffLocally(dbUser as Pengguna);
+          setUser(matchedInitial);
+          saveStaffLocally(matchedInitial);
           return {};
         }
-      } catch {
-        // Lanjut ke fallback jika RLS pengguna belum dibuka
       }
 
-      // 3. Offline-First / Demo Staff Fallback jika Email Auth di Supabase dinonaktifkan atau tabel pengguna belum di-seed
-      if (kataSandi.length >= 6) {
-        const resolvedRole = resolveDefaultRoleFromEmail(cleanEmail);
-        const demoMatch =
-          resolvedRole === 'super_admin'
-            ? DEMO_STAFF_PROFILES.super_admin
-            : resolvedRole === 'kepala_sekolah'
-            ? DEMO_STAFF_PROFILES.kepala_sekolah
-            : DEMO_STAFF_PROFILES.guru_piket;
-
-        const customStaff: Pengguna = {
-          ...demoMatch,
-          email: cleanEmail,
-          nama:
-            cleanEmail === demoMatch.email
-              ? demoMatch.nama
-              : resolveDefaultNameFromEmail(cleanEmail, resolvedRole),
-          diperbarui_pada: new Date().toISOString(),
-        };
-
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem(STUDENT_STORAGE_KEY);
-        }
-        setStudent(null);
-        setUser(customStaff);
-        saveStaffLocally(customStaff);
-        return {};
-      }
-
-      return { error: error?.message || 'Email atau kata sandi tidak valid.' };
+      return {
+        error: 'Email atau kata sandi salah. Pastikan akun Anda terdaftar dan aktif.',
+      };
     } catch (err: any) {
-      return { error: err.message || 'Gagal login' };
+      return { error: err.message || 'Gagal melakukan autentikasi login.' };
     }
-  };
-
-  const loginAsDemoRole = async (roleKey: 'super_admin' | 'guru_piket' | 'kepala_sekolah') => {
-    const defaultProfile = DEMO_STAFF_PROFILES[roleKey];
-    let activeProfile: Pengguna = defaultProfile;
-
-    // Coba ambil dari tabel `public.pengguna` di Supabase terlebih dahulu
-    try {
-      const { data: dbUser } = await supabase
-        .from('pengguna')
-        .select('*')
-        .eq('peran', roleKey)
-        .eq('status_aktif', true)
-        .limit(1)
-        .maybeSingle();
-
-      if (dbUser) {
-        activeProfile = dbUser as Pengguna;
-      }
-    } catch {
-      // Gunakan defaultProfile bila RLS belum dibuka
-    }
-
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem(STUDENT_STORAGE_KEY);
-    }
-    setStudent(null);
-    setUser(activeProfile);
-    saveStaffLocally(activeProfile);
   };
 
   const updateProfileName = async (newName: string) => {
@@ -416,7 +399,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loading,
         signIn,
         signInStudent,
-        loginAsDemoRole,
         updateProfileName,
         signOut,
         refreshProfile,

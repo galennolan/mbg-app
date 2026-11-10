@@ -6,12 +6,10 @@ import {
   CheckCircle2,
   AlertTriangle,
   Camera,
-  Upload,
   X,
-  Sparkles,
   ShieldCheck,
-  RotateCw,
 } from 'lucide-react';
+import { Select, Checkbox, Button, Alert } from '@/components/ui';
 
 export type QualityConclusion = 'LAYAK_EDAR' | 'TOLAK_RETUR';
 
@@ -31,12 +29,32 @@ interface QualityCheckCardProps {
   onContainerChange: Dispatch<SetStateAction<string>>;
   photoUrl?: string | null;
   onPhotoChange?: (url: string | null) => void;
+  sampleError?: string;
 }
 
-const aromaOptions = ['Harum Segar (SOP)', 'Normal/Biasa', 'Bau Asam/Tengik (Tolak)'];
-const tasteOptions = ['Gurih Sesuai Standar', 'Normal/Cukup', 'Asam/Basi/Aneh (Tolak)'];
-const textureOptions = ['Matang Sempurna & Renyah', 'Normal', 'Lendir/Lembek Ekstrem (Tolak)'];
-const containerOptions = ['Bersih, Rapat & Higienis', 'Cukup Rapi', 'Rusak/Terbuka/Kotor (Tolak)'];
+const aromaOptions = [
+  { value: 'Harum Segar (SOP)', label: 'Harum Segar (SOP)' },
+  { value: 'Normal/Biasa', label: 'Normal / Biasa' },
+  { value: 'Bau Asam/Tengik (Tolak)', label: 'Bau Asam / Tengik (Tolak)' },
+];
+
+const tasteOptions = [
+  { value: 'Gurih Sesuai Standar', label: 'Gurih Sesuai Standar' },
+  { value: 'Normal/Cukup', label: 'Normal / Cukup' },
+  { value: 'Asam/Basi/Aneh (Tolak)', label: 'Asam / Basi / Aneh (Tolak)' },
+];
+
+const textureOptions = [
+  { value: 'Matang Sempurna & Renyah', label: 'Matang Sempurna & Renyah' },
+  { value: 'Normal', label: 'Normal' },
+  { value: 'Lendir/Lembek Ekstrem (Tolak)', label: 'Lendir / Lembek Ekstrem (Tolak)' },
+];
+
+const containerOptions = [
+  { value: 'Bersih, Rapat & Higienis', label: 'Bersih, Rapat & Higienis' },
+  { value: 'Cukup Rapi', label: 'Cukup Rapi' },
+  { value: 'Rusak/Terbuka/Kotor (Tolak)', label: 'Rusak / Terbuka / Kotor (Tolak)' },
+];
 
 export function QualityCheckCard({
   disabled = false,
@@ -54,6 +72,7 @@ export function QualityCheckCard({
   onContainerChange,
   photoUrl,
   onPhotoChange,
+  sampleError,
 }: QualityCheckCardProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -79,127 +98,85 @@ export function QualityCheckCard({
 
   return (
     <section
-      className="space-y-4 rounded-3xl border border-white/20 bg-white/70 p-5 shadow-lg backdrop-blur-xl sm:p-6"
+      className="micro-card space-y-5 rounded-2xl sm:rounded-3xl border border-slate-200 bg-white p-5 sm:p-6"
       aria-labelledby="quality-check-title"
     >
       {/* Header QC */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/60 pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-blue to-cyan-500 text-white shadow-md shadow-blue-500/20">
-            <ShieldCheck className="h-5 w-5" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-blue-50 text-brand-blue border border-brand-blue-100">
+            <ShieldCheck className="h-5 w-5" aria-hidden="true" />
           </div>
           <div>
-            <h3 id="quality-check-title" className="text-sm font-black text-slate-900 tracking-tight">
+            <h3 id="quality-check-title" className="text-sm sm:text-base font-black text-brand-navy tracking-tight">
               Uji Organoleptik & QC Cepat (FR-2.2)
             </h3>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-600">
               Pemeriksaan 4 parameter keamanan pangan sebelum MBG didistribusikan.
             </p>
           </div>
         </div>
 
         {!disabled && (
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="sm"
             onClick={handleApplyPresetLayak}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold border border-emerald-200 transition active:scale-95 shadow-sm"
+            leftIcon={<CheckCircle2 className="w-3.5 h-3.5 text-brand-green" />}
+            className="border-emerald-200 bg-emerald-50/70 text-emerald-800 hover:bg-emerald-100"
           >
-            <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-            1-Klik: Set Standar SOP Layak
-          </button>
+            Set Standar SOP Layak
+          </Button>
         )}
       </div>
 
-      {/* 4 Organoleptic Parameters */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        {/* Aroma */}
-        <label className="block text-xs font-bold text-slate-700">
-          <span className="flex items-center gap-1 mb-1">
-            <span>Aroma</span>
-            <span className="text-brand-blue font-mono">*</span>
-          </span>
-          <select
-            value={aroma}
-            disabled={disabled}
-            onChange={(e) => onAromaChange(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-white/90 px-3 py-2.5 text-xs font-medium text-slate-800 shadow-sm focus:border-brand-blue focus:outline-none focus:ring-2 focus:ring-brand-blue/20 disabled:opacity-60"
-          >
-            {aromaOptions.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
-              </option>
-            ))}
-          </select>
-        </label>
+      {/* 4 Organoleptic Parameters using Accessible Custom Combobox Select */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+        <Select
+          label="Aroma Makanan"
+          required
+          value={aroma}
+          disabled={disabled}
+          options={aromaOptions}
+          onValueChange={(val) => onAromaChange(val)}
+        />
 
-        {/* Rasa */}
-        <label className="block text-xs font-bold text-slate-700">
-          <span className="flex items-center gap-1 mb-1">
-            <span>Rasa</span>
-            <span className="text-brand-blue font-mono">*</span>
-          </span>
-          <select
-            value={taste}
-            disabled={disabled}
-            onChange={(e) => onTasteChange(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-white/90 px-3 py-2.5 text-xs font-medium text-slate-800 shadow-sm focus:border-brand-blue focus:outline-none focus:ring-2 focus:ring-brand-blue/20 disabled:opacity-60"
-          >
-            {tasteOptions.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
-              </option>
-            ))}
-          </select>
-        </label>
+        <Select
+          label="Rasa Makanan"
+          required
+          value={taste}
+          disabled={disabled}
+          options={tasteOptions}
+          onValueChange={(val) => onTasteChange(val)}
+        />
 
-        {/* Tekstur */}
-        <label className="block text-xs font-bold text-slate-700">
-          <span className="flex items-center gap-1 mb-1">
-            <span>Tekstur</span>
-            <span className="text-brand-blue font-mono">*</span>
-          </span>
-          <select
-            value={texture}
-            disabled={disabled}
-            onChange={(e) => onTextureChange(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-white/90 px-3 py-2.5 text-xs font-medium text-slate-800 shadow-sm focus:border-brand-blue focus:outline-none focus:ring-2 focus:ring-brand-blue/20 disabled:opacity-60"
-          >
-            {textureOptions.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
-              </option>
-            ))}
-          </select>
-        </label>
+        <Select
+          label="Tekstur Makanan"
+          required
+          value={texture}
+          disabled={disabled}
+          options={textureOptions}
+          onValueChange={(val) => onTextureChange(val)}
+        />
 
-        {/* Wadah */}
-        <label className="block text-xs font-bold text-slate-700">
-          <span className="flex items-center gap-1 mb-1">
-            <span>Kebersihan Wadah</span>
-            <span className="text-brand-blue font-mono">*</span>
-          </span>
-          <select
-            value={container}
-            disabled={disabled}
-            onChange={(e) => onContainerChange(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-white/90 px-3 py-2.5 text-xs font-medium text-slate-800 shadow-sm focus:border-brand-blue focus:outline-none focus:ring-2 focus:ring-brand-blue/20 disabled:opacity-60"
-          >
-            {containerOptions.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
-              </option>
-            ))}
-          </select>
-        </label>
+        <Select
+          label="Kebersihan Wadah Ompreng"
+          required
+          value={container}
+          disabled={disabled}
+          options={containerOptions}
+          onValueChange={(val) => onContainerChange(val)}
+        />
       </div>
 
       {/* 1-Tap Photo Capture for Food Sample & Food Bank SOP */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
         {/* Photo Capture */}
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 p-3.5 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-3.5 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             {photoUrl ? (
-              <div className="relative h-14 w-14 rounded-xl overflow-hidden border border-slate-200 shadow-inner group">
+              <div className="relative h-14 w-14 rounded-xl overflow-hidden border border-slate-200 shrink-0 group">
                 <img
                   src={photoUrl}
                   alt="Sampel Makanan MBG"
@@ -209,96 +186,95 @@ export function QualityCheckCard({
                   <button
                     type="button"
                     onClick={() => onPhotoChange(null)}
-                    className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
+                    aria-label="Hapus foto sampel"
+                    className="absolute inset-0 bg-black/55 flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
                   >
                     <X className="w-4 h-4 text-white" />
                   </button>
                 )}
               </div>
             ) : (
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100/70 text-brand-blue">
-                <Camera className="w-6 h-6" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-blue-50 text-brand-blue border border-brand-blue-100 shrink-0">
+                <Camera className="w-5 h-5" aria-hidden="true" />
               </div>
             )}
-            <div>
-              <p className="text-xs font-bold text-slate-800">
-                1-Tap Photo Sampel Makanan
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-slate-900">
+                Foto Sampel Makanan
               </p>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[11px] text-slate-600 truncate">
                 {photoUrl ? 'Foto sampel tersimpan' : 'Dokumentasi fisik menu MBG hari ini'}
               </p>
             </div>
           </div>
 
           {!disabled && onPhotoChange && (
-            <div>
+            <div className="shrink-0">
               <input
                 ref={fileInputRef}
+                id="qc-sample-photo-input"
                 type="file"
                 accept="image/*"
                 capture="environment"
                 onChange={handlePhotoCapture}
-                className="hidden"
+                aria-label="Unggah atau ambil foto sampel makanan"
+                className="sr-only"
               />
-              <button
+              <Button
                 type="button"
+                variant="outline"
+                size="sm"
                 onClick={() => fileInputRef.current?.click()}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 shadow-sm transition active:scale-95"
+                leftIcon={<Camera className="w-3.5 h-3.5 text-brand-blue" />}
               >
-                <Camera className="w-3.5 h-3.5 text-brand-blue" />
                 {photoUrl ? 'Ganti Foto' : 'Ambil Foto'}
-              </button>
+              </Button>
             </div>
           )}
         </div>
 
         {/* SOP Bank Makanan & Kesimpulan */}
-        <div className="space-y-2.5 flex flex-col justify-center">
-          <label className="flex items-start gap-2.5 text-xs font-semibold text-slate-800 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={sampleStored}
-              disabled={disabled}
-              onChange={(e) => onSampleStoredChange(e.target.checked)}
-              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-blue focus:ring-brand-blue"
-            />
-            <span>
-              <strong className="block text-slate-900 font-bold">
-                1 Porsi Sampel Bank Makanan Disimpan (SOP 2x24 Jam)
-              </strong>
-              <span className="text-[11px] text-slate-500 font-normal">
-                Disimpan di kulkas transit untuk uji laboratorium bila terjadi kejadian darurat.
-              </span>
-            </span>
-          </label>
+        <div className="space-y-3 flex flex-col justify-center">
+          <Checkbox
+            id="qc-sample-stored"
+            checked={sampleStored}
+            disabled={disabled}
+            required
+            onChange={onSampleStoredChange}
+            error={sampleError}
+            label="1 Porsi Sampel Bank Makanan Disimpan (SOP 2x24 Jam)"
+            description="Disimpan di kulkas transit untuk uji laboratorium bila terjadi keadaan darurat."
+          />
 
-          <div className="flex items-center gap-2 pt-1">
-            <span className="text-xs font-bold text-slate-700">Kesimpulan QC:</span>
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+            <span className="text-xs font-bold text-slate-800">Kesimpulan QC:</span>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 disabled={disabled}
                 onClick={() => onConclusionChange('LAYAK_EDAR')}
-                className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold border transition ${
+                aria-pressed={conclusion === 'LAYAK_EDAR'}
+                className={`min-h-[44px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border micro-tap ${
                   conclusion === 'LAYAK_EDAR'
-                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                    : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+                    ? 'bg-brand-green text-white border-brand-green shadow-elev-1'
+                    : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
                 }`}
               >
-                <CheckCircle2 className="w-4 h-4" />
+                <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
                 LAYAK EDAR
               </button>
               <button
                 type="button"
                 disabled={disabled}
                 onClick={() => onConclusionChange('TOLAK_RETUR')}
-                className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold border transition ${
+                aria-pressed={conclusion === 'TOLAK_RETUR'}
+                className={`min-h-[44px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border micro-tap ${
                   conclusion === 'TOLAK_RETUR'
-                    ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
-                    : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+                    ? 'bg-brand-red text-white border-brand-red shadow-elev-1'
+                    : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
                 }`}
               >
-                <X className="w-4 h-4" />
+                <X className="w-4 h-4" aria-hidden="true" />
                 TOLAK / RETUR
               </button>
             </div>
@@ -307,13 +283,11 @@ export function QualityCheckCard({
       </div>
 
       {conclusion === 'TOLAK_RETUR' && (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50/90 p-3 text-xs text-rose-800 flex items-center gap-2.5">
-          <AlertTriangle className="h-4 w-4 text-rose-600 flex-shrink-0" />
-          <span>
-            <strong>PERINGATAN:</strong> Status <em>TOLAK / RETUR</em> akan otomatis memblokir
-            distribusi porsi ke siswa untuk mencegah risiko keracunan pangan.
-          </span>
-        </div>
+        <Alert
+          variant="error"
+          title="Status TOLAK / RETUR Aktif"
+          message="Distribusi porsi ke siswa akan otomatis diblokir untuk mencegah risiko keamanan pangan."
+        />
       )}
     </section>
   );

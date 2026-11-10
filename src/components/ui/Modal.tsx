@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, type ReactNode } from 'react';
+import React, { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -10,6 +11,7 @@ export interface ModalProps {
   title: string;
   description?: string;
   children: ReactNode;
+  footer?: ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
   className?: string;
   hideCloseButton?: boolean;
@@ -18,16 +20,86 @@ export interface ModalProps {
   initialFocusSelector?: string;
 }
 
-const sizeClasses = {
+const sizeClasses: Record<NonNullable<ModalProps['size']>, string> = {
   sm: 'max-w-sm',
   md: 'max-w-md',
   lg: 'max-w-lg',
   xl: 'max-w-xl',
-  full: 'max-w-4xl',
+  full: 'max-w-[95vw] sm:max-w-4xl',
 };
 
 const FOCUSABLE_SELECTOR =
   'input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])';
+
+export function ModalHeader({
+  title,
+  description,
+  titleId,
+  descriptionId,
+  onClose,
+  hideCloseButton,
+}: {
+  title: string;
+  description?: string;
+  titleId?: string;
+  descriptionId?: string;
+  onClose?: () => void;
+  hideCloseButton?: boolean;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-3 p-5 border-b border-slate-100 sticky top-0 bg-white rounded-t-2xl z-10">
+      <div className="min-w-0">
+        <h3 id={titleId} className="font-black text-base sm:text-lg text-brand-navy tracking-tight">
+          {title}
+        </h3>
+        {description && (
+          <p id={descriptionId} className="text-xs text-slate-600 mt-1 leading-relaxed">
+            {description}
+          </p>
+        )}
+      </div>
+      {!hideCloseButton && onClose && (
+        <button
+          type="button"
+          onClick={onClose}
+          className="min-h-[44px] min-w-[44px] -mr-1 -mt-1 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition micro-tap shrink-0"
+          aria-label="Tutup dialog"
+        >
+          <X className="w-5 h-5" aria-hidden="true" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+export function ModalBody({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return <div className={cn('p-5', className)}>{children}</div>;
+}
+
+export function ModalFooter({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        'flex items-center justify-end gap-3 px-5 py-4 border-t border-slate-100 bg-slate-50/70 rounded-b-2xl',
+        className
+      )}
+    >
+      {children}
+    </div>
+  );
+}
 
 export function Modal({
   isOpen,
@@ -35,6 +107,7 @@ export function Modal({
   title,
   description,
   children,
+  footer,
   size = 'md',
   className,
   hideCloseButton = false,
@@ -42,40 +115,82 @@ export function Modal({
   closeOnEscape = true,
   initialFocusSelector,
 }: ModalProps) {
+  const reactId = useId();
+  const titleId = `modal-title-${reactId}`;
+  const descriptionId = `modal-desc-${reactId}`;
+
   const modalRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
+  const [mounted, setMounted] = useState(false);
 
-  // Focus management: focus first input when modal opens, restore on close
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Focus restoration, initial focus, and scroll lock
   useEffect(() => {
     if (isOpen) {
       previousActiveElement.current = document.activeElement as HTMLElement | null;
+      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
       document.body.style.overflow = 'hidden';
+      if (scrollbarWidth > 0) {
+        document.body.style.paddingRight = `${scrollbarWidth}px`;
+      }
 
       const focusTimer = setTimeout(() => {
         if (!modalRef.current) return;
         const target =
           (initialFocusSelector
             ? modalRef.current.querySelector<HTMLElement>(initialFocusSelector)
-            : null) ||
-          modalRef.current.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+            : null) || modalRef.current.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
         target?.focus();
-      }, 50);
+      }, 30);
 
       return () => clearTimeout(focusTimer);
+    } else {
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
+      if (previousActiveElement.current && typeof previousActiveElement.current.focus === 'function') {
+        previousActiveElement.current.focus();
+      }
     }
-
-    document.body.style.overflow = '';
-    previousActiveElement.current?.focus();
   }, [isOpen, initialFocusSelector]);
 
-  // Escape key handling
+  // Keyboard Focus Trap (Tab / Shift+Tab) & Escape Key
   useEffect(() => {
-    if (!closeOnEscape || !isOpen) return;
+    if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && closeOnEscape) {
         e.stopPropagation();
         onClose();
+        return;
+      }
+
+      if (e.key === 'Tab' && modalRef.current) {
+        const focusableNodes = Array.from(
+          modalRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)
+        ).filter((el) => el.offsetParent !== null);
+
+        if (focusableNodes.length === 0) {
+          e.preventDefault();
+          return;
+        }
+
+        const firstEl = focusableNodes[0];
+        const lastEl = focusableNodes[focusableNodes.length - 1];
+
+        if (e.shiftKey) {
+          if (document.activeElement === firstEl || !modalRef.current.contains(document.activeElement)) {
+            e.preventDefault();
+            lastEl.focus();
+          }
+        } else {
+          if (document.activeElement === lastEl || !modalRef.current.contains(document.activeElement)) {
+            e.preventDefault();
+            firstEl.focus();
+          }
+        }
       }
     };
 
@@ -83,110 +198,49 @@ export function Modal({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, closeOnEscape, onClose]);
 
-  // Cleanup scroll lock on unmount
+  // Ensure body scroll restored on unmount
   useEffect(() => {
     return () => {
       document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
     };
   }, []);
 
-  if (!isOpen) return null;
+  if (!mounted || !isOpen) return null;
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-modal flex items-end sm:items-center justify-center p-2.5 sm:p-4 bg-slate-950/65 backdrop-blur-sm animate-fade-in"
       onClick={closeOnOverlayClick ? onClose : undefined}
       role="dialog"
       aria-modal="true"
-      aria-labelledby="modal-title"
+      aria-labelledby={titleId}
+      aria-describedby={description ? descriptionId : undefined}
     >
       <div
         ref={modalRef}
         className={cn(
-          'w-full bg-white rounded-3xl shadow-2xl border border-slate-100 animate-slide-up max-h-[90vh] overflow-y-auto',
+          'w-full bg-white rounded-2xl sm:rounded-3xl shadow-elev-5 border border-slate-200 animate-sheet-up sm:animate-slide-up max-h-[90vh] overflow-y-auto',
           sizeClasses[size],
           className
         )}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between p-5 border-b border-slate-100 sticky top-0 bg-white rounded-t-3xl z-10">
-          <div>
-            <h3 id="modal-title" className="font-bold text-lg text-slate-900">
-              {title}
-            </h3>
-            {description && (
-              <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{description}</p>
-            )}
-          </div>
-          {!hideCloseButton && (
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-2.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition"
-              aria-label="Tutup modal"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          )}
-        </div>
-        <div className="p-5">{children}</div>
+        <ModalHeader
+          title={title}
+          description={description}
+          titleId={titleId}
+          descriptionId={descriptionId}
+          onClose={onClose}
+          hideCloseButton={hideCloseButton}
+        />
+        <ModalBody>{children}</ModalBody>
+        {footer && <ModalFooter>{footer}</ModalFooter>}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
-export interface ConfirmModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  title: string;
-  message: string;
-  confirmLabel?: string;
-  cancelLabel?: string;
-  variant?: 'danger' | 'primary';
-  loading?: boolean;
-}
-
-export function ConfirmModal({
-  isOpen,
-  onClose,
-  onConfirm,
-  title,
-  message,
-  confirmLabel = 'Ya, Hapus',
-  cancelLabel = 'Batal',
-  variant = 'danger',
-  loading = false,
-}: ConfirmModalProps) {
-  const confirmClass =
-    variant === 'danger' ? 'bg-red-600 hover:bg-red-700' : 'bg-brand-blue hover:bg-brand-blue-700';
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title={title} size="sm">
-      <div className="space-y-5">
-        <p className="text-base text-slate-600 leading-relaxed">{message}</p>
-        <div className="flex gap-3 pt-2">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={loading}
-            className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl transition disabled:opacity-50"
-          >
-            {cancelLabel}
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={loading}
-            className={cn(
-              'flex-1 py-3.5 text-white font-bold rounded-2xl transition shadow-md disabled:opacity-50',
-              confirmClass
-            )}
-          >
-            {loading ? 'Memproses...' : confirmLabel}
-          </button>
-        </div>
-      </div>
-    </Modal>
-  );
-}
+export { ModalConfirm, ConfirmModal } from './ModalConfirm';
+export type { ModalConfirmProps, ConfirmModalProps } from './ModalConfirm';

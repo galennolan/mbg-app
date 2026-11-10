@@ -2,14 +2,17 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
-import { Building2, Plus, Edit2, Trash2, CheckCircle2, AlertTriangle, Users } from 'lucide-react';
+import { Building2, Plus, Edit2, Users } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import { Kelas } from '@/lib/types';
 import { logActivity } from '@/lib/services';
 import { Modal, ModalInput, ModalSelect, ModalCheckbox, ModalActions } from '@/components/ui/ModalField';
+import { PageHeader, Button, FeedbackBanner, Alert, useNotify } from '@/components/ui';
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 
 export default function ManajemenKelasPage() {
   const { user } = useAuth();
+  const notify = useNotify();
   const [kelasList, setKelasList] = useState<Kelas[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -30,7 +33,7 @@ export default function ManajemenKelasPage() {
   const loadClasses = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('kelas')
         .select('*, siswa:siswa(id)')
         .order('tingkat')
@@ -117,6 +120,7 @@ export default function ManajemenKelasPage() {
       setShowModal(false);
       resetForm();
       setFeedback({ type: 'success', message: successMessage });
+      notify.success('Data Kelas Tersimpan', successMessage);
       loadClasses();
     } catch (err: any) {
       setFeedback({ type: 'error', message: err.message || 'Gagal menyimpan data kelas' });
@@ -126,57 +130,39 @@ export default function ManajemenKelasPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 pb-12">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-800 rounded-full text-xs font-semibold mb-2 border border-amber-200">
-            <Building2 className="w-3.5 h-3.5" />
-            Administrator
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-brand-navy tracking-tight">
-            Manajemen Kelas & Jurusan
-          </h1>
-          <p className="text-base text-slate-600 mt-1">
-            Atur data kelas, tingkat jenjang, dan keahlian jurusan sekolah
-          </p>
-        </div>
-
-        <button
+    <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
+      <div className="max-w-4xl mx-auto space-y-6 pb-12">
+        <PageHeader
+        title="Manajemen Kelas & Jurusan"
+        subtitle="Atur data kelas, tingkat jenjang, dan keahlian jurusan sekolah."
+        badgeText="ADMINISTRATOR"
+      >
+        <Button
+          type="button"
           onClick={() => handleOpenModal()}
-          className="inline-flex items-center gap-2 px-4 py-3 bg-brand-blue hover:bg-brand-blue-700 text-white text-sm font-bold rounded-xl shadow-sm transition"
+          leftIcon={<Plus className="w-4 h-4" />}
         >
-          <Plus className="w-4 h-4" />
           Tambah Kelas Baru
-        </button>
-      </div>
+        </Button>
+      </PageHeader>
 
       {feedback && (
-        <div
-          className={`p-4 rounded-2xl border text-xs sm:text-sm flex items-start gap-2.5 ${
-            feedback.type === 'success'
-              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-              : 'bg-red-50 border-red-200 text-red-800'
-          }`}
-        >
-          {feedback.type === 'success' ? (
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
-          ) : (
-            <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
-          )}
-          <span>{feedback.message}</span>
-        </div>
+        <FeedbackBanner
+          type={feedback.type}
+          message={feedback.message}
+          onDismiss={() => setFeedback(null)}
+        />
       )}
 
       {/* Table Kelas */}
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="micro-card rounded-2xl overflow-hidden">
         {loading ? (
-          <div className="p-12 text-center text-slate-400 text-sm">
-            <div className="w-8 h-8 border-4 border-brand-blue border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+          <div className="p-12 text-center text-slate-500 text-sm">
+            <div className="w-8 h-8 border-4 border-brand-blue border-t-transparent rounded-full animate-spin mx-auto mb-2" />
             Memuat daftar kelas...
           </div>
         ) : kelasList.length === 0 ? (
-          <div className="p-12 text-center text-slate-400 text-sm">
+          <div className="p-12 text-center text-slate-500 text-sm">
             Belum ada data kelas yang terdaftar.
           </div>
         ) : (
@@ -216,8 +202,9 @@ export default function ManajemenKelasPage() {
                     </td>
                     <td className="py-3.5 px-4 text-right text-xs">
                       <button
+                        type="button"
                         onClick={() => handleOpenModal(k)}
-                        className="p-2 text-slate-600 hover:text-brand-blue rounded-lg hover:bg-slate-100 transition"
+                        className="micro-tap p-2 text-slate-600 hover:text-brand-blue rounded-lg hover:bg-slate-100 transition"
                         title="Edit Kelas"
                         aria-label={`Edit kelas ${k.nama_kelas}`}
                       >
@@ -244,21 +231,7 @@ export default function ManajemenKelasPage() {
       >
         <form onSubmit={handleSave} className="space-y-4">
           {feedback && (
-            <div
-              className={`p-3.5 rounded-2xl border text-sm flex items-start gap-2.5 ${
-                feedback.type === 'success'
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                  : 'bg-red-50 border-red-200 text-red-800'
-              }`}
-              role="alert"
-            >
-              {feedback.type === 'success' ? (
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
-              ) : (
-                <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-              )}
-              <span>{feedback.message}</span>
-            </div>
+            <Alert variant={feedback.type} message={feedback.message} />
           )}
 
           <ModalInput
@@ -309,7 +282,7 @@ export default function ManajemenKelasPage() {
           />
         </form>
       </Modal>
-    </div>
+      </div>
+    </ProtectedRoute>
   );
 }
-

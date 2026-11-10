@@ -8,9 +8,6 @@ import {
   Edit2,
   Trash2,
   ExternalLink,
-  CheckCircle2,
-  AlertTriangle,
-  Sparkles,
   RotateCw,
   Database,
   GraduationCap,
@@ -18,6 +15,7 @@ import {
   MessageCircle,
   Target,
   Power,
+  Check,
 } from 'lucide-react';
 import {
   getAllCrmCampaigns,
@@ -28,13 +26,14 @@ import {
 } from '@/lib/services';
 import { CrmCampaign } from '@/lib/types';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
-import { PageHeader } from '@/components/ui/PageHeader';
 import { Modal, ModalInput, ModalSelect, ModalActions } from '@/components/ui/ModalField';
+import { PageHeader, Button, FeedbackBanner, useNotify } from '@/components/ui';
 
 const JURUSAN_OPTIONS = ['RPL', 'TKJ', 'IPA', 'IPS', 'AKUNTANSI', 'UMUM'];
 
 export default function CampaignManagerPage() {
   const { user } = useAuth();
+  const notify = useNotify();
   const [campaigns, setCampaigns] = useState<CrmCampaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncingDapodik, setSyncingDapodik] = useState(false);
@@ -132,14 +131,13 @@ export default function CampaignManagerPage() {
         },
         user?.id
       );
+      const msg = editingId
+        ? 'Campaign Marcomm UBSI berhasil diperbarui!'
+        : 'Campaign baru berhasil ditambahkan & aktif!';
       setShowModal(false);
       await loadCampaigns();
-      setFeedback({
-        type: 'success',
-        message: editingId
-          ? 'Campaign Marcomm UBSI berhasil diperbarui!'
-          : 'Campaign baru berhasil ditambahkan & aktif!',
-      });
+      setFeedback({ type: 'success', message: msg });
+      notify.success('Campaign Tersimpan', msg);
     } catch (err: any) {
       setFeedback({ type: 'error', message: err.message || 'Gagal menyimpan campaign.' });
     } finally {
@@ -151,21 +149,29 @@ export default function CampaignManagerPage() {
     const nextStatus = camp.status_aktif === false ? true : false;
     const updated = await toggleCrmCampaignStatus(camp.id, nextStatus, user?.id);
     setCampaigns(updated);
-    setFeedback({
-      type: 'success',
-      message: `Iklan "${camp.judul_promo}" telah ${
-        nextStatus ? 'DIAKTIFKAN (Tampil di HP Siswa)' : 'DINONAKTIFKAN (Disembunyikan dari HP Siswa)'
-      }.`,
-    });
+    const msg = `Iklan "${camp.judul_promo}" telah ${
+      nextStatus ? 'DIAKTIFKAN (Tampil di HP Siswa)' : 'DINONAKTIFKAN (Disembunyikan dari HP Siswa)'
+    }.`;
+    setFeedback({ type: 'success', message: msg });
+    notify.info(nextStatus ? 'Campaign Diaktifkan' : 'Campaign Dinonaktifkan', msg);
   };
 
   const handleDelete = async (camp: CrmCampaign) => {
+    const confirmed = await notify.confirm({
+      icon: 'warning',
+      title: 'Hapus Campaign Ini?',
+      text: `Apakah Anda yakin ingin menghapus campaign "${camp.judul_promo}" secara permanen?`,
+      confirmText: 'Ya, Hapus Campaign',
+      cancelText: 'Batal',
+      confirmVariant: 'danger',
+    });
+    if (!confirmed) return;
+
     const updated = await deleteCrmCampaign(camp.id, user?.id);
     setCampaigns(updated);
-    setFeedback({
-      type: 'success',
-      message: `Campaign "${camp.judul_promo}" telah dihapus.`,
-    });
+    const msg = `Campaign "${camp.judul_promo}" telah dihapus.`;
+    setFeedback({ type: 'success', message: msg });
+    notify.success('Campaign Dihapus', msg);
   };
 
   const handleSyncMasterDapodik = async () => {
@@ -173,9 +179,13 @@ export default function CampaignManagerPage() {
     setFeedback(null);
     try {
       const res = await syncMasterDataDapodik(user?.id);
-      setFeedback({
-        type: 'success',
-        message: `Sync Master Data Dapodik Selesai! ${res.totalKelas} Kelas & ${res.totalSiswa} Akun Siswa (Format 628xxx) telah disinkronkan.`,
+      const msg = `Sync Master Data Dapodik Selesai: ${res.totalKelas} Kelas & ${res.totalSiswa} Akun Siswa (Format 628xxx) telah disinkronkan.`;
+      setFeedback({ type: 'success', message: msg });
+      notify.fire({
+        icon: 'success',
+        title: 'Sinkronisasi Dapodik Selesai',
+        text: msg,
+        badgeText: 'SYNC DAPODIK',
       });
     } catch (err: any) {
       setFeedback({ type: 'error', message: err.message || 'Gagal melakukan Sync Master Data.' });
@@ -195,55 +205,39 @@ export default function CampaignManagerPage() {
           badgeText="SUPER ADMIN • MARCOMM UBSI"
         >
           <div className="flex flex-wrap items-center gap-2">
-            <button
+            <Button
               type="button"
+              variant="secondary"
+              size="sm"
               onClick={handleSyncMasterDapodik}
-              disabled={syncingDapodik}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-black border border-amber-300 shadow-sm transition-all duration-200 active:scale-95 disabled:opacity-50"
+              loading={syncingDapodik}
+              leftIcon={<Database className="w-3.5 h-3.5 text-amber-700" />}
             >
-              <Database className={`w-3.5 h-3.5 ${syncingDapodik ? 'animate-bounce' : ''}`} />
               {syncingDapodik ? 'Menarik Data Dapodik...' : 'Sync Master Data'}
-            </button>
+            </Button>
 
-            <button
+            <Button
               type="button"
+              size="sm"
               onClick={handleOpenCreate}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-700 to-indigo-800 hover:from-blue-800 hover:to-indigo-900 text-white text-xs font-black shadow-md shadow-blue-900/20 transition-all duration-200 active:scale-95"
+              leftIcon={<Plus className="w-4 h-4" />}
             >
-              <Plus className="w-4 h-4" />
               Buat Campaign Baru
-            </button>
+            </Button>
           </div>
         </PageHeader>
 
         {feedback && (
-          <div
-            className={`p-4 rounded-2xl border text-xs sm:text-sm flex items-start justify-between gap-3 animate-in fade-in slide-in-from-top-2 duration-200 ${
-              feedback.type === 'success'
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                : 'bg-rose-50 border-rose-200 text-rose-900'
-            }`}
-          >
-            <div className="flex items-start gap-2.5">
-              {feedback.type === 'success' ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
-              ) : (
-                <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
-              )}
-              <span className="font-semibold">{feedback.message}</span>
-            </div>
-            <button
-              onClick={() => setFeedback(null)}
-              className="text-xs font-bold underline opacity-75 hover:opacity-100"
-            >
-              Tutup
-            </button>
-          </div>
+          <FeedbackBanner
+            type={feedback.type}
+            message={feedback.message}
+            onDismiss={() => setFeedback(null)}
+          />
         )}
 
         {/* Master Data & Campaign Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="rounded-3xl border border-white/20 bg-white/80 p-5 shadow-lg backdrop-blur-xl flex items-center justify-between">
+          <div className="micro-card rounded-2xl p-5 flex items-center justify-between">
             <div>
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 Total Campaign CRM
@@ -256,7 +250,7 @@ export default function CampaignManagerPage() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-white/20 bg-white/80 p-5 shadow-lg backdrop-blur-xl flex items-center justify-between">
+          <div className="micro-card rounded-2xl p-5 flex items-center justify-between">
             <div>
               <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">
                 Tayang di HP Siswa
@@ -271,25 +265,27 @@ export default function CampaignManagerPage() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-amber-200/80 bg-gradient-to-br from-amber-50/90 to-orange-50/60 p-5 shadow-lg backdrop-blur-xl flex flex-col justify-between">
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-card flex flex-col justify-between">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-black uppercase tracking-wider text-amber-900">
                 Master Data Pulling Tool
               </span>
-              <Sparkles className="w-4 h-4 text-amber-600" />
+              <Database className="w-4 h-4 text-amber-700" />
             </div>
-            <p className="text-xs text-amber-900/80 my-2">
+            <p className="text-xs text-amber-900 my-2">
               Tarik pembaruan data siswa & kelas Dapodik terbaru beserta auto-generate akun login 628xxx.
             </p>
-            <button
+            <Button
               type="button"
+              size="sm"
               onClick={handleSyncMasterDapodik}
-              disabled={syncingDapodik}
-              className="w-full py-2 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-sm transition active:scale-95 flex items-center justify-center gap-1.5"
+              loading={syncingDapodik}
+              leftIcon={<RotateCw className="w-3.5 h-3.5" />}
+              fullWidth
+              className="bg-amber-600 hover:bg-amber-700"
             >
-              <RotateCw className={`w-3.5 h-3.5 ${syncingDapodik ? 'animate-spin' : ''}`} />
               {syncingDapodik ? 'Menyinkronkan...' : 'Tarik Data Dapodik Sekarang'}
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -300,20 +296,20 @@ export default function CampaignManagerPage() {
             return (
               <div
                 key={camp.id}
-                className={`rounded-3xl border overflow-hidden shadow-lg backdrop-blur-xl transition-all duration-300 flex flex-col justify-between ${
+                className={`rounded-2xl border overflow-hidden shadow-card transition-all duration-200 flex flex-col justify-between ${
                   isActive
-                    ? 'bg-white/90 border-slate-200 hover:shadow-xl'
-                    : 'bg-slate-100/80 border-slate-200/70 opacity-75'
+                    ? 'bg-white border-slate-200'
+                    : 'bg-slate-50 border-slate-200 opacity-80'
                 }`}
               >
                 <div>
                   {/* Banner Preview Header */}
-                  <div className="relative h-44 bg-gradient-to-r from-brand-navy to-indigo-950 overflow-hidden">
+                  <div className="relative h-44 bg-brand-navy overflow-hidden">
                     {camp.banner_image_url ? (
                       <img
                         src={camp.banner_image_url}
                         alt={camp.judul_promo}
-                        className="w-full h-full object-cover opacity-80 transition-transform duration-500 hover:scale-105"
+                        className="w-full h-full object-cover opacity-80"
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-sky-300/40">
@@ -327,13 +323,13 @@ export default function CampaignManagerPage() {
                       <span
                         className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black shadow-sm ${
                           isActive
-                            ? 'bg-emerald-500 text-white'
+                            ? 'bg-emerald-600 text-white'
                             : 'bg-slate-700 text-slate-200'
                         }`}
                       >
                         <span
                           className={`w-2 h-2 rounded-full ${
-                            isActive ? 'bg-white animate-pulse' : 'bg-slate-400'
+                            isActive ? 'bg-white' : 'bg-slate-400'
                           }`}
                         />
                         {isActive ? 'AKTIF TAYANG' : 'NONAKTIF (OFF)'}
@@ -344,7 +340,7 @@ export default function CampaignManagerPage() {
                         onClick={() => handleToggleStatus(camp)}
                         role="switch"
                         aria-checked={isActive}
-                        className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold shadow-md transition-all duration-200 active:scale-95 ${
+                        className={`micro-tap inline-flex items-center gap-2 min-h-[36px] px-3 py-1.5 rounded-full text-xs font-bold shadow-sm transition ${
                           isActive
                             ? 'bg-white text-emerald-800 hover:bg-emerald-50'
                             : 'bg-amber-500 text-white hover:bg-amber-600'
@@ -386,8 +382,8 @@ export default function CampaignManagerPage() {
                       </span>
                     </div>
 
-                    <div className="rounded-2xl bg-slate-50 border border-slate-200/80 p-3 text-xs space-y-1">
-                      <span className="text-[10px] font-bold uppercase text-slate-400 flex items-center gap-1">
+                    <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 text-xs space-y-1">
+                      <span className="text-[10px] font-bold uppercase text-slate-500 flex items-center gap-1">
                         <MessageCircle className="w-3 h-3 text-emerald-600" />
                         Link WhatsApp / CTA Target:
                       </span>
@@ -399,7 +395,7 @@ export default function CampaignManagerPage() {
                 </div>
 
                 {/* Card Footer Actions */}
-                <div className="px-5 py-3.5 bg-slate-50/80 border-t border-slate-200/70 flex items-center justify-between gap-2">
+                <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2">
                   <a
                     href={camp.cta_url_template || 'https://bsi.ac.id'}
                     target="_blank"
@@ -411,22 +407,24 @@ export default function CampaignManagerPage() {
                   </a>
 
                   <div className="flex items-center gap-2">
-                    <button
+                    <Button
                       type="button"
+                      variant="secondary"
+                      size="sm"
                       onClick={() => handleOpenEdit(camp)}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 shadow-sm transition active:scale-95"
+                      leftIcon={<Edit2 className="w-3.5 h-3.5 text-brand-blue" />}
                     >
-                      <Edit2 className="w-3.5 h-3.5 text-brand-blue" />
                       Edit
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
+                      variant="danger"
+                      size="sm"
                       onClick={() => handleDelete(camp)}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold border border-rose-200 transition active:scale-95"
+                      leftIcon={<Trash2 className="w-3.5 h-3.5" />}
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
                       Hapus
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -518,13 +516,14 @@ export default function CampaignManagerPage() {
                       key={jur}
                       type="button"
                       onClick={() => toggleJurusanOption(jur)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all duration-150 active:scale-95 ${
+                      className={`micro-tap min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-bold border transition flex items-center gap-1 ${
                         selected
                           ? 'bg-brand-blue text-white border-brand-blue shadow-sm'
                           : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
                       }`}
                     >
-                      {selected ? `✓ ${jur}` : jur}
+                      {selected && <Check className="w-3 h-3" />}
+                      {jur}
                     </button>
                   );
                 })}

@@ -23,29 +23,60 @@ export function ProtectedRoute({
   const router = useRouter();
   const { user, role, isStudent, loading } = useAuth();
 
-  const effectiveRole: RbacRole = isStudent
+  const isAuthenticated = !!user || isStudent;
+
+  const effectiveRole: RbacRole | null = isStudent
     ? 'siswa'
-    : role || 'guru_piket';
+    : user && role
+    ? role
+    : null;
 
   const isAllowed =
-    allowedRoles.includes(effectiveRole) ||
-    (effectiveRole === 'admin' && allowedRoles.includes('super_admin')) ||
-    (effectiveRole === 'guru' && allowedRoles.includes('guru_piket'));
+    !!effectiveRole &&
+    (allowedRoles.includes(effectiveRole) ||
+      (effectiveRole === 'admin' && allowedRoles.includes('super_admin')) ||
+      (effectiveRole === 'guru' && allowedRoles.includes('guru_piket')));
 
   useEffect(() => {
     if (loading) return;
 
-    // Spesifikasi RBAC Tahap 2: Siswa otomatis dilempar ke `/` jika mencoba akses halaman sensitif seperti `/kedatangan`
+    // Jika belum login sama sekali, wajibkan login terlebih dahulu
+    if (!isAuthenticated) {
+      router.replace('/login');
+      return;
+    }
+
+    // Siswa otomatis dilempar ke `/` jika mencoba akses halaman sensitif petugas
     if (isStudent && !allowedRoles.includes('siswa')) {
       router.replace(redirectStudentTo);
     }
-  }, [loading, isStudent, allowedRoles, redirectStudentTo, router]);
+  }, [loading, isAuthenticated, isStudent, allowedRoles, redirectStudentTo, router]);
 
   if (loading) {
     return (
       <div className="min-h-[50vh] flex flex-col items-center justify-center gap-3 text-slate-500">
         <div className="w-8 h-8 border-3 border-brand-blue border-t-transparent rounded-full animate-spin" />
         <p className="text-xs font-bold uppercase tracking-wider">Memverifikasi Hak Akses RBAC...</p>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="max-w-md mx-auto my-12 p-6 rounded-3xl bg-white border border-slate-200 shadow-xl text-center space-y-4 animate-in fade-in zoom-in-95 duration-200">
+        <div className="w-14 h-14 rounded-2xl bg-blue-50 text-brand-blue flex items-center justify-center mx-auto">
+          <Lock className="w-7 h-7" />
+        </div>
+        <h2 className="text-lg font-black text-slate-900">Autentikasi Diperlukan</h2>
+        <p className="text-xs text-slate-600">
+          Silakan masuk menggunakan akun resmi terlebih dahulu untuk mengakses halaman operasional ini. Mengalihkan ke halaman Login...
+        </p>
+        <Link
+          href="/login"
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-blue text-white text-xs font-bold shadow-md transition active:scale-95"
+        >
+          Masuk ke Portal Login
+        </Link>
       </div>
     );
   }

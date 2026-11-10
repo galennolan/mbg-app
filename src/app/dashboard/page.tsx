@@ -13,14 +13,10 @@ import {
   RotateCw,
   ArrowRight,
   ShieldCheck,
-  Building,
   UserCheck,
   Utensils,
-  BookOpen,
-  QrCode,
   Activity,
   Layers,
-  Sparkles,
   Edit2,
   Database,
 } from 'lucide-react';
@@ -35,12 +31,24 @@ import {
   ClassMonitoringStatus,
   LiveActivityFeedItem,
 } from '@/lib/types';
-import { formatIndonesianDate, getJakartaDateString } from '@/lib/utils';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Modal, ModalInput, ModalActions } from '@/components/ui/ModalField';
+import { Button, FeedbackBanner, useNotify } from '@/components/ui';
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
+
+function formatCurrentDateTime(date: Date) {
+  const pad = (value: number) => value.toString().padStart(2, '0');
+
+  return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date
+    .getFullYear()
+    .toString()
+    .slice(-2)} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
 
 export default function DashboardPage() {
   const { user, role } = useAuth();
+  const notify = useNotify();
+  const [currentDateTime, setCurrentDateTime] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [syncingMaster, setSyncingMaster] = useState(false);
@@ -64,6 +72,15 @@ export default function DashboardPage() {
   const [totalSisa, setTotalSisa] = useState(0);
   const [totalSiswa, setTotalSiswa] = useState(0);
   const [persenSelesai, setPersenSelesai] = useState(0);
+
+  useEffect(() => {
+    const updateDateTime = () => setCurrentDateTime(formatCurrentDateTime(new Date()));
+
+    updateDateTime();
+    const intervalId = window.setInterval(updateDateTime, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   const loadData = useCallback(async () => {
     try {
@@ -119,6 +136,7 @@ export default function DashboardPage() {
       });
       setEditingClass(null);
       setActionBanner(res.message);
+      notify.success('Koreksi Tersimpan', res.message);
       await loadData();
     } finally {
       setSubmittingCorrection(false);
@@ -129,9 +147,14 @@ export default function DashboardPage() {
     setSyncingMaster(true);
     try {
       const res = await syncMasterDataDapodik(user?.id);
-      setActionBanner(
-        `Sync Master Data Dapodik Selesai: ${res.totalKelas} Kelas & ${res.totalSiswa} Siswa telah disinkronkan!`
-      );
+      const msg = `Sync Master Data Dapodik Selesai: ${res.totalKelas} Kelas & ${res.totalSiswa} Siswa telah disinkronkan.`;
+      setActionBanner(msg);
+      notify.fire({
+        icon: 'success',
+        title: 'Sinkronisasi Dapodik Berhasil',
+        text: msg,
+        badgeText: 'SYNC DAPODIK',
+      });
       await loadData();
     } finally {
       setSyncingMaster(false);
@@ -139,41 +162,44 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="space-y-6 pb-20">
-      {/* Top Page Header */}
+    <ProtectedRoute allowedRoles={['guru_piket', 'kepala_sekolah', 'super_admin', 'admin', 'guru']}>
+      <div className="space-y-6 pb-20">
+        {/* Top Page Header */}
       <PageHeader
         title="Live Monitoring Distribusi MBG (FR-4.1)"
-        subtitle="Pantau penyerapan porsi secara real-time, anti-fraud activity feed, dan status distribusi per kelas."
-        badgeText="UBSI NUTRI HUB"
+        badgeText={currentDateTime}
       >
         <div className="flex flex-wrap items-center gap-2">
           {isSuperAdmin && (
-            <button
+            <Button
               type="button"
+              variant="secondary"
+              size="sm"
               onClick={handleSyncMaster}
-              disabled={syncingMaster}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-black border border-amber-300 shadow-sm transition active:scale-95 disabled:opacity-50"
+              loading={syncingMaster}
+              leftIcon={<Database className="w-3.5 h-3.5 text-amber-700" />}
             >
-              <Database className={`w-3.5 h-3.5 ${syncingMaster ? 'animate-bounce' : ''}`} />
               {syncingMaster ? 'Syncing Dapodik...' : 'Sync Master Data'}
-            </button>
+            </Button>
           )}
 
-          <button
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
             onClick={() => {
               setRefreshing(true);
               loadData();
             }}
-            disabled={refreshing}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/80 hover:bg-white text-slate-700 text-xs font-bold border border-slate-200/80 shadow-sm transition active:scale-95 disabled:opacity-50"
+            loading={refreshing}
+            leftIcon={<RotateCw className="w-3.5 h-3.5" />}
           >
-            <RotateCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
             Perbarui
-          </button>
+          </Button>
 
           <Link
             href="/kedatangan"
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-700 to-indigo-800 hover:from-blue-800 hover:to-indigo-900 text-white text-xs font-bold shadow-md shadow-blue-900/20 transition active:scale-95"
+            className="micro-tap inline-flex items-center gap-1.5 min-h-[44px] px-4 py-2 rounded-xl bg-brand-blue hover:bg-brand-blue-700 text-white text-xs font-bold shadow-sm transition"
           >
             <Truck className="w-3.5 h-3.5" />
             QC Kedatangan
@@ -182,61 +208,61 @@ export default function DashboardPage() {
       </PageHeader>
 
       {actionBanner && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-xs font-bold text-emerald-900 flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-            <span>{actionBanner}</span>
-          </div>
-          <button
-            onClick={() => setActionBanner(null)}
-            className="text-xs underline text-emerald-800"
-          >
-            Tutup
-          </button>
-        </div>
+        <FeedbackBanner
+          type="success"
+          message={actionBanner}
+          onDismiss={() => setActionBanner(null)}
+        />
       )}
 
       {/* Sesi MBG Alert Status Banner */}
       <div
-        className={`rounded-3xl p-5 border shadow-sm backdrop-blur-xl flex flex-col md:flex-row md:items-center justify-between gap-4 ${
-          isTiba
-            ? 'bg-gradient-to-r from-emerald-500/10 via-emerald-50/50 to-white/80 border-emerald-200 text-emerald-950'
+        className={`rounded-2xl p-5 border shadow-card flex flex-col md:flex-row md:items-center justify-between gap-4 ${isTiba
+            ? 'bg-emerald-50 border-emerald-200 text-emerald-950'
             : isDitolak
-            ? 'bg-gradient-to-r from-rose-500/10 via-rose-50/50 to-white/80 border-rose-200 text-rose-950'
-            : 'bg-gradient-to-r from-amber-500/10 via-amber-50/50 to-white/80 border-amber-200 text-amber-950'
-        }`}
+              ? 'bg-rose-50 border-rose-200 text-rose-950'
+              : 'bg-amber-50 border-amber-200 text-amber-950'
+          }`}
       >
         <div className="flex items-center gap-4">
           <div
-            className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-white shadow-md ${
-              isTiba ? 'bg-emerald-600' : isDitolak ? 'bg-rose-600' : 'bg-amber-500'
-            }`}
+            className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-white shadow-sm ${isTiba ? 'bg-emerald-600' : isDitolak ? 'bg-rose-600' : 'bg-amber-500'
+              }`}
           >
-            {isTiba ? <CheckCircle2 className="w-6 h-6" /> : isDitolak ? <AlertCircle className="w-6 h-6" /> : <Clock className="w-6 h-6" />}
+            {isTiba ? (
+              <CheckCircle2 className="w-6 h-6" />
+            ) : isDitolak ? (
+              <AlertCircle className="w-6 h-6" />
+            ) : (
+              <Clock className="w-6 h-6" />
+            )}
           </div>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs font-black uppercase tracking-wider">
                 Status Operasional Hari Ini:
               </span>
               <span
-                className={`text-xs font-extrabold px-2.5 py-0.5 rounded-full ${
-                  isTiba
+                className={`text-xs font-extrabold px-2.5 py-0.5 rounded-full ${isTiba
                     ? 'bg-emerald-100 text-emerald-800'
                     : isDitolak
-                    ? 'bg-rose-100 text-rose-800'
-                    : 'bg-amber-100 text-amber-800'
-                }`}
+                      ? 'bg-rose-100 text-rose-800'
+                      : 'bg-amber-100 text-amber-800'
+                  }`}
               >
-                {isTiba ? 'DISTRIBUSI AKTIF (LAYAK EDAR)' : isDitolak ? 'DISTRIBUSI DITUTUP / RETUR' : 'MENUNGGU KEDATANGAN MBG'}
+                {isTiba
+                  ? 'DISTRIBUSI AKTIF (LAYAK EDAR)'
+                  : isDitolak
+                    ? 'DISTRIBUSI DITUTUP / RETUR'
+                    : 'MENUNGGU KEDATANGAN MBG'}
               </span>
             </div>
-            <p className="text-xs text-slate-600 mt-1">
+            <p className="text-xs text-slate-700 mt-1">
               {isTiba
                 ? `Tiba jam ${session.jam_tiba} WIB • PIN Harian [${session.kode_pin_harian}] • Master QR siap dipindai oleh perwakilan siswa.`
                 : isDitolak
-                ? 'Makanan ditandai tidak layak edar atau distribusi telah ditutup.'
-                : 'Pihak SPPG belum tiba di sekolah. Klik tombol "QC Kedatangan" untuk membuka sesi.'}
+                  ? 'Makanan ditandai tidak layak edar atau distribusi telah ditutup.'
+                  : 'Pihak SPPG belum tiba di sekolah. Klik tombol "QC Kedatangan" untuk membuka sesi.'}
             </p>
           </div>
         </div>
@@ -244,7 +270,7 @@ export default function DashboardPage() {
         <div className="flex items-center gap-2">
           {session ? (
             <div className="flex items-center gap-2">
-              <div className="bg-white/90 border border-slate-200 px-3 py-1.5 rounded-xl text-center shadow-sm">
+              <div className="bg-white border border-slate-200 px-3 py-1.5 rounded-xl text-center shadow-sm">
                 <span className="block text-[10px] text-slate-500 font-bold uppercase">PIN Harian</span>
                 <span className="block text-sm font-black text-brand-navy font-mono">
                   {session.kode_pin_harian}
@@ -252,7 +278,7 @@ export default function DashboardPage() {
               </div>
               <Link
                 href="/kedatangan"
-                className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-800 text-xs font-bold border border-slate-200 shadow-sm transition"
+                className="micro-tap inline-flex items-center min-h-[44px] px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-800 text-xs font-bold border border-slate-200 shadow-sm transition"
               >
                 Tampilkan QR
               </Link>
@@ -260,9 +286,10 @@ export default function DashboardPage() {
           ) : (
             <Link
               href="/kedatangan"
-              className="px-4 py-2.5 rounded-xl bg-brand-blue hover:bg-brand-blue-700 text-white text-xs font-bold shadow-md transition"
+              className="micro-tap inline-flex items-center gap-1.5 min-h-[44px] px-4 py-2.5 rounded-xl bg-brand-blue hover:bg-brand-blue-700 text-white text-xs font-bold shadow-sm transition"
             >
-              🍽️ Trigger MBG Datang
+              <Utensils className="w-3.5 h-3.5" />
+              Trigger MBG Datang
             </Link>
           )}
         </div>
@@ -270,8 +297,7 @@ export default function DashboardPage() {
 
       {/* 4 Summary Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Siswa */}
-        <div className="rounded-3xl border border-white/20 bg-white/70 p-5 shadow-lg backdrop-blur-xl">
+        <div className="micro-card rounded-2xl p-5">
           <div className="flex items-center justify-between text-slate-500 mb-2">
             <span className="text-xs font-bold uppercase tracking-wider">Total Sasaran</span>
             <div className="w-8 h-8 rounded-xl bg-blue-100 text-brand-blue flex items-center justify-center">
@@ -282,8 +308,7 @@ export default function DashboardPage() {
           <p className="text-[11px] text-slate-500 mt-1">Siswa terdaftar di Dapodik</p>
         </div>
 
-        {/* Porsi Terserap */}
-        <div className="rounded-3xl border border-white/20 bg-white/70 p-5 shadow-lg backdrop-blur-xl">
+        <div className="micro-card rounded-2xl p-5">
           <div className="flex items-center justify-between text-slate-500 mb-2">
             <span className="text-xs font-bold uppercase tracking-wider">Porsi Terserap</span>
             <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
@@ -294,8 +319,7 @@ export default function DashboardPage() {
           <p className="text-[11px] text-slate-500 mt-1">{persenSelesai}% dari kuota harian</p>
         </div>
 
-        {/* Sisa Porsi */}
-        <div className="rounded-3xl border border-white/20 bg-white/70 p-5 shadow-lg backdrop-blur-xl">
+        <div className="micro-card rounded-2xl p-5">
           <div className="flex items-center justify-between text-slate-500 mb-2">
             <span className="text-xs font-bold uppercase tracking-wider">Sisa Porsi (Absen)</span>
             <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center">
@@ -306,8 +330,7 @@ export default function DashboardPage() {
           <p className="text-[11px] text-slate-500 mt-1">Tersedia untuk klaim susulan</p>
         </div>
 
-        {/* Progress Distribusi */}
-        <div className="rounded-3xl border border-white/20 bg-white/70 p-5 shadow-lg backdrop-blur-xl">
+        <div className="micro-card rounded-2xl p-5">
           <div className="flex items-center justify-between text-slate-500 mb-2">
             <span className="text-xs font-bold uppercase tracking-wider">Capaian Distribusi</span>
             <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center">
@@ -315,7 +338,6 @@ export default function DashboardPage() {
             </div>
           </div>
           <p className="text-2xl sm:text-3xl font-black text-purple-600">{persenSelesai}%</p>
-          {/* Mini progress bar */}
           <div className="w-full bg-slate-100 rounded-full h-2 mt-2 overflow-hidden">
             <div
               className="bg-purple-600 h-2 rounded-full transition-all duration-500"
@@ -355,23 +377,22 @@ export default function DashboardPage() {
               return (
                 <div
                   key={cls.id_kelas}
-                  className="rounded-3xl border border-white/20 bg-white/70 p-4 sm:p-5 shadow-lg backdrop-blur-xl transition hover:shadow-xl"
+                  className="micro-card rounded-2xl p-4 sm:p-5"
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
                     <div className="flex items-center gap-3">
                       <div
-                        className={`w-10 h-10 rounded-2xl flex items-center justify-center font-bold text-xs ${
-                          isComplete
+                        className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs ${isComplete
                             ? 'bg-emerald-100 text-emerald-800'
                             : hasStarted
-                            ? 'bg-blue-100 text-brand-blue'
-                            : 'bg-slate-100 text-slate-500'
-                        }`}
+                              ? 'bg-blue-100 text-brand-blue'
+                              : 'bg-slate-100 text-slate-500'
+                          }`}
                       >
                         {cls.tingkat}
                       </div>
                       <div>
-                        <h4 className="text-sm font-black text-slate-900">{cls.nama_kelas}</h4>
+                        <h3 className="text-sm font-black text-slate-900">{cls.nama_kelas}</h3>
                         <p className="text-[11px] text-slate-500">
                           Jurusan: <strong>{cls.jurusan}</strong> • Kuota: {cls.total_siswa} Siswa
                         </p>
@@ -380,13 +401,12 @@ export default function DashboardPage() {
 
                     <div className="flex items-center gap-2">
                       <span
-                        className={`text-[11px] font-bold px-2.5 py-1 rounded-full border ${
-                          isComplete
+                        className={`text-[11px] font-bold px-2.5 py-1 rounded-full border ${isComplete
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                             : hasStarted
-                            ? 'bg-blue-50 text-brand-blue border-blue-200'
-                            : 'bg-slate-50 text-slate-600 border-slate-200'
-                        }`}
+                              ? 'bg-blue-50 text-brand-blue border-blue-200'
+                              : 'bg-slate-50 text-slate-600 border-slate-200'
+                          }`}
                       >
                         {isComplete ? (
                           <span className="inline-flex items-center gap-1">
@@ -400,12 +420,11 @@ export default function DashboardPage() {
                         )}
                       </span>
 
-                      {/* Tahap 4 RBAC: Tombol Edit Data khusus Kepala Sekolah & Super Admin */}
                       {canCorrectData && (
                         <button
                           type="button"
                           onClick={() => handleOpenCorrectionModal(cls)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-800 text-[11px] font-bold border border-purple-200 transition active:scale-95"
+                          className="micro-tap inline-flex items-center gap-1 min-h-[36px] px-2.5 py-1 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-800 text-[11px] font-bold border border-purple-200 transition"
                           title="Koreksi Data Pasca-Operasional (Kepala Sekolah / Super Admin)"
                         >
                           <Edit2 className="w-3 h-3" />
@@ -425,13 +444,12 @@ export default function DashboardPage() {
                     </div>
                     <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden p-0.5 border border-slate-200/60">
                       <div
-                        className={`h-full rounded-full transition-all duration-500 ${
-                          isComplete
+                        className={`h-full rounded-full transition-all duration-500 ${isComplete
                             ? 'bg-emerald-500'
                             : cls.persen > 50
-                            ? 'bg-brand-blue'
-                            : 'bg-blue-400'
-                        }`}
+                              ? 'bg-brand-blue'
+                              : 'bg-blue-400'
+                          }`}
                         style={{ width: `${cls.persen}%` }}
                       />
                     </div>
@@ -465,13 +483,13 @@ export default function DashboardPage() {
                 Live Activity Feed (FR-4.1)
               </h2>
             </div>
-            <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping inline-block" />
+            <span className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
               Real-time
             </span>
           </div>
 
-          <div className="rounded-3xl border border-white/20 bg-white/70 p-5 shadow-lg backdrop-blur-xl space-y-4 max-h-[580px] overflow-y-auto">
+          <div className="micro-card rounded-2xl p-5 space-y-4 max-h-[580px] overflow-y-auto">
             {liveActivities.length > 0 ? (
               <div className="divide-y divide-slate-100">
                 {liveActivities.map((act) => (
@@ -493,19 +511,29 @@ export default function DashboardPage() {
                       </p>
                       <div className="flex items-center gap-2 mt-1.5">
                         <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                            act.tipe === 'KOLEKTIF_KELAS'
+                          className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md ${act.tipe === 'KOLEKTIF_KELAS'
                               ? 'bg-blue-50 text-brand-blue'
                               : act.tipe === 'SUSULAN'
-                              ? 'bg-amber-50 text-amber-700'
-                              : 'bg-emerald-50 text-emerald-700'
-                          }`}
+                                ? 'bg-amber-50 text-amber-800'
+                                : 'bg-emerald-50 text-emerald-800'
+                            }`}
                         >
-                          {act.tipe === 'KOLEKTIF_KELAS'
-                            ? '📦 Perwakilan Kelas'
-                            : act.tipe === 'SUSULAN'
-                            ? '⏳ Klaim Susulan'
-                            : '👤 Klaim Mandiri'}
+                          {act.tipe === 'KOLEKTIF_KELAS' ? (
+                            <>
+                              <Users className="w-3 h-3" />
+                              Perwakilan Kelas
+                            </>
+                          ) : act.tipe === 'SUSULAN' ? (
+                            <>
+                              <Clock className="w-3 h-3" />
+                              Klaim Susulan
+                            </>
+                          ) : (
+                            <>
+                              <UserCheck className="w-3 h-3" />
+                              Klaim Mandiri
+                            </>
+                          )}
                         </span>
                         <span className="text-[10px] text-slate-600 font-medium inline-flex items-center gap-1">
                           <ShieldCheck className="w-3 h-3 text-emerald-600" />
@@ -522,7 +550,7 @@ export default function DashboardPage() {
                   <Activity className="w-6 h-6" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-slate-700">Belum Ada Aktivitas Klaim</h4>
+                  <h3 className="text-xs font-bold text-slate-700">Belum Ada Aktivitas Klaim</h3>
                   <p className="text-[11px] text-slate-600 mt-1 max-w-xs mx-auto">
                     Klaim dari perwakilan kelas atau siswa yang memindai Master QR / memasukkan PIN akan
                     langsung muncul di sini secara kronologis.
@@ -544,7 +572,7 @@ export default function DashboardPage() {
       >
         {editingClass && (
           <form onSubmit={handleSaveCorrection} className="space-y-4">
-            <div className="rounded-2xl bg-purple-50 border border-purple-200 p-3 text-xs text-purple-900">
+            <div className="rounded-xl bg-purple-50 border border-purple-200 p-3 text-xs text-purple-900">
               Total Kuota Dapodik Kelas <strong>{editingClass.nama_kelas}</strong>:{' '}
               <strong>{editingClass.total_siswa} Siswa</strong>
             </div>
@@ -596,6 +624,7 @@ export default function DashboardPage() {
           </form>
         )}
       </Modal>
-    </div>
+      </div>
+    </ProtectedRoute>
   );
 }

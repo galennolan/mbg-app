@@ -32,21 +32,24 @@ Membangun **Progressive Web App (PWA)** berdesain modern (*Glassmorphism*) denga
 | **Super Admin** (UBSI Dev/Marcomm) | Desktop / Laptop | **Master Access.** Akses penuh ke seluruh menu sistem, manajemen multi-sekolah, audit log global, manajemen kampanye iklan/ads (On/Off), dan fitur "Tarik Data Master" (Dapodik/Student Data). |
 | **Admin Guru Piket** (Koordinator MBG) | Smartphone / Tablet | **Operational Access.** Input uji organoleptik, scan QR distribusi, kelola data siswa (Import/Edit), dan cetak laporan. Menginisiasi sesi harian. |
 | **Kepala Sekolah** (Monitoring & Correction) | Desktop / Smartphone | **Auditor Access.** Dashboard analitik, cetak laporan, dan memiliki hak khusus untuk **mengedit/koreksi data** jika terdapat kesalahan input operasional oleh Guru Piket. |
-| **Perwakilan Siswa / Siswa** | Smartphone (PWA) | **Claim Portal.** Menerima notifikasi, scan QR/PIN, checklist kehadiran. Login menggunakan **Nama + No. HP** yang tervalidasi saat data diimpor. |
+| **Perwakilan Siswa / Siswa** | Smartphone (PWA) | **Claim Portal.** Menerima notifikasi push, monitoring status MBG, scan QR/PIN untuk pengambilan. **Login bersifat opsional** (tidak wajib) — siswa tetap bisa melakukan klaim tanpa login, namun login (Nama + No. HP) memberikan akses ke riwayat pribadi & fitur CRM. |
 
 ---
 
-## 3. Sistem Autentikasi & Keamanan (Dual-Mode Auth)
+## 3. Sistem Autentikasi & Keamanan (Dual-Mode Auth + Guest Access)
 
-Sistem menggunakan dua metode autentikasi yang berbeda berdasarkan kategori pengguna:
+Sistem menggunakan dua metode autentikasi yang berbeda berdasarkan kategori pengguna, **dengan akses tamu (guest) untuk siswa**:
 
 1. **Staff Auth (Staff & Admin):**
    - Menggunakan **Supabase Auth** (Email & Password).
    - Meliputi Role: Super Admin, Guru Piket, Kepala Sekolah.
-2. **Student Auth (Siswa):**
+   - **Wajib Login** untuk mengakses fitur operasional.
+2. **Student Auth (Siswa) — Opsional:**
    - Menggunakan **Custom Identity Verification** (Nama + No. HP).
    - Akun siswa di-generate otomatis saat data diimpor oleh Admin/Guru ke tabel `students`.
-   - Tidak memerlukan email/password untuk mempermudah akses di lingkungan sekolah.
+   - **Tidak wajib login** untuk fungsi utama: klaim MBG, menerima notifikasi push, monitoring status.
+   - Jika login: Akses tambahan ke Riwayat Pribadi, Smart Banner CRM (Lead Scoring), & Personalisasi.
+   - Jika tidak login (Guest Mode): Tetap bisa scan QR/PIN & klaim porsi via verifikasi identitas ad-hoc (Nama + No. HP) saat proses klaim.
 
 ---
 
@@ -78,20 +81,22 @@ Sistem menggunakan dua metode autentikasi yang berbeda berdasarkan kategori peng
 
 ### 5.2 Alur Sisi Siswa / Perwakilan Kelas (Scan, Anti-Fraud & Checklist Nama)
 
-Sistem mendukung dua mode pengambilan yang sama-sama selesai dalam **2 langkah praktis** serta dilengkapi pencegahan klaim ganda (*Idempotency Lock*):
+Sistem mendukung **Login Opsional** (Guest Mode) untuk fleksibilitas akses. Dua mode pengambilan yang sama-sama selesai dalam **2 langkah praktis** serta dilengkapi pencegahan klaim ganda (*Idempotency Lock*):
 
 * **Skenario A: Perwakilan Kelas Mengambil untuk Satu Kelas (Mode Utama / Kolektif)**
   1. **Scan QR / Input PIN:** Perwakilan siswa (4–5 orang) tiba di meja transit, membuka aplikasi PWA, dan melakukan **Scan QR Code** Guru Piket (atau mengetik 4-Digit PIN meja transit). Sistem otomatis membuka daftar kelasnya (misal: *XII RPL 1*).
-  2. **Klik 1 (Select / Unselect Nama Siswa):** Layar menampilkan daftar seluruh nama teman sekelasnya (sesuai Dapodik) dalam keadaan **otomatis terpilih semua (*Select All = Hadir*)**.
+  2. **Verifikasi Identitas (Opsional):** Jika belum login, sistem meminta input **Nama + No. HP** sekali untuk verifikasi ad-hoc. Jika sudah login, langkah ini dilewati.
+  3. **Klik 1 (Select / Unselect Nama Siswa):** Layar menampilkan daftar seluruh nama teman sekelasnya (sesuai Dapodik) dalam keadaan **otomatis terpilih semua (*Select All = Hadir*)**.
      * Perwakilan siswa cukup mengetuk (*unselect*) nama siswa yang **tidak hadir/absen** hari itu.
      * Jika ada teman yang memiliki riwayat alergi, muncul *badge* merah di samping namanya (Contoh: `Joko ⚠️ Alergi Udang`) agar porsinya bisa disesuaikan.
      * Jika ada siswa yang sudah mengambil mandiri sebelumnya, namanya otomatis terkunci (`Tania 🔒 Sudah Ambil Mandiri 09:38`).
-  3. **Klik 2 (`Sudah Terima MBG`):** Perwakilan siswa menekan tombol **"✅ Sudah Terima MBG"**.
+  4. **Klik 2 (`Sudah Terima MBG`):** Perwakilan siswa menekan tombol **"✅ Sudah Terima MBG"**.
 
 * **Skenario B: Siswa Mengambil Mandiri / Klaim Susulan (Mode Individu)**
   1. Siswa melakukan **Scan QR Code / Input PIN** Guru Piket.
-  2. **Klik 1 (Pilih Nama):** Siswa mengeklik namanya sendiri dari *list* nama teman sekelasnya (termasuk bagi siswa yang baru keluar dari UKS/dispensasi sebagai *Klaim Susulan*).
-  3. **Klik 2 (`Sudah Terima MBG`):** Siswa menekan tombol **"✅ Sudah Terima MBG"**.
+  2. **Verifikasi Identitas (Opsional):** Input **Nama + No. HP** jika mode Guest, atau otomatis terisi jika sudah Login.
+  3. **Klik 1 (Pilih Nama):** Siswa mengeklik namanya sendiri dari *list* nama teman sekelasnya (termasuk bagi siswa yang baru keluar dari UKS/dispensasi sebagai *Klaim Susulan*).
+  4. **Klik 2 (`Sudah Terima MBG`):** Siswa menekan tombol **"✅ Sudah Terima MBG"**.
 
 ### 5.3 Output Real-Time Notification & Rekonsiliasi Ompreng
 
@@ -107,9 +112,10 @@ Sistem mendukung dua mode pengambilan yang sama-sama selesai dalam **2 langkah p
 
 ### Modul 1: Otentikasi & Manajemen Master Data (RBAC & Master Menu)
 
-* **FR-1.1 (Dual-Auth Engine):** 
-    - Implementasi login Staff via Email/Password (Supabase Auth).
-    - Implementasi login Siswa via Nama Lengkap & Nomor HP (Verification matching ke tabel `students`).
+* **FR-1.1 (Dual-Auth Engine + Guest Access):** 
+    - Implementasi login Staff via Email/Password (Supabase Auth) — **Wajib**.
+    - Implementasi login Siswa via Nama Lengkap & Nomor HP (Verification matching ke tabel `students`) — **Opsional**.
+    - Implementasi **Guest Mode** untuk Siswa: Verifikasi identitas ad-hoc (Nama + No. HP) saat proses klaim tanpa perlu sesi login persisten.
 * **FR-1.2 (Super Admin Master Menu):**
     - Menu **"Management Campaign"**: Fitur untuk membuat, mengedit, dan melakukan On/Off Toggle kampanye PMB UBSI.
     - Menu **"Data Pulling"**: Fitur master untuk menarik/sinkronisasi ulang data siswa dari source eksternal (Dapodik Simulation).
@@ -118,7 +124,7 @@ Sistem mendukung dua mode pengambilan yang sama-sama selesai dalam **2 langkah p
     - Hak akses untuk melakukan override atau edit pada data `daily_attendances` dan `student_mbg_logs` jika terjadi kesalahan input operasional oleh Guru Piket, guna menjaga validitas laporan akhir.
 * **FR-1.4 (Import & Auto-Generation Account):** 
     - Fitur unggah massal (CSV/Excel) oleh Super Admin/Guru Piket.
-    - Sistem secara otomatis mendaftarkan No. HP siswa sebagai identitas login unik.
+    - Sistem secara otomatis mendaftarkan No. HP siswa sebagai **identitas verifikasi unik** (digunakan untuk Login Opsional & Guest Mode).
     - Sanitasi otomatis format nomor telepon ke standar internasional (`628xxx`).
 
 ### Modul 2: Trigger "MBG Datang", Uji Organoleptik & Food Sample Guard (Admin Guru Piket)
@@ -169,7 +175,7 @@ Sistem mendukung dua mode pengambilan yang sama-sama selesai dalam **2 langkah p
 ### 7.2 Performa, Offline-First Resilience & Keandalan PWA
 
 * **Offline-First Queue (IndexedDB & Background Sync):** Mengantisipasi sinyal internet yang tidak stabil di koridor sekolah, transaksi klik *"Sudah Terima MBG"* tetap dapat disimpan secara lokal di memori PWA siswa dan otomatis disinkronkan ke server begitu perangkat mendapatkan kembali koneksi internet.
-* **Web Push Notification Ready:** Menggunakan *Service Worker* and *Web Push API* agar notifikasi *"MBG Datang"* and pengingat pengembalian ompreng tetap muncul di layar kunci (*lockscreen*) smartphone siswa.
+* **Web Push Notification Ready:** Menggunakan *Service Worker* and *Web Push API* agar notifikasi *"MBG Datang"* and pengingat pengembalian ompreng tetap muncul di layar kunci (*lockscreen*) smartphone siswa — **berfungsi tanpa login** (berbasis subscription browser).
 * **Optimistic UI Updates:** Pemilihan *select/unselect* daftar nama siswa berjalan instan di sisi klien (*client-side state*) tanpa *lag*, dan proses simpan ke server berlangsung kurang dari **1 detik**.
 
 ---

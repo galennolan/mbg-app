@@ -2,7 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { QrCode, Printer, Download, ExternalLink, School, Utensils, CheckCircle } from 'lucide-react';
+import { Printer, ExternalLink, Utensils } from 'lucide-react';
+import { PageHeader, Input, Button } from '@/components/ui';
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 
 export default function AdminQRCodePage() {
   const [studentUrl, setStudentUrl] = useState('');
@@ -20,75 +22,59 @@ export default function AdminQRCodePage() {
   };
 
   return (
-    <div className="space-y-6 pb-12">
-      {/* Control Bar (Hidden on Print) */}
-      <div className="no-print bg-white rounded-3xl p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-800 rounded-full text-xs font-semibold mb-2 border border-amber-200">
-            <QrCode className="w-3.5 h-3.5" />
-            Pengaturan QR Code
-          </div>
-          <h1 className="text-2xl font-black text-brand-navy tracking-tight">
-            Poster & QR Code Siswa
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Cetak poster statis untuk ditempel di kelas, mading, atau titik pembagian makanan
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2.5">
-          <button
+    <ProtectedRoute allowedRoles={['super_admin', 'admin', 'guru_piket', 'kepala_sekolah', 'guru']}>
+      <div className="space-y-6 pb-12">
+        {/* Control Bar (Hidden on Print) */}
+      <div className="no-print">
+        <PageHeader
+          title="Poster & QR Code Siswa"
+          subtitle="Cetak poster statis untuk ditempel di kelas, mading, atau titik pembagian makanan."
+          badgeText="PENGATURAN QR CODE"
+        >
+          <Button
+            type="button"
             onClick={handlePrint}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-blue hover:bg-brand-blue-700 text-white text-xs font-bold rounded-xl shadow transition"
+            leftIcon={<Printer className="w-4 h-4" />}
           >
-            <Printer className="w-4 h-4" />
             Cetak Poster (Print / PDF)
-          </button>
-        </div>
+          </Button>
+        </PageHeader>
       </div>
 
       {/* Editor Teks Poster (Hidden on Print) */}
-      <div className="no-print bg-white rounded-3xl p-5 border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-4 items-center">
-        <div className="flex-1 w-full">
-          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-            Nama Sekolah pada Poster
-          </label>
-          <input
-            type="text"
-            value={schoolName}
-            onChange={(e) => setSchoolName(e.target.value)}
-            className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-slate-900"
-          />
-        </div>
-        <div className="flex-1 w-full">
-          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-            Tautan Tujuan QR
-          </label>
-          <div className="flex gap-2">
-            <input
-              type="text"
+      <div className="no-print micro-card rounded-2xl p-5 grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+        <Input
+          label="Nama Sekolah pada Poster"
+          value={schoolName}
+          onChange={(e) => setSchoolName(e.target.value)}
+        />
+
+        <div className="flex gap-2 items-end">
+          <div className="flex-1">
+            <Input
+              label="Tautan Tujuan QR"
               readOnly
               value={studentUrl}
-              className="w-full p-2.5 bg-slate-100 border border-slate-200 rounded-xl text-xs font-mono text-slate-700"
             />
-            <a
-              href={studentUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition"
-              title="Buka Halaman Siswa"
-            >
-              <ExternalLink className="w-4 h-4" />
-            </a>
           </div>
+          <a
+            href={studentUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="micro-tap inline-flex items-center justify-center min-h-[44px] px-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl border border-slate-200 transition"
+            title="Buka Halaman Siswa"
+            aria-label="Buka halaman siswa di tab baru"
+          >
+            <ExternalLink className="w-4 h-4" />
+          </a>
         </div>
       </div>
 
       {/* POSTER KERTAS A4 (PRINT FRIENDLY) */}
-      <div className="bg-white rounded-3xl border-2 border-slate-200 shadow-lg max-w-2xl mx-auto p-8 sm:p-12 text-center space-y-6">
+      <div className="bg-white rounded-3xl border-2 border-slate-200 shadow-card max-w-2xl mx-auto p-8 sm:p-12 text-center space-y-6">
         {/* Poster Header */}
         <div className="space-y-2 border-b-2 border-brand-navy/10 pb-6">
-          <div className="w-14 h-14 rounded-2xl bg-brand-navy text-white flex items-center justify-center mx-auto shadow-md">
+          <div className="w-14 h-14 rounded-2xl bg-brand-navy text-white flex items-center justify-center mx-auto shadow-sm">
             <Utensils className="w-7 h-7 text-white" />
           </div>
           <h2 className="text-xl sm:text-2xl font-black text-brand-navy tracking-tight uppercase">
@@ -168,12 +154,12 @@ export default function AdminQRCodePage() {
         </div>
 
         {/* Catatan Kaki */}
-        <div className="pt-4 border-t border-slate-100 text-[11px] text-slate-400">
+        <div className="pt-4 border-t border-slate-100 text-[11px] text-slate-500">
           Jika makanan belum tiba atau data Anda tidak ditemukan, silakan hubungi Guru Pembina di
           kelas Anda.
         </div>
       </div>
-    </div>
+      </div>
+    </ProtectedRoute>
   );
 }
-

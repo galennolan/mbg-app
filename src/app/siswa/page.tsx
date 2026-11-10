@@ -8,21 +8,13 @@ import {
   Plus,
   Upload,
   Download,
-  CheckCircle2,
-  AlertTriangle,
-  Building,
-  UserCheck,
-  UserX,
-  FileSpreadsheet,
-  Trash2,
   Edit2,
-  Sparkles,
+  Database,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '@/lib/supabase/client';
 import { Kelas, Siswa } from '@/lib/types';
 import {
-  logActivity,
   importStudentsWithAutoAccount,
   normalizePhone628,
   SEED_CLASSES,
@@ -36,10 +28,21 @@ import {
   ModalCheckbox,
   ModalActions,
 } from '@/components/ui/ModalField';
+import {
+  PageHeader,
+  Input,
+  Select,
+  Button,
+  FeedbackBanner,
+  Alert,
+  useNotify,
+} from '@/components/ui';
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 
 export default function DataSiswaPage() {
   const { user, role } = useAuth();
-  const isAdmin = role === 'super_admin' || role === 'admin' || !role;
+  const notify = useNotify();
+  const isAdmin = role === 'super_admin' || role === 'admin';
 
   const [loading, setLoading] = useState(true);
   const [students, setStudents] = useState<Siswa[]>([]);
@@ -263,14 +266,14 @@ export default function DataSiswaPage() {
         penggunaId: user?.id,
       });
 
+      const msg = editingStudent
+        ? `Data siswa & kunci login (${normalizedPhone}) berhasil diperbarui!`
+        : res.message;
+
       setShowAddModal(false);
       resetStudentForm();
-      setFeedback({
-        type: 'success',
-        message: editingStudent
-          ? `Data siswa & kunci login (${normalizedPhone}) berhasil diperbarui!`
-          : res.message,
-      });
+      setFeedback({ type: 'success', message: msg });
+      notify.success('Data Siswa Tersimpan', msg);
       loadData();
     } catch (err: any) {
       setFeedback({ type: 'error', message: err.message || 'Gagal menyimpan siswa' });
@@ -283,7 +286,6 @@ export default function DataSiswaPage() {
   const handleSeedDemoData = async () => {
     setLoading(true);
     try {
-      // 1. Create default classes if none
       let currentKelas = [...kelasList];
       if (currentKelas.length === 0) {
         const defaultClasses = [
@@ -323,6 +325,7 @@ export default function DataSiswaPage() {
       if (error) throw error;
 
       setFeedback({ type: 'success', message: '10 Data contoh siswa & kelas berhasil di-generate!' });
+      notify.success('Data Contoh Dibuat', '10 Data contoh siswa & kelas berhasil ditambahkan.');
       loadData();
     } catch (err: any) {
       setFeedback({ type: 'error', message: err.message || 'Gagal generate demo data' });
@@ -354,6 +357,7 @@ export default function DataSiswaPage() {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Template Siswa');
     XLSX.writeFile(workbook, 'Template_Import_Siswa_MBG.xlsx');
+    notify.info('Template Diunduh', 'File Template_Import_Siswa_MBG.xlsx berhasil diunduh.');
   };
 
   // Handle File Upload & Parse Excel / CSV
@@ -415,6 +419,12 @@ export default function DataSiswaPage() {
         type: 'success',
         message: res.message,
       });
+      notify.fire({
+        icon: 'success',
+        title: 'Import Siswa Berhasil',
+        text: res.message,
+        badgeText: 'AUTO-ACCOUNT 628xxx',
+      });
       setShowImportModal(false);
       setImportPreview([]);
       loadData();
@@ -435,126 +445,107 @@ export default function DataSiswaPage() {
   });
 
   return (
-    <div className="space-y-6 pb-12">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-brand-blue rounded-full text-xs font-semibold mb-2">
-            <GraduationCap className="w-3.5 h-3.5" />
-            Data Induk Sekolah
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-brand-navy tracking-tight">
-            Manajemen Data Siswa
-          </h1>
-          <p className="text-base text-slate-600 mt-1">
-            Daftar seluruh siswa terdaftar untuk konfirmasi Makan Bergizi Gratis
-          </p>
-        </div>
-
+    <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
+      <div className="space-y-6 pb-12">
+        {/* Header */}
+      <PageHeader
+        title="Manajemen Data Siswa"
+        subtitle="Daftar seluruh siswa terdaftar untuk konfirmasi Makan Bergizi Gratis."
+        badgeText="DATA INDUK SEKOLAH"
+      >
         <div className="flex flex-wrap items-center gap-2.5">
           {students.length === 0 && (
-            <button
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
               onClick={handleSeedDemoData}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold rounded-xl border border-amber-200 transition"
+              leftIcon={<Database className="w-4 h-4 text-amber-600" />}
             >
-              <Sparkles className="w-4 h-4 text-amber-600" />
               Isi Data Contoh
-            </button>
+            </Button>
           )}
 
           {isAdmin && (
             <>
-              <button
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
                 onClick={() => setShowImportModal(true)}
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition"
+                leftIcon={<Upload className="w-4 h-4" />}
               >
-                <Upload className="w-4 h-4" />
                 Import Excel
-              </button>
+              </Button>
 
-              <button
+              <Button
+                type="button"
+                size="sm"
                 onClick={() => {
                   setFeedback(null);
                   resetStudentForm();
                   setShowAddModal(true);
                 }}
-                className="inline-flex items-center gap-2 px-4 py-3 bg-brand-blue hover:bg-brand-blue-700 text-white text-sm font-bold rounded-xl shadow-sm transition"
+                leftIcon={<Plus className="w-4 h-4" />}
               >
-                <Plus className="w-4 h-4" />
                 Tambah Siswa
-              </button>
+              </Button>
             </>
           )}
         </div>
-      </div>
+      </PageHeader>
 
       {feedback && (
-        <div
-          className={`p-4 rounded-2xl border text-xs sm:text-sm flex items-start gap-2.5 ${
-            feedback.type === 'success'
-              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-              : 'bg-red-50 border-red-200 text-red-800'
-          }`}
-        >
-          {feedback.type === 'success' ? (
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
-          ) : (
-            <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
-          )}
-          <span>{feedback.message}</span>
-        </div>
+        <FeedbackBanner
+          type={feedback.type}
+          message={feedback.message}
+          onDismiss={() => setFeedback(null)}
+        />
       )}
 
       {/* Filter & Search Bar */}
-      <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-            <Search className="w-5 h-5" />
-          </div>
-          <input
-            type="text"
+      <div className="micro-card rounded-2xl p-5 grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+        <div className="sm:col-span-2">
+          <Input
+            label="Cari Siswa (Nama atau NISN)"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Cari berdasarkan nama atau NISN siswa..."
-            aria-label="Cari siswa"
-            className="w-full pl-11 pr-4 py-3.5 bg-white border border-slate-300 rounded-2xl text-base text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-brand-blue/20 focus:border-brand-blue transition"
+            leftIcon={<Search className="w-5 h-5" />}
           />
         </div>
 
-        <div className="w-full sm:w-64">
-          <label htmlFor="filter-kelas" className="sr-only">
-            Filter kelas
-          </label>
-          <select
-            id="filter-kelas"
+        <div>
+          <Select
+            label="Filter Kelas"
             value={selectedKelasId}
-            onChange={(e) => setSelectedKelasId(e.target.value)}
-            className="w-full py-3.5 px-4 bg-white border border-slate-300 rounded-2xl text-base text-slate-900 focus:bg-white focus:outline-none focus:ring-4 focus:ring-brand-blue/20 focus:border-brand-blue transition"
-          >
-            <option value="">Semua Kelas ({kelasList.length})</option>
-            {kelasList.map((k) => (
-              <option key={k.id} value={k.id}>
-                {k.nama_kelas}
-              </option>
-            ))}
-          </select>
+            onValueChange={(val) => setSelectedKelasId(val)}
+            placeholder={`Semua Kelas (${kelasList.length})`}
+            options={[
+              { value: '', label: `Semua Kelas (${kelasList.length})` },
+              ...kelasList.map((k) => ({
+                value: k.id,
+                label: k.nama_kelas,
+              })),
+            ]}
+          />
         </div>
       </div>
 
       {/* Table Siswa */}
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between text-xs text-slate-500 font-semibold uppercase tracking-wider">
+      <div className="micro-card rounded-2xl overflow-hidden">
+        <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between text-xs text-slate-600 font-semibold uppercase tracking-wider">
           <span>Menampilkan {filteredStudents.length} Siswa</span>
           <span>Total Terdaftar: {students.length}</span>
         </div>
 
         {loading ? (
-          <div className="p-12 text-center text-slate-400 text-sm">
-            <div className="w-8 h-8 border-4 border-brand-blue border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+          <div className="p-12 text-center text-slate-500 text-sm">
+            <div className="w-8 h-8 border-4 border-brand-blue border-t-transparent rounded-full animate-spin mx-auto mb-2" />
             Memuat data siswa...
           </div>
         ) : filteredStudents.length === 0 ? (
-          <div className="p-12 text-center text-slate-400 text-sm">
+          <div className="p-12 text-center text-slate-500 text-sm">
             Belum ada data siswa yang cocok dengan filter pencarian.
           </div>
         ) : (
@@ -573,7 +564,7 @@ export default function DataSiswaPage() {
               <tbody className="divide-y divide-slate-100">
                 {filteredStudents.map((s, idx) => (
                   <tr key={s.id} className="hover:bg-slate-50/80 transition">
-                    <td className="py-3.5 px-4 text-sm font-mono text-slate-400">{idx + 1}</td>
+                    <td className="py-3.5 px-4 text-sm font-mono text-slate-500">{idx + 1}</td>
                     <td className="py-3.5 px-4 font-bold text-slate-900 text-sm">{s.nama}</td>
                     <td className="py-3.5 px-4 text-sm font-mono text-slate-600">
                       {s.nisn || '-'}
@@ -598,6 +589,7 @@ export default function DataSiswaPage() {
                     {isAdmin && (
                       <td className="py-3.5 px-4 text-right text-xs">
                         <button
+                          type="button"
                           onClick={() => {
                             setFeedback(null);
                             setEditingStudent(s);
@@ -611,7 +603,7 @@ export default function DataSiswaPage() {
                             });
                             setShowAddModal(true);
                           }}
-                          className="p-2 text-slate-600 hover:text-brand-blue rounded-lg hover:bg-slate-100 transition"
+                          className="micro-tap p-2 text-slate-600 hover:text-brand-blue rounded-lg hover:bg-slate-100 transition"
                           title="Edit Siswa"
                           aria-label={`Edit siswa ${s.nama}`}
                         >
@@ -639,21 +631,7 @@ export default function DataSiswaPage() {
       >
         <form onSubmit={handleSaveStudent} className="space-y-4">
           {feedback && (
-            <div
-              className={`p-3.5 rounded-2xl border text-sm flex items-start gap-2.5 ${
-                feedback.type === 'success'
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                  : 'bg-red-50 border-red-200 text-red-800'
-              }`}
-              role="alert"
-            >
-              {feedback.type === 'success' ? (
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
-              ) : (
-                <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-              )}
-              <span>{feedback.message}</span>
-            </div>
+            <Alert variant={feedback.type} message={feedback.message} />
           )}
 
           <ModalInput
@@ -681,10 +659,10 @@ export default function DataSiswaPage() {
             required
             value={formData.kelas_id}
             onChange={(e) => setFormData({ ...formData, kelas_id: e.target.value })}
-            placeholder="-- Pilih Kelas --"
+            placeholder="Pilih Kelas"
             options={kelasList.map((k) => ({
               value: k.id,
-              label: `${k.nama_kelas} - ${k.jurusan}`,
+              label: `${k.nama_kelas} • ${k.jurusan}`,
             }))}
           />
 
@@ -738,9 +716,7 @@ export default function DataSiswaPage() {
       >
         <div className="space-y-4 text-sm">
           {importMessage && (
-            <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-800 text-sm" role="alert">
-              {importMessage}
-            </div>
+            <Alert variant="error" message={importMessage} />
           )}
 
           <p className="text-slate-600 leading-relaxed">
@@ -763,6 +739,7 @@ export default function DataSiswaPage() {
               type="file"
               accept=".xlsx, .xls, .csv"
               onChange={handleFileUpload}
+              aria-label="Pilih file Excel atau CSV siswa"
               className="w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-brand-blue file:text-white hover:file:bg-brand-blue-700"
             />
           </div>
@@ -779,7 +756,7 @@ export default function DataSiswaPage() {
                   </div>
                 ))}
                 {importPreview.length > 5 && (
-                  <div className="text-xs text-slate-400 italic">
+                  <div className="text-xs text-slate-500 italic">
                     ... dan {importPreview.length - 5} baris lainnya
                   </div>
                 )}
@@ -801,7 +778,7 @@ export default function DataSiswaPage() {
           />
         </div>
       </Modal>
-    </div>
+      </div>
+    </ProtectedRoute>
   );
 }
-

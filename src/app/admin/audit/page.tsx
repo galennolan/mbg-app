@@ -2,11 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
-import { History, ShieldCheck, Search, Filter, RotateCw, Eye } from 'lucide-react';
+import { Search, RotateCw, Eye } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import { RiwayatAktivitas } from '@/lib/types';
 import { formatIndonesianDateTime } from '@/lib/utils';
 import { Modal, ModalActions } from '@/components/ui/ModalField';
+import { PageHeader, Input, Button } from '@/components/ui';
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 
 export default function AuditLogPage() {
   const { user } = useAuth();
@@ -66,61 +68,49 @@ export default function AuditLogPage() {
   });
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-12">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-800 rounded-full text-xs font-semibold mb-2 border border-amber-200">
-            <History className="w-3.5 h-3.5" />
-            Audit & Keamanan
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-brand-navy tracking-tight">
-            Log Riwayat Aktivitas Sistem
-          </h1>
-          <p className="text-base text-slate-600 mt-1">
-            Penelusuran jejak perubahan data, kedatangan MBG, dan transaksi penerimaan
-          </p>
-        </div>
-
-        <button
+    <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
+      <div className="max-w-5xl mx-auto space-y-6 pb-12">
+        <PageHeader
+        title="Log Riwayat Aktivitas Sistem"
+        subtitle="Penelusuran jejak perubahan data, kedatangan MBG, dan transaksi penerimaan."
+        badgeText="AUDIT & KEAMANAN"
+      >
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
           onClick={loadLogs}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition"
+          loading={loading}
+          leftIcon={<RotateCw className="w-3.5 h-3.5" />}
         >
-          <RotateCw className="w-3.5 h-3.5" />
           Muat Ulang Log
-        </button>
-      </div>
+        </Button>
+      </PageHeader>
 
       {/* Filter Bar */}
-      <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm">
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-            <Search className="w-5 h-5" />
-          </div>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Cari berdasarkan nama aktivitas, tabel, atau nama petugas..."
-            aria-label="Cari log aktivitas"
-            className="w-full pl-11 pr-4 py-3.5 bg-white border border-slate-300 rounded-2xl text-base text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-brand-blue/20 focus:border-brand-blue transition"
-          />
-        </div>
+      <div className="micro-card rounded-2xl p-5">
+        <Input
+          label="Cari Aktivitas Audit"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Cari berdasarkan nama aktivitas, tabel, atau nama petugas..."
+          leftIcon={<Search className="w-5 h-5" />}
+        />
       </div>
 
       {/* Table Audit Logs */}
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between text-xs text-slate-500 font-semibold uppercase tracking-wider">
+      <div className="micro-card rounded-2xl overflow-hidden">
+        <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between text-xs text-slate-600 font-semibold uppercase tracking-wider">
           <span>Menampilkan {filteredLogs.length} Aktivitas Terbaru</span>
         </div>
 
         {loading ? (
-          <div className="p-12 text-center text-slate-400 text-sm">
-            <div className="w-8 h-8 border-4 border-brand-blue border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+          <div className="p-12 text-center text-slate-500 text-sm">
+            <div className="w-8 h-8 border-4 border-brand-blue border-t-transparent rounded-full animate-spin mx-auto mb-2" />
             Memuat audit log...
           </div>
         ) : filteredLogs.length === 0 ? (
-          <div className="p-12 text-center text-slate-400 text-sm">
+          <div className="p-12 text-center text-slate-500 text-sm">
             Belum ada catatan aktivitas di log sistem.
           </div>
         ) : (
@@ -161,9 +151,11 @@ export default function AuditLogPage() {
                     </td>
                     <td className="py-3.5 px-4 text-right">
                       <button
+                        type="button"
                         onClick={() => setSelectedDetail(log)}
-                        className="p-1.5 text-slate-600 hover:text-brand-blue rounded-lg hover:bg-slate-100 transition"
+                        className="micro-tap p-2 text-slate-600 hover:text-brand-blue rounded-lg hover:bg-slate-100 transition"
                         title="Lihat Detail JSON"
+                        aria-label={`Lihat detail log ${log.aktivitas}`}
                       >
                         <Eye className="w-4 h-4" />
                       </button>
@@ -185,7 +177,7 @@ export default function AuditLogPage() {
       >
         {selectedDetail && (
           <div className="space-y-4 text-sm">
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-1">
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-1">
               <div className="text-slate-500 font-mono text-xs">ID Aktivitas: {selectedDetail.id}</div>
               <div className="text-slate-800 font-bold">
                 Aktivitas: {selectedDetail.aktivitas} ({selectedDetail.tabel_terkait})
@@ -196,20 +188,20 @@ export default function AuditLogPage() {
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-700 mb-1.5">
+              <span className="block font-semibold text-slate-700 mb-1.5">
                 Data Sesudah Perubahan:
-              </label>
-              <pre className="p-4 bg-slate-900 text-emerald-400 rounded-2xl overflow-x-auto text-xs font-mono max-h-48">
+              </span>
+              <pre className="p-4 bg-slate-900 text-emerald-400 rounded-xl overflow-x-auto text-xs font-mono max-h-48">
                 {JSON.stringify(selectedDetail.data_sesudah, null, 2) || '(Kosong)'}
               </pre>
             </div>
 
             {selectedDetail.data_sebelum && (
               <div>
-                <label className="block font-semibold text-slate-700 mb-1.5">
+                <span className="block font-semibold text-slate-700 mb-1.5">
                   Data Sebelum Perubahan:
-                </label>
-                <pre className="p-4 bg-slate-900 text-amber-400 rounded-2xl overflow-x-auto text-xs font-mono max-h-48">
+                </span>
+                <pre className="p-4 bg-slate-900 text-amber-400 rounded-xl overflow-x-auto text-xs font-mono max-h-48">
                   {JSON.stringify(selectedDetail.data_sebelum, null, 2)}
                 </pre>
               </div>
@@ -225,7 +217,7 @@ export default function AuditLogPage() {
           </div>
         )}
       </Modal>
-    </div>
+      </div>
+    </ProtectedRoute>
   );
 }
-

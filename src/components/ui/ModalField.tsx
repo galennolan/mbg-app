@@ -1,10 +1,22 @@
 'use client';
 
-import { forwardRef, type InputHTMLAttributes, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
+import React, {
+  forwardRef,
+  type InputHTMLAttributes,
+  type SelectHTMLAttributes,
+  type TextareaHTMLAttributes,
+} from 'react';
 import { cn } from '@/lib/utils';
+import { Input } from './Input';
+import { Select } from './Select';
+import { Checkbox } from './Checkbox';
+import { Textarea } from './Textarea';
+import { Button } from './Button';
+import { Label } from './Label';
+import { FieldError, FieldHelper } from './FieldMessage';
 
-export { Modal, ConfirmModal } from './Modal';
-export type { ModalProps, ConfirmModalProps } from './Modal';
+export { Modal, ModalConfirm, ConfirmModal, ModalHeader, ModalBody, ModalFooter } from './Modal';
+export type { ModalProps, ModalConfirmProps, ConfirmModalProps } from './Modal';
 
 export interface ModalFieldProps {
   label: string;
@@ -13,19 +25,19 @@ export interface ModalFieldProps {
   error?: string;
   children?: React.ReactNode;
   className?: string;
+  htmlFor?: string;
 }
 
 export const ModalField = forwardRef<HTMLDivElement, ModalFieldProps>(
-  ({ label, required, helperText, error, children, className, ...props }, ref) => {
+  ({ label, required, helperText, error, children, className, htmlFor, ...props }, ref) => {
     return (
       <div ref={ref} className={cn('space-y-1.5', className)} {...props}>
-        <label className="block font-semibold text-slate-800 text-sm">
+        <Label htmlFor={htmlFor} required={required}>
           {label}
-          {required && <span className="text-red-500 ml-1" aria-hidden="true">*</span>}
-        </label>
+        </Label>
         {children}
-        {error && <p className="text-xs text-red-600" role="alert">{error}</p>}
-        {helperText && !error && <p className="text-xs text-slate-500">{helperText}</p>}
+        {error && <FieldError message={error} />}
+        {helperText && !error && <FieldHelper text={helperText} />}
       </div>
     );
   }
@@ -43,74 +55,77 @@ export interface ModalInputProps extends InputHTMLAttributes<HTMLInputElement> {
 
 export const ModalInput = forwardRef<HTMLInputElement, ModalInputProps>(
   ({ label, required, helperText, error, icon, leftIcon, className, id, ...props }, ref) => {
-    const inputId = id || label.toLowerCase().replace(/\s+/g, '-');
     return (
-      <ModalField label={label} required={required} helperText={helperText} error={error}>
-        <div className="relative">
-          {leftIcon && (
-            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-              {leftIcon}
-            </div>
-          )}
-          <input
-            ref={ref}
-            id={inputId}
-            className={cn(
-              'w-full bg-white border border-slate-300 rounded-2xl text-base text-slate-900 placeholder-slate-400',
-              'focus:bg-white focus:outline-none focus:ring-4 focus:ring-brand-blue/20 focus:border-brand-blue',
-              'transition-all duration-200',
-              leftIcon ? 'pl-11 pr-4 py-3.5' : 'p-4',
-              error && 'border-red-400 focus:ring-red-200 focus:border-red-400',
-              className
-            )}
-            {...props}
-          />
-          {icon && (
-            <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-              {icon}
-            </div>
-          )}
-        </div>
-      </ModalField>
+      <Input
+        ref={ref}
+        id={id}
+        label={label}
+        required={required}
+        helperText={helperText}
+        error={error}
+        leftIcon={leftIcon}
+        rightIcon={icon}
+        className={className}
+        {...props}
+      />
     );
   }
 );
 ModalInput.displayName = 'ModalInput';
 
-export interface ModalSelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
+export interface ModalSelectProps
+  extends Omit<SelectHTMLAttributes<HTMLSelectElement>, 'onChange'> {
   label: string;
   required?: boolean;
   helperText?: string;
   error?: string;
   options: { value: string; label: string }[];
   placeholder?: string;
+  onChange?: (e: { target: { value: string; name?: string } }) => void;
+  onValueChange?: (value: string) => void;
+  searchable?: boolean;
 }
 
-export const ModalSelect = forwardRef<HTMLSelectElement, ModalSelectProps>(
-  ({ label, required, helperText, error, options, placeholder, className, id, ...props }, ref) => {
-    const selectId = id || label.toLowerCase().replace(/\s+/g, '-');
+export const ModalSelect = forwardRef<HTMLButtonElement, ModalSelectProps>(
+  (
+    {
+      label,
+      required,
+      helperText,
+      error,
+      options,
+      placeholder,
+      className,
+      id,
+      value,
+      defaultValue,
+      disabled,
+      name,
+      onChange,
+      onValueChange,
+      searchable,
+    },
+    ref
+  ) => {
     return (
-      <ModalField label={label} required={required} helperText={helperText} error={error}>
-        <select
-          ref={ref}
-          id={selectId}
-          className={cn(
-            'w-full bg-white border border-slate-300 rounded-2xl text-base text-slate-900 py-3.5 px-4 appearance-none',
-            'focus:bg-white focus:outline-none focus:ring-4 focus:ring-brand-blue/20 focus:border-brand-blue',
-            'transition-all duration-200 bg-[url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%2394a3b8%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpolyline points=%276 9 12 15 18 9%27%3E%3C/polyline%3E%3C/svg%3E")] bg-right-4 bg-no-repeat pr-10',
-            error && 'border-red-400 focus:ring-red-200 focus:border-red-400',
-            className
-          )}
-          {...props}
-        >
-          {placeholder && <option value="" disabled>{placeholder}</option>}
-          {options.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-      </ModalField>
+      <Select
+        ref={ref}
+        id={id}
+        name={name}
+        label={label}
+        required={required}
+        helperText={helperText}
+        error={error}
+        options={options}
+        placeholder={placeholder}
+        value={value !== undefined ? String(value) : undefined}
+        defaultValue={defaultValue !== undefined ? String(defaultValue) : undefined}
+        disabled={disabled}
+        onChange={onChange}
+        onValueChange={onValueChange}
+        searchable={searchable}
+        className={className}
+      />
     );
   }
 );
@@ -118,36 +133,36 @@ ModalSelect.displayName = 'ModalSelect';
 
 export interface ModalCheckboxProps {
   label: string;
+  description?: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
   id?: string;
   className?: string;
   error?: string;
+  disabled?: boolean;
 }
 
-export function ModalCheckbox({ label, checked, onChange, id, className, error }: ModalCheckboxProps) {
-  const checkboxId = id || label.toLowerCase().replace(/\s+/g, '-');
+export function ModalCheckbox({
+  label,
+  description,
+  checked,
+  onChange,
+  id,
+  className,
+  error,
+  disabled,
+}: ModalCheckboxProps) {
   return (
-    <div className={cn('flex items-center gap-3', className)}>
-      <input
-        type="checkbox"
-        id={checkboxId}
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className={cn(
-          'w-5 h-5 rounded border-2 border-slate-300 text-brand-blue',
-          'focus:outline-none focus:ring-4 focus:ring-brand-blue/20 focus:ring-offset-2',
-          'transition-all duration-200 cursor-pointer',
-          'checked:border-brand-blue checked:bg-brand-blue',
-          error && 'border-red-400'
-        )}
-        aria-describedby={error ? `${checkboxId}-error` : undefined}
-      />
-      <label htmlFor={checkboxId} className="font-medium text-slate-800 text-base cursor-pointer">
-        {label}
-      </label>
-      {error && <p id={`${checkboxId}-error`} className="text-xs text-red-600 ml-8" role="alert">{error}</p>}
-    </div>
+    <Checkbox
+      id={id}
+      label={label}
+      description={description}
+      checked={checked}
+      onChange={onChange}
+      error={error}
+      disabled={disabled}
+      className={className}
+    />
   );
 }
 
@@ -160,22 +175,17 @@ export interface ModalTextareaProps extends TextareaHTMLAttributes<HTMLTextAreaE
 
 export const ModalTextarea = forwardRef<HTMLTextAreaElement, ModalTextareaProps>(
   ({ label, required, helperText, error, className, id, ...props }, ref) => {
-    const textareaId = id || label.toLowerCase().replace(/\s+/g, '-');
     return (
-      <ModalField label={label} required={required} helperText={helperText} error={error}>
-        <textarea
-          ref={ref}
-          id={textareaId}
-          className={cn(
-            'w-full bg-white border border-slate-300 rounded-2xl text-base text-slate-900 placeholder-slate-400 p-4',
-            'focus:bg-white focus:outline-none focus:ring-4 focus:ring-brand-blue/20 focus:border-brand-blue',
-            'transition-all duration-200 resize-y min-h-[100px]',
-            error && 'border-red-400 focus:ring-red-200 focus:border-red-400',
-            className
-          )}
-          {...props}
-        />
-      </ModalField>
+      <Textarea
+        ref={ref}
+        id={id}
+        label={label}
+        required={required}
+        helperText={helperText}
+        error={error}
+        className={className}
+        {...props}
+      />
     );
   }
 );
@@ -202,31 +212,28 @@ export function ModalActions({
   variant = 'primary',
   submitType = 'submit',
 }: ModalActionsProps) {
-  const submitClass = variant === 'danger'
-    ? 'bg-red-600 hover:bg-red-700'
-    : 'bg-brand-blue hover:bg-brand-blue-700';
-
   return (
-    <div className="flex gap-3 pt-2">
-      <button
+    <div className="flex gap-3 pt-3">
+      <Button
         type="button"
+        variant="secondary"
+        fullWidth
         onClick={onCancel}
         disabled={submitting}
-        className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl transition disabled:opacity-50"
       >
         {cancelLabel}
-      </button>
-      <button
+      </Button>
+      <Button
         type={submitType}
+        variant={variant === 'danger' ? 'danger' : 'primary'}
+        fullWidth
         onClick={submitType === 'button' ? onSubmit : undefined}
-        disabled={submitting || submitDisabled}
-        className={cn(
-          'flex-1 py-3.5 text-white font-bold rounded-2xl transition shadow-md disabled:opacity-50',
-          submitClass
-        )}
+        loading={submitting}
+        loadingText="Memproses..."
+        disabled={submitDisabled}
       >
-        {submitting ? 'Memproses...' : submitLabel}
-      </button>
+        {submitLabel}
+      </Button>
     </div>
   );
 }

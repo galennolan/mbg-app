@@ -1325,7 +1325,7 @@ export async function authenticateStudentByNameAndPhone(
     const { data: dbStudents } = await supabase
       .from('students')
       .select('*, classes:id_kelas(id, nama_kelas, jurusan)')
-      .ilike('nama_lengkap', `%${cleanName}%`)
+      .ilike('nama_lengkap', cleanName)
       .in('no_hp', [normalizedPhone, altPhone08])
       .limit(1);
 
@@ -1354,7 +1354,7 @@ export async function authenticateStudentByNameAndPhone(
     const { data: legacyStudents } = await supabase
       .from('siswa')
       .select('*, kelas:kelas_id(id, nama_kelas, jurusan)')
-      .ilike('nama', `%${cleanName}%`)
+      .ilike('nama', cleanName)
       .in('no_hp', [normalizedPhone, altPhone08])
       .limit(1);
 
@@ -1381,21 +1381,20 @@ export async function authenticateStudentByNameAndPhone(
   const importedStudents = getLocalItem<StudentAuthProfile[]>('mbg_imported_students', []);
   const foundImported = importedStudents.find(
     (s) =>
-      s.nama_lengkap.toLowerCase().includes(cleanName.toLowerCase()) &&
+      s.nama_lengkap.trim().toLowerCase() === cleanName.toLowerCase() &&
       normalizePhone628(s.no_hp) === normalizedPhone
   );
   if (foundImported) {
     return { student: { ...foundImported, no_hp: normalizedPhone } };
   }
 
-  // 4. Cek dari SEED_STUDENTS (Offline-First Demo)
-  const foundSeed = SEED_STUDENTS.find((s) =>
-    s.nama_lengkap.toLowerCase().includes(cleanName.toLowerCase())
+  // 4. Cek dari SEED_STUDENTS (wajib cocok Nama Lengkap dan Nomor HP resmi terdaftar)
+  const foundSeed = SEED_STUDENTS.find(
+    (s) => s.nama_lengkap.trim().toLowerCase() === cleanName.toLowerCase()
   );
   if (foundSeed) {
     const expectedPhone = SEED_STUDENT_PHONES[foundSeed.nisn];
-    // Izinkan login jika cocok dengan SEED_STUDENT_PHONES atau jika siswa demo login dengan format 628xxx valid
-    if (!expectedPhone || expectedPhone === normalizedPhone || normalizedPhone.startsWith('628')) {
+    if (expectedPhone && expectedPhone === normalizedPhone) {
       return {
         student: {
           nisn: foundSeed.nisn,

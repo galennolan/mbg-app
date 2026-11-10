@@ -3,27 +3,16 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import {
-  FileSpreadsheet,
   Download,
   Printer,
-  Calendar,
-  Filter,
-  Users,
-  CheckCircle2,
-  Clock,
-  AlertCircle,
-  Building,
-  RotateCw,
   Search,
   Edit2,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { supabase } from '@/lib/supabase/client';
-import { DistribusiMBG, Kelas, PenerimaanMBG } from '@/lib/types';
+import { DistribusiMBG, Kelas } from '@/lib/types';
 import {
   formatWIBTime,
   formatIndonesianDate,
-  formatIndonesianDateTime,
   getJakartaDateString,
 } from '@/lib/utils';
 import {
@@ -34,9 +23,20 @@ import {
   correctClassAttendance,
 } from '@/lib/services';
 import { Modal, ModalInput, ModalActions } from '@/components/ui/ModalField';
+import {
+  PageHeader,
+  Input,
+  Select,
+  DatePicker,
+  Button,
+  FeedbackBanner,
+  useNotify,
+} from '@/components/ui';
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 
 export default function LaporanPage() {
   const { user, role } = useAuth();
+  const notify = useNotify();
   const canCorrectData =
     role === 'kepala_sekolah' || role === 'super_admin' || role === 'admin';
   const [activeTab, setActiveTab] = useState<'harian' | 'siswa' | 'kelas'>('harian');
@@ -63,11 +63,9 @@ export default function LaporanPage() {
   const loadReportData = async () => {
     setLoading(true);
     try {
-      // 1. Fetch distribution for selected date via service fallback
       const dist = await getTodayDistribution();
       setDistribusi(dist as any);
 
-      // 2. Fetch overview & classes
       const overview = await getMonitoringOverview();
       const mappedClasses = overview.classes.map((c) => ({
         id: c.id_kelas,
@@ -81,7 +79,6 @@ export default function LaporanPage() {
       }));
       setKelasList(mappedClasses as any);
 
-      // 3. Synthesize receipts from all student roster
       const allRosterLists = await Promise.all(SEED_CLASSES.map((cls) => getClassRoster(cls.id)));
       const allRoster = allRosterLists.flat();
       const synthReceipts = allRoster.map((st) => ({
@@ -159,6 +156,7 @@ export default function LaporanPage() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Laporan MBG');
     XLSX.writeFile(wb, `Laporan_MBG_${selectedDate}.xlsx`);
+    notify.success('Ekspor Excel Berhasil', `File Laporan_MBG_${selectedDate}.xlsx telah diunduh.`);
   };
 
   // Export to CSV (FR-24)
@@ -186,6 +184,7 @@ export default function LaporanPage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    notify.success('Ekspor CSV Berhasil', `File Laporan_MBG_${selectedDate}.csv telah diunduh.`);
   };
 
   // Print PDF
@@ -194,67 +193,66 @@ export default function LaporanPage() {
   };
 
   return (
-    <div className="space-y-6 pb-12">
-      {/* Top Header & Export Controls (Hidden on Print) */}
-      <div className="no-print bg-white rounded-3xl p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-brand-blue rounded-full text-xs font-semibold mb-2">
-            <FileSpreadsheet className="w-3.5 h-3.5" />
-            Laporan & Rekapitulasi
+    <ProtectedRoute allowedRoles={['guru_piket', 'kepala_sekolah', 'super_admin', 'admin', 'guru']}>
+      <div className="space-y-6 pb-12">
+        {/* Top Header & Export Controls (Hidden on Print) */}
+      <div className="no-print">
+        <PageHeader
+          title="Laporan Distribusi MBG"
+          subtitle="Rekap harian, per siswa, per kelas, serta ekspor format Excel, CSV, dan cetak PDF."
+          badgeText="LAPORAN & REKAPITULASI"
+        >
+          <div className="flex flex-wrap items-center gap-2.5">
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={handleExportExcel}
+              leftIcon={<Download className="w-4 h-4" />}
+              className="bg-emerald-600 hover:bg-emerald-700"
+            >
+              Export Excel (.xlsx)
+            </Button>
+
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={handleExportCSV}
+            >
+              Export CSV
+            </Button>
+
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={handlePrint}
+              leftIcon={<Printer className="w-4 h-4" />}
+            >
+              Cetak PDF
+            </Button>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-brand-navy tracking-tight">
-            Laporan Distribusi MBG
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Rekap harian, per siswa, per kelas, serta ekspor format Excel, CSV, dan cetak PDF
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2.5">
-          <button
-            onClick={handleExportExcel}
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm transition"
-          >
-            <Download className="w-4 h-4" />
-            Export Excel (.xlsx)
-          </button>
-
-          <button
-            onClick={handleExportCSV}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition"
-          >
-            CSV
-          </button>
-
-          <button
-            onClick={handlePrint}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-brand-navy hover:bg-brand-navy-light text-white text-xs font-bold rounded-xl shadow-sm transition"
-          >
-            <Printer className="w-4 h-4" />
-            Cetak PDF
-          </button>
-        </div>
+        </PageHeader>
       </div>
 
       {/* Filter Tanggal & Tab Nav (Hidden on Print) */}
-      <div className="no-print bg-white rounded-3xl p-5 border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        {/* Date Selector */}
-        <div className="flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-slate-500" />
-          <span className="text-xs font-bold text-slate-700 uppercase">Pilih Tanggal:</span>
-          <input
-            type="date"
+      <div className="no-print micro-card rounded-2xl p-5 flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div className="w-full md:w-72">
+          <DatePicker
+            label="Pilih Tanggal Laporan"
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            className="py-1.5 px-3 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue"
+            showFormattedBadge={false}
           />
         </div>
 
         {/* Tab Buttons */}
-        <div className="flex items-center bg-slate-100 p-1 rounded-2xl">
+        <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
           <button
+            type="button"
             onClick={() => setActiveTab('harian')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
+            className={`micro-tap min-h-[40px] px-4 py-2 rounded-lg text-xs font-bold transition ${
               activeTab === 'harian'
                 ? 'bg-white text-brand-navy shadow-sm'
                 : 'text-slate-600 hover:text-slate-900'
@@ -263,8 +261,9 @@ export default function LaporanPage() {
             Laporan Harian
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab('siswa')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
+            className={`micro-tap min-h-[40px] px-4 py-2 rounded-lg text-xs font-bold transition ${
               activeTab === 'siswa'
                 ? 'bg-white text-brand-navy shadow-sm'
                 : 'text-slate-600 hover:text-slate-900'
@@ -273,8 +272,9 @@ export default function LaporanPage() {
             Laporan Per Siswa ({receipts.length})
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab('kelas')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
+            className={`micro-tap min-h-[40px] px-4 py-2 rounded-lg text-xs font-bold transition ${
               activeTab === 'kelas'
                 ? 'bg-white text-brand-navy shadow-sm'
                 : 'text-slate-600 hover:text-slate-900'
@@ -294,34 +294,32 @@ export default function LaporanPage() {
       {/* TAB 1: LAPORAN HARIAN (PRD 9.1) */}
       {activeTab === 'harian' && (
         <div className="space-y-6">
-          {/* Summary Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm">
-              <div className="text-xs font-bold uppercase text-slate-400">Total Siswa Terdaftar</div>
+            <div className="micro-card rounded-2xl p-5">
+              <div className="text-xs font-bold uppercase text-slate-500">Total Siswa Terdaftar</div>
               <div className="text-2xl font-black text-slate-900 mt-1">{totalSiswaSekolah}</div>
             </div>
-            <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm">
-              <div className="text-xs font-bold uppercase text-emerald-600">Sudah Menerima</div>
+            <div className="micro-card rounded-2xl p-5">
+              <div className="text-xs font-bold uppercase text-emerald-700">Sudah Menerima</div>
               <div className="text-2xl font-black text-emerald-600 mt-1">
                 {totalDiterima} ({persentase}%)
               </div>
             </div>
-            <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm">
-              <div className="text-xs font-bold uppercase text-amber-600">Belum Tercatat</div>
+            <div className="micro-card rounded-2xl p-5">
+              <div className="text-xs font-bold uppercase text-amber-700">Belum Tercatat</div>
               <div className="text-2xl font-black text-amber-600 mt-1">{totalBelum}</div>
             </div>
-            <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm">
-              <div className="text-xs font-bold uppercase text-red-600">Tidak Hadir / Mengambil</div>
+            <div className="micro-card rounded-2xl p-5">
+              <div className="text-xs font-bold uppercase text-red-700">Tidak Hadir / Mengambil</div>
               <div className="text-2xl font-black text-red-600 mt-1">
                 {tidakHadir.length + tidakMengambil.length}
               </div>
             </div>
           </div>
 
-          {/* Snapshot Waktu */}
-          <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+          <div className="micro-card rounded-2xl p-6 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
             <div>
-              <span className="text-slate-400 block uppercase font-bold text-[10px]">
+              <span className="text-slate-500 block uppercase font-bold text-[10px]">
                 Waktu Kedatangan MBG
               </span>
               <span className="font-mono font-bold text-sm text-slate-800">
@@ -329,7 +327,7 @@ export default function LaporanPage() {
               </span>
             </div>
             <div>
-              <span className="text-slate-400 block uppercase font-bold text-[10px]">
+              <span className="text-slate-500 block uppercase font-bold text-[10px]">
                 Konfirmasi Pertama
               </span>
               <span className="font-mono font-bold text-sm text-emerald-700">
@@ -337,7 +335,7 @@ export default function LaporanPage() {
               </span>
             </div>
             <div>
-              <span className="text-slate-400 block uppercase font-bold text-[10px]">
+              <span className="text-slate-500 block uppercase font-bold text-[10px]">
                 Konfirmasi Terakhir
               </span>
               <span className="font-mono font-bold text-sm text-blue-700">
@@ -351,70 +349,69 @@ export default function LaporanPage() {
       {/* TAB 2: LAPORAN PER SISWA (PRD 9.2) */}
       {activeTab === 'siswa' && (
         <div className="space-y-4">
-          {/* Filter Bar (Hidden on print) */}
-          <div className="no-print bg-white rounded-3xl p-4 border border-slate-200 shadow-sm grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
-            <div>
-              <input
-                type="text"
-                value={searchSiswa}
-                onChange={(e) => setSearchSiswa(e.target.value)}
-                placeholder="Cari nama atau NISN..."
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl"
-              />
-            </div>
-            <div>
-              <select
-                value={filterKelas}
-                onChange={(e) => setFilterKelas(e.target.value)}
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl"
-              >
-                <option value="">Semua Kelas</option>
-                {kelasList.map((k) => (
-                  <option key={k.id} value={k.nama_kelas}>
-                    {k.nama_kelas}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl"
-              >
-                <option value="">Semua Status</option>
-                <option value="diterima">Diterima</option>
-                <option value="tidak_hadir">Tidak Hadir</option>
-                <option value="tidak_mengambil">Tidak Mengambil</option>
-              </select>
-            </div>
-            <div>
-              <select
-                value={filterSumber}
-                onChange={(e) => setFilterSumber(e.target.value)}
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl"
-              >
-                <option value="">Semua Sumber</option>
-                <option value="siswa">Scan Siswa</option>
-                <option value="guru">Input Guru</option>
-              </select>
-            </div>
+          <div className="no-print micro-card rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <Input
+              label="Cari Siswa"
+              value={searchSiswa}
+              onChange={(e) => setSearchSiswa(e.target.value)}
+              placeholder="Cari nama atau NISN..."
+              leftIcon={<Search className="w-4 h-4" />}
+            />
+
+            <Select
+              label="Filter Kelas"
+              value={filterKelas}
+              onValueChange={(val) => setFilterKelas(val)}
+              placeholder="Semua Kelas"
+              options={[
+                { value: '', label: 'Semua Kelas' },
+                ...kelasList.map((k) => ({
+                  value: k.nama_kelas,
+                  label: k.nama_kelas,
+                })),
+              ]}
+            />
+
+            <Select
+              label="Filter Status"
+              value={filterStatus}
+              onValueChange={(val) => setFilterStatus(val)}
+              placeholder="Semua Status"
+              options={[
+                { value: '', label: 'Semua Status' },
+                { value: 'diterima', label: 'Diterima' },
+                { value: 'tidak_hadir', label: 'Tidak Hadir' },
+                { value: 'tidak_mengambil', label: 'Tidak Mengambil' },
+              ]}
+            />
+
+            <Select
+              label="Filter Sumber"
+              value={filterSumber}
+              onValueChange={(val) => setFilterSumber(val)}
+              placeholder="Semua Sumber"
+              options={[
+                { value: '', label: 'Semua Sumber' },
+                { value: 'siswa', label: 'Scan Siswa' },
+                { value: 'guru', label: 'Input Guru' },
+              ]}
+            />
           </div>
 
           {/* Table Transaksi Per Siswa */}
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="p-4 border-b border-slate-100 flex items-center justify-between text-xs text-slate-500 font-semibold uppercase">
+          <div className="micro-card rounded-2xl overflow-hidden">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between text-xs text-slate-600 font-semibold uppercase">
               <span>Total Catatan: {filteredReceipts.length} Transaksi</span>
             </div>
 
             {filteredReceipts.length === 0 ? (
-              <div className="p-12 text-center text-slate-400 text-sm">
+              <div className="p-12 text-center text-slate-500 text-sm">
                 Tidak ada data penerimaan pada tanggal dan filter ini.
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200">
+                  <thead className="bg-slate-50 font-bold uppercase tracking-wider text-slate-600 border-b border-slate-200">
                     <tr>
                       <th className="py-3 px-4">No</th>
                       <th className="py-3 px-4">Nama Siswa</th>
@@ -429,9 +426,9 @@ export default function LaporanPage() {
                   <tbody className="divide-y divide-slate-100">
                     {filteredReceipts.map((r, i) => (
                       <tr key={r.id} className="hover:bg-slate-50/80 transition">
-                        <td className="py-3 px-4 font-mono text-slate-400">{i + 1}</td>
+                        <td className="py-3 px-4 font-mono text-slate-500">{i + 1}</td>
                         <td className="py-3 px-4 font-bold text-slate-900">{r.nama_siswa}</td>
-                        <td className="py-3 px-4 font-mono text-slate-500">{r.nisn || '-'}</td>
+                        <td className="py-3 px-4 font-mono text-slate-600">{r.nisn || '-'}</td>
                         <td className="py-3 px-4 font-medium text-slate-700">{r.kelas}</td>
                         <td className="py-3 px-4">
                           <span
@@ -469,21 +466,17 @@ export default function LaporanPage() {
       {activeTab === 'kelas' && (
         <div className="space-y-4">
           {correctionFeedback && (
-            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-bold flex items-center justify-between">
-              <span>{correctionFeedback}</span>
-              <button
-                onClick={() => setCorrectionFeedback(null)}
-                className="underline text-emerald-800"
-              >
-                Tutup
-              </button>
-            </div>
+            <FeedbackBanner
+              type="success"
+              message={correctionFeedback}
+              onDismiss={() => setCorrectionFeedback(null)}
+            />
           )}
 
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="micro-card rounded-2xl overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200">
+                <thead className="bg-slate-50 font-bold uppercase tracking-wider text-slate-600 border-b border-slate-200">
                   <tr>
                     <th className="py-3 px-4">Nama Kelas</th>
                     <th className="py-3 px-4">Jurusan</th>
@@ -525,7 +518,7 @@ export default function LaporanPage() {
                                 setCorrAbsen(belum);
                                 setCorrReason('Koreksi rekapitulasi oleh Kepala Sekolah');
                               }}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-800 text-xs font-bold border border-purple-200 transition active:scale-95"
+                              className="micro-tap inline-flex items-center gap-1 min-h-[36px] px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-800 text-xs font-bold border border-purple-200 transition"
                             >
                               <Edit2 className="w-3 h-3" />
                               Edit Data
@@ -568,6 +561,7 @@ export default function LaporanPage() {
                 });
                 setEditingClass(null);
                 setCorrectionFeedback(res.message);
+                notify.success('Koreksi Disimpan', res.message);
                 await loadReportData();
               } finally {
                 setSubmittingCorrection(false);
@@ -615,7 +609,7 @@ export default function LaporanPage() {
           </form>
         )}
       </Modal>
-    </div>
+      </div>
+    </ProtectedRoute>
   );
 }
-
