@@ -10,6 +10,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { Select, Checkbox, Button, Alert } from '@/components/ui';
+import { cn } from '@/lib/utils';
 
 export type QualityConclusion = 'LAYAK_EDAR' | 'TOLAK_RETUR';
 
@@ -29,6 +30,7 @@ interface QualityCheckCardProps {
   onContainerChange: Dispatch<SetStateAction<string>>;
   photoUrl?: string | null;
   onPhotoChange?: (url: string | null) => void;
+  showPhotoCapture?: boolean;
   sampleError?: string;
 }
 
@@ -72,6 +74,7 @@ export function QualityCheckCard({
   onContainerChange,
   photoUrl,
   onPhotoChange,
+  showPhotoCapture = false,
   sampleError,
 }: QualityCheckCardProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -171,67 +174,69 @@ export function QualityCheckCard({
       </div>
 
       {/* 1-Tap Photo Capture for Food Sample & Food Bank SOP */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+      <div className={cn('grid gap-4 pt-1', showPhotoCapture ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1')}>
         {/* Photo Capture */}
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-3.5 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            {photoUrl ? (
-              <div className="relative h-14 w-14 rounded-xl overflow-hidden border border-slate-200 shrink-0 group">
-                <img
-                  src={photoUrl}
-                  alt="Sampel Makanan MBG"
-                  className="h-full w-full object-cover"
-                />
-                {!disabled && onPhotoChange && (
-                  <button
-                    type="button"
-                    onClick={() => onPhotoChange(null)}
-                    aria-label="Hapus foto sampel"
-                    className="absolute inset-0 bg-black/55 flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
-                  >
-                    <X className="w-4 h-4 text-white" />
-                  </button>
-                )}
+        {showPhotoCapture && (
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-3.5 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              {photoUrl ? (
+                <div className="relative h-14 w-14 rounded-xl overflow-hidden border border-slate-200 shrink-0 group">
+                  <img
+                    src={photoUrl}
+                    alt="Sampel Makanan MBG"
+                    className="h-full w-full object-cover"
+                  />
+                  {!disabled && onPhotoChange && (
+                    <button
+                      type="button"
+                      onClick={() => onPhotoChange(null)}
+                      aria-label="Hapus foto sampel"
+                      className="absolute inset-0 bg-black/55 flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
+                    >
+                      <X className="w-4 h-4 text-white" />
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-blue-50 text-brand-blue border border-brand-blue-100 shrink-0">
+                  <Camera className="w-5 h-5" aria-hidden="true" />
+                </div>
+              )}
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-slate-900">
+                  Foto Sampel Makanan
+                </p>
+                <p className="text-[11px] text-slate-600 truncate">
+                  {photoUrl ? 'Foto sampel tersimpan' : 'Dokumentasi fisik menu MBG hari ini'}
+                </p>
               </div>
-            ) : (
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-blue-50 text-brand-blue border border-brand-blue-100 shrink-0">
-                <Camera className="w-5 h-5" aria-hidden="true" />
+            </div>
+
+            {!disabled && onPhotoChange && (
+              <div className="shrink-0">
+                <input
+                  ref={fileInputRef}
+                  id="qc-sample-photo-input"
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={handlePhotoCapture}
+                  aria-label="Unggah atau ambil foto sampel makanan"
+                  className="sr-only"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  leftIcon={<Camera className="w-3.5 h-3.5 text-brand-blue" />}
+                >
+                  {photoUrl ? 'Ganti Foto' : 'Ambil Foto'}
+                </Button>
               </div>
             )}
-            <div className="min-w-0">
-              <p className="text-xs font-bold text-slate-900">
-                Foto Sampel Makanan
-              </p>
-              <p className="text-[11px] text-slate-600 truncate">
-                {photoUrl ? 'Foto sampel tersimpan' : 'Dokumentasi fisik menu MBG hari ini'}
-              </p>
-            </div>
           </div>
-
-          {!disabled && onPhotoChange && (
-            <div className="shrink-0">
-              <input
-                ref={fileInputRef}
-                id="qc-sample-photo-input"
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={handlePhotoCapture}
-                aria-label="Unggah atau ambil foto sampel makanan"
-                className="sr-only"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => fileInputRef.current?.click()}
-                leftIcon={<Camera className="w-3.5 h-3.5 text-brand-blue" />}
-              >
-                {photoUrl ? 'Ganti Foto' : 'Ambil Foto'}
-              </Button>
-            </div>
-          )}
-        </div>
+        )}
 
         {/* SOP Bank Makanan & Kesimpulan */}
         <div className="space-y-3 flex flex-col justify-center">
@@ -254,11 +259,10 @@ export function QualityCheckCard({
                 disabled={disabled}
                 onClick={() => onConclusionChange('LAYAK_EDAR')}
                 aria-pressed={conclusion === 'LAYAK_EDAR'}
-                className={`min-h-[44px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border micro-tap ${
-                  conclusion === 'LAYAK_EDAR'
-                    ? 'bg-brand-green text-white border-brand-green shadow-elev-1'
-                    : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-                }`}
+                className={`min-h-[44px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border micro-tap ${conclusion === 'LAYAK_EDAR'
+                  ? 'bg-brand-green text-white border-brand-green shadow-elev-1'
+                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                  }`}
               >
                 <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
                 LAYAK EDAR
@@ -268,11 +272,10 @@ export function QualityCheckCard({
                 disabled={disabled}
                 onClick={() => onConclusionChange('TOLAK_RETUR')}
                 aria-pressed={conclusion === 'TOLAK_RETUR'}
-                className={`min-h-[44px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border micro-tap ${
-                  conclusion === 'TOLAK_RETUR'
-                    ? 'bg-brand-red text-white border-brand-red shadow-elev-1'
-                    : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-                }`}
+                className={`min-h-[44px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border micro-tap ${conclusion === 'TOLAK_RETUR'
+                  ? 'bg-brand-red text-white border-brand-red shadow-elev-1'
+                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                  }`}
               >
                 <X className="w-4 h-4" aria-hidden="true" />
                 TOLAK / RETUR

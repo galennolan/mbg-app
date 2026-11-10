@@ -24,7 +24,17 @@ export function getJakartaDateString(date: Date = new Date()): string {
 export function formatWIBTime(dateString?: string | null): string {
   if (!dateString) return '-';
   try {
-    const d = new Date(dateString);
+    const trimmed = String(dateString).trim();
+    // If string is already in HH:mm or HH:mm:ss format, e.g. "09:30" or "09:30 WIB"
+    if (/^\d{1,2}:\d{2}(:\d{2})?(\s*WIB)?$/i.test(trimmed)) {
+      return trimmed.toUpperCase().includes('WIB') ? trimmed : `${trimmed} WIB`;
+    }
+
+    const d = new Date(trimmed);
+    if (isNaN(d.getTime())) {
+      return trimmed;
+    }
+
     return new Intl.DateTimeFormat('id-ID', {
       timeZone: 'Asia/Jakarta',
       hour: '2-digit',
@@ -33,7 +43,7 @@ export function formatWIBTime(dateString?: string | null): string {
       hour12: false
     }).format(d) + ' WIB';
   } catch (e) {
-    return dateString;
+    return String(dateString);
   }
 }
 
@@ -52,6 +62,30 @@ export function formatIndonesianDate(dateString?: string | null): string {
       month: 'long',
       day: 'numeric'
     }).format(d);
+  } catch (e) {
+    return dateString;
+  }
+}
+
+/**
+ * Format date string (YYYY-MM-DD or ISO) into dd-mm-yyyy: e.g. "10-11-2026"
+ */
+export function formatDateDDMMYYYY(dateString?: string | null): string {
+  if (!dateString) return '-';
+  try {
+    // Handle YYYY-MM-DD or ISO string
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString.trim())) {
+      const [yyyy, mm, dd] = dateString.trim().split('-');
+      return `${dd}-${mm}-${yyyy}`;
+    }
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return dateString;
+    return new Intl.DateTimeFormat('id-ID', {
+      timeZone: 'Asia/Jakarta',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    }).format(d).replace(/\//g, '-');
   } catch (e) {
     return dateString;
   }

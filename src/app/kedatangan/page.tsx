@@ -357,6 +357,7 @@ export default function KedatanganMBGPage() {
               onContainerChange={setStatusWadah}
               photoUrl={fotoSampelUrl}
               onPhotoChange={setFotoSampelUrl}
+              showPhotoCapture={false}
               sampleError={sampleError}
             />
 
@@ -392,7 +393,7 @@ export default function KedatanganMBGPage() {
               >
                 {session
                   ? 'Perbarui Status Kedatangan & QC'
-                  : 'Konfirmasi MBG Datang & Buka Distribusi'}
+                  : 'Lapor MBG Datang & Buka Distribusi'}
               </Button>
               <p className="text-center text-xs text-slate-600 mt-2">
                 Sistem akan otomatis memperbarui Master QR Code, mengaktifkan PIN Harian 4-Digit, dan
@@ -558,7 +559,7 @@ export default function KedatanganMBGPage() {
                   <h3 className="text-base font-black text-brand-navy">Menunggu Kedatangan MBG</h3>
                   <p className="text-xs text-slate-600 mt-1 max-w-xs mx-auto leading-relaxed">
                     Master QR Code dan PIN 4-Digit harian akan otomatis dibuat setelah Guru Piket menekan
-                    tombol <strong>Konfirmasi MBG Datang</strong>.
+                    tombol <strong>Lapor MBG Datang</strong>.
                   </p>
                 </div>
                 <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3.5 text-left space-y-1.5">
@@ -613,7 +614,7 @@ export default function KedatanganMBGPage() {
               leftIcon={<Utensils className="w-4 h-4" />}
               className="rounded-2xl shadow-elev-4"
             >
-              MBG Datang
+              Lapor MBG Datang
             </Button>
           </div>
         )}

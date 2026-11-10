@@ -17,6 +17,9 @@ interface AuthContextType {
     nama: string,
     no_hp: string
   ) => Promise<{ error?: string; student?: StudentAuthProfile }>;
+  loginAsDemoRole: (
+    role: 'super_admin' | 'guru_piket' | 'kepala_sekolah'
+  ) => Promise<void>;
   updateProfileName: (newName: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -31,6 +34,7 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   signIn: async () => ({}),
   signInStudent: async () => ({}),
+  loginAsDemoRole: async () => {},
   updateProfileName: async () => {},
   signOut: async () => {},
   refreshProfile: async () => {},
@@ -382,6 +386,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setStudent(null);
   };
 
+  const loginAsDemoRole = async (
+    targetRole: 'super_admin' | 'guru_piket' | 'kepala_sekolah'
+  ) => {
+    const profile = DEMO_STAFF_PROFILES[targetRole];
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(STUDENT_STORAGE_KEY);
+    }
+    setStudent(null);
+    setUser(profile);
+    saveStaffLocally(profile);
+  };
+
   const refreshProfile = async () => {
     if (authUser) {
       await fetchProfile(authUser.id, authUser.email || '');
@@ -399,6 +415,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loading,
         signIn,
         signInStudent,
+        loginAsDemoRole,
         updateProfileName,
         signOut,
         refreshProfile,

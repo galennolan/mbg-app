@@ -13,6 +13,7 @@ import { DistribusiMBG, Kelas } from '@/lib/types';
 import {
   formatWIBTime,
   formatIndonesianDate,
+  formatDateDDMMYYYY,
   getJakartaDateString,
 } from '@/lib/utils';
 import {
@@ -39,6 +40,8 @@ export default function LaporanPage() {
   const notify = useNotify();
   const canCorrectData =
     role === 'kepala_sekolah' || role === 'super_admin' || role === 'admin';
+  const isSuperAdmin = role === 'super_admin' || role === 'admin';
+  const showNISN = isSuperAdmin;
   const [activeTab, setActiveTab] = useState<'harian' | 'siswa' | 'kelas'>('harian');
 
   const [editingClass, setEditingClass] = useState<any | null>(null);
@@ -107,7 +110,13 @@ export default function LaporanPage() {
   }, [selectedDate]);
 
   // Calculations for Laporan Harian
-  const validDiterima = receipts.filter((r) => r.status_penerimaan === 'diterima');
+  const validDiterima = receipts
+    .filter((r) => r.status_penerimaan === 'diterima')
+    .sort((a, b) => {
+      const timeA = a.waktu_penerimaan ? new Date(a.waktu_penerimaan).getTime() : 0;
+      const timeB = b.waktu_penerimaan ? new Date(b.waktu_penerimaan).getTime() : 0;
+      return timeA - timeB;
+    });
   const tidakHadir = receipts.filter((r) => r.status_penerimaan === 'tidak_hadir');
   const tidakMengambil = receipts.filter((r) => r.status_penerimaan === 'tidak_mengambil');
 
@@ -139,40 +148,58 @@ export default function LaporanPage() {
 
   // Export to Excel (FR-22)
   const handleExportExcel = () => {
-    const dataToExport = filteredReceipts.map((r, i) => ({
-      No: i + 1,
-      'Tanggal Distribusi': selectedDate,
-      'Nama Siswa': r.nama_siswa,
-      NISN: r.nisn || '-',
-      Kelas: r.kelas,
-      Jurusan: r.jurusan,
-      Status: r.status_penerimaan.toUpperCase(),
-      'Jam Penerimaan': r.waktu_penerimaan ? formatWIBTime(r.waktu_penerimaan) : '-',
-      'Sumber Konfirmasi': r.sumber_pencatatan === 'siswa' ? 'Siswa (Scan)' : 'Guru',
-      'Petugas Pencatat': r.petugas?.nama || '-',
-    }));
+    const formattedDate = formatDateDDMMYYYY(selectedDate);
+    const dataToExport = filteredReceipts.map((r, i) => {
+      const row: Record<string, any> = {
+        No: i + 1,
+        'Tanggal Distribusi': formattedDate,
+        'Nama Siswa': r.nama_siswa,
+      };
+
+      if (showNISN) {
+        row['NISN'] = r.nisn || '-';
+      }
+
+      row['Kelas'] = r.kelas;
+      row['Jurusan'] = r.jurusan;
+      row['Status'] = r.status_penerimaan.toUpperCase();
+      row['Jam Penerimaan'] = r.waktu_penerimaan ? formatWIBTime(r.waktu_penerimaan) : '-';
+      row['Sumber Konfirmasi'] = r.sumber_pencatatan === 'siswa' ? 'Siswa (Scan)' : 'Guru';
+      row['Petugas Pencatat'] = r.petugas?.nama || '-';
+
+      return row;
+    });
 
     const ws = XLSX.utils.json_to_sheet(dataToExport);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Laporan MBG');
-    XLSX.writeFile(wb, `Laporan_MBG_${selectedDate}.xlsx`);
-    notify.success('Ekspor Excel Berhasil', `File Laporan_MBG_${selectedDate}.xlsx telah diunduh.`);
+    XLSX.writeFile(wb, `Laporan_MBG_${formattedDate}.xlsx`);
+    notify.success('Ekspor Excel Berhasil', `File Laporan_MBG_${formattedDate}.xlsx telah diunduh.`);
   };
 
   // Export to CSV (FR-24)
   const handleExportCSV = () => {
-    const dataToExport = filteredReceipts.map((r, i) => ({
-      No: i + 1,
-      Tanggal: selectedDate,
-      Nama: r.nama_siswa,
-      NISN: r.nisn || '',
-      Kelas: r.kelas,
-      Jurusan: r.jurusan,
-      Status: r.status_penerimaan,
-      Waktu: r.waktu_penerimaan ? formatWIBTime(r.waktu_penerimaan) : '',
-      Sumber: r.sumber_pencatatan,
-      Petugas: r.petugas?.nama || '',
-    }));
+    const formattedDate = formatDateDDMMYYYY(selectedDate);
+    const dataToExport = filteredReceipts.map((r, i) => {
+      const row: Record<string, any> = {
+        No: i + 1,
+        Tanggal: formattedDate,
+        Nama: r.nama_siswa,
+      };
+
+      if (showNISN) {
+        row['NISN'] = r.nisn || '';
+      }
+
+      row['Kelas'] = r.kelas;
+      row['Jurusan'] = r.jurusan;
+      row['Status'] = r.status_penerimaan;
+      row['Waktu'] = r.waktu_penerimaan ? formatWIBTime(r.waktu_penerimaan) : '';
+      row['Sumber'] = r.sumber_pencatatan;
+      row['Petugas'] = r.petugas?.nama || '';
+
+      return row;
+    });
 
     const ws = XLSX.utils.json_to_sheet(dataToExport);
     const csvOutput = XLSX.utils.sheet_to_csv(ws);
@@ -180,11 +207,11 @@ export default function LaporanPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `Laporan_MBG_${selectedDate}.csv`);
+    link.setAttribute('download', `Laporan_MBG_${formattedDate}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    notify.success('Ekspor CSV Berhasil', `File Laporan_MBG_${selectedDate}.csv telah diunduh.`);
+    notify.success('Ekspor CSV Berhasil', `File Laporan_MBG_${formattedDate}.csv telah diunduh.`);
   };
 
   // Print PDF
@@ -288,7 +315,7 @@ export default function LaporanPage() {
       {/* PRINT-ONLY HEADER */}
       <div className="hidden print:block text-center border-b pb-4 mb-6">
         <h2 className="text-xl font-bold uppercase">LAPORAN REKAPITULASI MAKAN BERGIZI GRATIS (MBG)</h2>
-        <p className="text-sm">Tanggal: {formatIndonesianDate(selectedDate)}</p>
+        <p className="text-sm">Tanggal: {formatDateDDMMYYYY(selectedDate)}</p>
       </div>
 
       {/* TAB 1: LAPORAN HARIAN (PRD 9.1) */}
@@ -415,7 +442,7 @@ export default function LaporanPage() {
                     <tr>
                       <th className="py-3 px-4">No</th>
                       <th className="py-3 px-4">Nama Siswa</th>
-                      <th className="py-3 px-4">NISN</th>
+                      {showNISN && <th className="py-3 px-4">NISN</th>}
                       <th className="py-3 px-4">Kelas</th>
                       <th className="py-3 px-4">Status</th>
                       <th className="py-3 px-4">Waktu (WIB)</th>
@@ -428,7 +455,7 @@ export default function LaporanPage() {
                       <tr key={r.id} className="hover:bg-slate-50/80 transition">
                         <td className="py-3 px-4 font-mono text-slate-500">{i + 1}</td>
                         <td className="py-3 px-4 font-bold text-slate-900">{r.nama_siswa}</td>
-                        <td className="py-3 px-4 font-mono text-slate-600">{r.nisn || '-'}</td>
+                        {showNISN && <td className="py-3 px-4 font-mono text-slate-600">{r.nisn || '-'}</td>}
                         <td className="py-3 px-4 font-medium text-slate-700">{r.kelas}</td>
                         <td className="py-3 px-4">
                           <span

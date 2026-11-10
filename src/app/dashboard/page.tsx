@@ -289,7 +289,7 @@ export default function DashboardPage() {
               className="micro-tap inline-flex items-center gap-1.5 min-h-[44px] px-4 py-2.5 rounded-xl bg-brand-blue hover:bg-brand-blue-700 text-white text-xs font-bold shadow-sm transition"
             >
               <Utensils className="w-3.5 h-3.5" />
-              Trigger MBG Datang
+              Lapor MBG Datang
             </Link>
           )}
         </div>

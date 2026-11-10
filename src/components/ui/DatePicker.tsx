@@ -2,7 +2,7 @@
 
 import React, { forwardRef, useId, type InputHTMLAttributes } from 'react';
 import { Calendar } from 'lucide-react';
-import { cn, formatIndonesianDate } from '@/lib/utils';
+import { cn, formatIndonesianDate, formatDateDDMMYYYY } from '@/lib/utils';
 import { Label } from './Label';
 import { FieldError, FieldHelper } from './FieldMessage';
 import type { BaseFieldProps } from './Input';
@@ -50,7 +50,7 @@ export const DatePicker = forwardRef<HTMLInputElement, DatePickerProps>(
 
     const formattedPreview =
       showFormattedBadge && typeof value === 'string' && value.length >= 10
-        ? formatIndonesianDate(value)
+        ? formatDateDDMMYYYY(value)
         : null;
 
     const inputControl = (
