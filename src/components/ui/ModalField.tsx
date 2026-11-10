@@ -51,10 +51,25 @@ export interface ModalInputProps extends InputHTMLAttributes<HTMLInputElement> {
   error?: string;
   icon?: React.ReactNode;
   leftIcon?: React.ReactNode;
+  showPasswordToggle?: boolean;
 }
 
 export const ModalInput = forwardRef<HTMLInputElement, ModalInputProps>(
-  ({ label, required, helperText, error, icon, leftIcon, className, id, ...props }, ref) => {
+  (
+    {
+      label,
+      required,
+      helperText,
+      error,
+      icon,
+      leftIcon,
+      showPasswordToggle,
+      className,
+      id,
+      ...props
+    },
+    ref
+  ) => {
     return (
       <Input
         ref={ref}
@@ -65,6 +80,7 @@ export const ModalInput = forwardRef<HTMLInputElement, ModalInputProps>(
         error={error}
         leftIcon={leftIcon}
         rightIcon={icon}
+        showPasswordToggle={showPasswordToggle}
         className={className}
         {...props}
       />

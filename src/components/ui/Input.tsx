@@ -1,7 +1,7 @@
 'use client';
 
-import React, { forwardRef, useId, type InputHTMLAttributes, type ReactNode } from 'react';
-import { Loader2 } from 'lucide-react';
+import React, { forwardRef, useId, useState, type InputHTMLAttributes, type ReactNode } from 'react';
+import { Loader2, Eye, EyeOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Label } from './Label';
 import { FieldError, FieldHelper } from './FieldMessage';
@@ -23,6 +23,7 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement>, BaseF
   loading?: boolean;
   labelBadge?: ReactNode;
   containerClassName?: string;
+  showPasswordToggle?: boolean;
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
@@ -41,7 +42,9 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
       containerClassName,
       id,
       disabled,
+      showPasswordToggle = true,
       'aria-describedby': externalDescribedBy,
+      type,
       ...props
     },
     ref
@@ -52,6 +55,18 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     const errorId = `${inputId}-error`;
     const helperId = `${inputId}-helper`;
 
+    const isPasswordField = type === 'password';
+    const [showPassword, setShowPassword] = useState(false);
+
+    const effectiveType = isPasswordField
+      ? showPassword
+        ? 'text'
+        : 'password'
+      : type;
+
+    const shouldShowPasswordToggle =
+      isPasswordField && showPasswordToggle && !rightIcon && !icon && !loading;
+
     const describedByParts = [
       externalDescribedBy,
       error ? errorId : null,
@@ -59,7 +74,21 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     ].filter(Boolean);
     const ariaDescribedBy = describedByParts.length > 0 ? describedByParts.join(' ') : undefined;
 
-    const trailingIcon = rightIcon || icon;
+    const trailingElement = shouldShowPasswordToggle ? (
+      <button
+        type="button"
+        onClick={() => setShowPassword((prev) => !prev)}
+        className="p-1 rounded-lg text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 transition-colors pointer-events-auto"
+        aria-label={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+        title={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+      >
+        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+      </button>
+    ) : (
+      rightIcon || icon
+    );
+
+    const hasTrailing = !!trailingElement || loading;
 
     const inputElement = (
       <div className="relative">
@@ -74,6 +103,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         <input
           ref={ref}
           id={inputId}
+          type={effectiveType}
           disabled={disabled || loading}
           aria-invalid={!!error || undefined}
           aria-required={required || undefined}
@@ -84,18 +114,21 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             'focus:bg-white focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/15 focus:outline-none',
             'disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed',
             leftIcon && 'pl-10',
-            (trailingIcon || loading) && 'pr-10',
+            hasTrailing && 'pr-10',
             error && 'border-red-500 focus:border-red-600 focus:ring-red-500/15',
             className
           )}
           {...props}
         />
-        {(trailingIcon || loading) && (
+        {hasTrailing && (
           <div
-            className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400"
-            aria-hidden="true"
+            className={cn(
+              'absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400',
+              shouldShowPasswordToggle ? 'pointer-events-auto' : 'pointer-events-none'
+            )}
+            aria-hidden={shouldShowPasswordToggle ? undefined : 'true'}
           >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin text-brand-blue" /> : trailingIcon}
+            {loading ? <Loader2 className="w-4 h-4 animate-spin text-brand-blue" /> : trailingElement}
           </div>
         )}
       </div>
