@@ -17,6 +17,15 @@ import {
   AttendanceStatus,
   CrmCampaign,
   StudentAuthProfile,
+  IncidentReport,
+  IncidentCategory,
+  IncidentSeverity,
+  IncidentStatus,
+  OmprengHealthStats,
+  PeakHourBucket,
+  DepartmentAbsorptionStats,
+  GradeLevelAbsorptionStats,
+  MonitoringOverviewData,
 } from './types';
 import { getJakartaDateString } from './utils';
 
@@ -173,6 +182,7 @@ export async function triggerMBGArrivalSession(params: {
   catatan?: string;
   idSekolah?: string;
   guruPiketId?: string;
+  namaSppgAktual?: string | null;
 }): Promise<OrganolepticTest> {
   const today = getJakartaDateString();
   const dateStr = today.replace(/-/g, '');
@@ -247,6 +257,7 @@ export async function triggerMBGArrivalSession(params: {
     catatan_kelayakan: params.catatan || null,
     kesimpulan: params.kesimpulan,
     catatan_kejadian_khusus: null,
+    nama_sppg_aktual: params.namaSppgAktual || null,
     dibuat_pada: new Date().toISOString(),
   };
 
@@ -269,6 +280,7 @@ export async function triggerMBGArrivalSession(params: {
       is_sampel_disimpan: params.isSampelDisimpan,
       catatan_kelayakan: params.catatan || null,
       kesimpulan: params.kesimpulan,
+      nama_sppg_aktual: params.namaSppgAktual || null,
     };
     if (validGuruPiketId) {
       payload.id_guru_piket = validGuruPiketId;
@@ -424,15 +436,95 @@ export async function updateOrganolepticQC(
 // TAHAP 2: MONITORING & REALTIME FEED
 // ============================================================
 
-export async function getMonitoringOverview(schoolId?: string): Promise<{
-  session: OrganolepticTest | null;
-  classes: ClassMonitoringStatus[];
-  liveActivities: LiveActivityFeedItem[];
-  totalPorsiTerserap: number;
-  totalPorsiSisa: number;
-  totalSiswaSemua: number;
-  persenSelesai: number;
-}> {
+export function aggregateByDepartment(classes: ClassMonitoringStatus[]): DepartmentAbsorptionStats[] {
+  const map: Record<string, { totalSiswa: number; jumlahHadir: number; jumlahAbsen: number }> = {};
+  for (const c of classes) {
+    const jur = c.jurusan || 'UMUM';
+    if (!map[jur]) {
+      map[jur] = { totalSiswa: 0, jumlahHadir: 0, jumlahAbsen: 0 };
+    }
+    map[jur].totalSiswa += c.total_siswa;
+    map[jur].jumlahHadir += c.jumlah_hadir;
+    map[jur].jumlahAbsen += c.jumlah_absen;
+  }
+  return Object.entries(map).map(([jurusan, data]) => ({
+    jurusan,
+    totalSiswa: data.totalSiswa,
+    jumlahHadir: data.jumlahHadir,
+    jumlahAbsen: data.jumlahAbsen,
+    persen: data.totalSiswa > 0 ? Math.round((data.jumlahHadir / data.totalSiswa) * 100) : 0,
+  })).sort((a, b) => b.persen - a.persen);
+}
+
+export function aggregateByGradeLevel(classes: ClassMonitoringStatus[]): GradeLevelAbsorptionStats[] {
+  const map: Record<string, { totalSiswa: number; jumlahHadir: number; jumlahAbsen: number }> = {};
+  for (const c of classes) {
+    const ting = c.tingkat || 'Lainnya';
+    if (!map[ting]) {
+      map[ting] = { totalSiswa: 0, jumlahHadir: 0, jumlahAbsen: 0 };
+    }
+    map[ting].totalSiswa += c.total_siswa;
+    map[ting].jumlahHadir += c.jumlah_hadir;
+    map[ting].jumlahAbsen += c.jumlah_absen;
+  }
+  return Object.entries(map).map(([tingkat, data]) => ({
+    tingkat,
+    totalSiswa: data.totalSiswa,
+    jumlahHadir: data.jumlahHadir,
+    jumlahAbsen: data.jumlahAbsen,
+    persen: data.totalSiswa > 0 ? Math.round((data.jumlahHadir / data.totalSiswa) * 100) : 0,
+  })).sort((a, b) => a.tingkat.localeCompare(b.tingkat));
+}
+
+export function calculatePeakHours(timestamps: (string | null | undefined)[]): PeakHourBucket[] {
+  const buckets = [
+    { label: '< 09:30', minMins: 0, maxMins: 9 * 60 + 30, count: 0 },
+    { label: '09:30 - 09:45', minMins: 9 * 60 + 30, maxMins: 9 * 60 + 45, count: 0 },
+    { label: '09:45 - 10:00', minMins: 9 * 60 + 45, maxMins: 10 * 60, count: 0 },
+    { label: '10:00 - 10:15', minMins: 10 * 60, maxMins: 10 * 60 + 15, count: 0 },
+    { label: '10:15 - 10:30', minMins: 10 * 60 + 15, maxMins: 10 * 60 + 30, count: 0 },
+    { label: '> 10:30', minMins: 10 * 60 + 30, maxMins: 24 * 60, count: 0 },
+  ];
+
+  let totalValid = 0;
+  for (const ts of timestamps) {
+    if (!ts) continue;
+    let mins = -1;
+    if (ts.includes('T')) {
+      const d = new Date(ts);
+      if (!isNaN(d.getTime())) {
+        mins = d.getHours() * 60 + d.getMinutes();
+      }
+    } else if (ts.includes(':')) {
+      const parts = ts.split(':');
+      const h = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      if (!isNaN(h) && !isNaN(m)) {
+        mins = h * 60 + m;
+      }
+    }
+
+    if (mins >= 0) {
+      totalValid++;
+      for (const b of buckets) {
+        if (mins >= b.minMins && mins < b.maxMins) {
+          b.count++;
+          break;
+        }
+      }
+    }
+  }
+
+  const maxCount = Math.max(...buckets.map((b) => b.count), 0);
+  return buckets.map((b) => ({
+    label: b.label,
+    count: b.count,
+    percentage: totalValid > 0 ? Math.round((b.count / totalValid) * 100) : 0,
+    isPeak: b.count > 0 && b.count === maxCount,
+  }));
+}
+
+export async function getMonitoringOverview(schoolId?: string): Promise<MonitoringOverviewData> {
   const today = getJakartaDateString();
   const targetSchoolId = getActiveSchoolIdFromStorage(schoolId);
   const session = await getTodayOrganolepticSession(targetSchoolId);
@@ -558,6 +650,33 @@ export async function getMonitoringOverview(schoolId?: string): Promise<{
   const persenSelesai =
     totalSiswaSemua > 0 ? Math.round((totalPorsiTerserap / totalSiswaSemua) * 100) : 0;
 
+  // Real Ompreng Health Stats from daily_attendances
+  let totalOmprengUtuh = 0;
+  let totalOmprengRusak = 0;
+  let totalOmprengHilang = 0;
+
+  attendances.forEach((da: any) => {
+    totalOmprengUtuh += Number(da.ompreng_utuh || 0);
+    totalOmprengRusak += Number(da.ompreng_rusak || 0);
+    totalOmprengHilang += Number(da.ompreng_hilang || 0);
+  });
+
+  const totalOmprengKembali = totalOmprengUtuh + totalOmprengRusak + totalOmprengHilang;
+  const hasReturned = totalOmprengKembali > 0;
+  const omprengStats: OmprengHealthStats = {
+    utuh: totalOmprengUtuh,
+    rusak: totalOmprengRusak,
+    hilang: totalOmprengHilang,
+    totalKembali: totalOmprengKembali,
+    hasReturned,
+  };
+
+  const deptStats = aggregateByDepartment(classes);
+  const gradeStats = aggregateByGradeLevel(classes);
+
+  const timestamps = liveLogs.map((l: any) => l.waktu_ambil || l.waktu);
+  const peakHours = calculatePeakHours(timestamps);
+
   return {
     session,
     classes,
@@ -566,6 +685,10 @@ export async function getMonitoringOverview(schoolId?: string): Promise<{
     totalPorsiSisa,
     totalSiswaSemua,
     persenSelesai,
+    omprengStats,
+    peakHours,
+    deptStats,
+    gradeStats,
   };
 }
 
@@ -2742,4 +2865,375 @@ export async function uploadFileWithFallback(params: {
   }
 
   return params.dataUrl;
+}
+
+// ============================================================
+// SPPG MITRA EDIT HELPERS
+// ============================================================
+
+export async function updateSchoolSppg(schoolId: string, namaSppg: string): Promise<boolean> {
+  const cleanName = namaSppg.trim();
+  if (!cleanName) throw new Error('Nama mitra SPPG tidak boleh kosong');
+
+  try {
+    const { error } = await supabase
+      .from('schools')
+      .update({ nama_sppg_mitra: cleanName, diperbarui_pada: new Date().toISOString() })
+      .eq('id', schoolId);
+    if (error) console.warn('Supabase update school sppg notice:', error.message);
+  } catch (err) {
+    console.warn('updateSchoolSppg exception:', err);
+  }
+
+  // Update local storage SEED_SCHOOL / mbg_custom_schools
+  const schools = getLocalItem<School[]>('mbg_custom_schools', SEED_SCHOOLS);
+  const updatedSchools = schools.map((s) =>
+    s.id === schoolId ? { ...s, nama_sppg_mitra: cleanName } : s
+  );
+  setLocalItem('mbg_custom_schools', updatedSchools);
+
+  const activeSchool = getLocalItem<School>('mbg_school_profile', SEED_SCHOOL);
+  if (activeSchool.id === schoolId) {
+    setLocalItem('mbg_school_profile', { ...activeSchool, nama_sppg_mitra: cleanName });
+  }
+
+  // Also sync current active session if applicable
+  const activeSession = getLocalItem<OrganolepticTest | null>('mbg_active_session', null);
+  if (activeSession && activeSession.id_sekolah === schoolId) {
+    const updatedSess = { ...activeSession, nama_sppg_aktual: cleanName };
+    setLocalItem('mbg_active_session', updatedSess);
+    setLocalItem(`mbg_today_session_${activeSession.tanggal}`, updatedSess);
+    setLocalItem(`mbg_today_session_${activeSession.tanggal}_${schoolId}`, updatedSess);
+  }
+
+  logActivity('update_school_sppg', 'schools', schoolId, null, { nama_sppg_mitra: cleanName }, null);
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent('mbg-school-updated', { detail: { id: schoolId, nama_sppg_mitra: cleanName } })
+    );
+    window.dispatchEvent(new CustomEvent('mbg-session-updated'));
+  }
+
+  return true;
+}
+
+export async function updateSessionSppg(sessionId: string, namaSppg: string): Promise<boolean> {
+  const cleanName = namaSppg.trim();
+  if (!cleanName) throw new Error('Nama mitra SPPG tidak boleh kosong');
+
+  try {
+    const { error } = await supabase
+      .from('organoleptic_tests')
+      .update({ nama_sppg_aktual: cleanName })
+      .eq('id', sessionId);
+    if (error) console.warn('Supabase update session sppg notice:', error.message);
+  } catch (err) {
+    console.warn('updateSessionSppg exception:', err);
+  }
+
+  // Update local session cache
+  const activeSession = getLocalItem<OrganolepticTest | null>('mbg_active_session', null);
+  if (activeSession && activeSession.id === sessionId) {
+    const updated = { ...activeSession, nama_sppg_aktual: cleanName };
+    setLocalItem('mbg_active_session', updated);
+    setLocalItem(`mbg_today_session_${activeSession.tanggal}`, updated);
+    setLocalItem(`mbg_today_session_${activeSession.tanggal}_${activeSession.id_sekolah}`, updated);
+  }
+
+  logActivity('update_session_sppg', 'organoleptic_tests', sessionId, null, { nama_sppg_aktual: cleanName }, null);
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('mbg-session-updated'));
+  }
+
+  return true;
+}
+
+// ============================================================
+// INCIDENT REPORTS (KEJADIAN KHUSUS) CRUD & SERVICES
+// ============================================================
+
+export async function getIncidentReports(filters?: {
+  schoolId?: string;
+  startDate?: string;
+  endDate?: string;
+  kategori?: string;
+  severity?: string;
+  status?: string;
+}): Promise<IncidentReport[]> {
+  const targetSchoolId = getActiveSchoolIdFromStorage(filters?.schoolId);
+  try {
+    let query = supabase
+      .from('incident_reports')
+      .select('*')
+      .order('tanggal', { ascending: false })
+      .order('waktu_kejadian', { ascending: false });
+
+    if (targetSchoolId) {
+      query = query.eq('id_sekolah', targetSchoolId);
+    }
+    if (filters?.startDate) {
+      query = query.gte('tanggal', filters.startDate);
+    }
+    if (filters?.endDate) {
+      query = query.lte('tanggal', filters.endDate);
+    }
+    if (filters?.kategori && filters.kategori !== 'semua') {
+      query = query.eq('kategori', filters.kategori);
+    }
+    if (filters?.severity && filters.severity !== 'semua') {
+      query = query.eq('tingkat_keparahan', filters.severity);
+    }
+    if (filters?.status && filters.status !== 'semua') {
+      query = query.eq('status_penyelesaian', filters.status);
+    }
+
+    const { data, error } = await query;
+    if (!error && data && data.length > 0) {
+      setLocalItem(`mbg_incidents_${targetSchoolId}`, data);
+      return data as IncidentReport[];
+    }
+  } catch (err) {
+    console.warn('Supabase getIncidentReports notice:', err);
+  }
+
+  // Fallback to local storage (Offline-First)
+  let localItems = getLocalItem<IncidentReport[]>(`mbg_incidents_${targetSchoolId}`, []);
+  if (localItems.length === 0) {
+    const allLocal = getLocalItem<IncidentReport[]>('mbg_incidents_all', []);
+    localItems = allLocal.filter((item) => !targetSchoolId || item.id_sekolah === targetSchoolId);
+  }
+
+  // Seed default dummy incidents if completely empty for seamless preview
+  if (localItems.length === 0) {
+    const today = getJakartaDateString();
+    const demoIncidents: IncidentReport[] = [
+      {
+        id: 'inc-demo-1',
+        id_sekolah: targetSchoolId || SEED_SCHOOL.id,
+        tanggal: today,
+        waktu_kejadian: '10:45:00',
+        judul_kejadian: 'Keterlambatan Pengiriman 15 Menit',
+        kategori: 'keterlambatan',
+        tingkat_keparahan: 'rendah',
+        deskripsi: 'Armada pengantar SPPG tertahan antrean lalu lintas di Jalan Slamet Riyadi karena proyek perbaikan jalan.',
+        tindak_lanjut: 'Guru piket mengontak driver SPPG dan berkoordinasi dengan wali kelas agar pembagian makanan disesuaikan saat istirahat kedua.',
+        petugas_pelapor_id: null,
+        nama_petugas_pelapor: 'Drs. Joko Suwito (Guru Piket)',
+        status_penyelesaian: 'selesai',
+        dibuat_pada: new Date().toISOString(),
+        diperbarui_pada: new Date().toISOString(),
+      },
+      {
+        id: 'inc-demo-2',
+        id_sekolah: targetSchoolId || SEED_SCHOOL.id,
+        tanggal: today,
+        waktu_kejadian: '11:15:00',
+        judul_kejadian: '3 Tutup Ompreng Retak di Rombel XII RPL 1',
+        kategori: 'kemasan_rusak',
+        tingkat_keparahan: 'sedang',
+        deskripsi: 'Saat serah terima di kelas, ditemukan 3 wadah ompreng dengan pengait pecah sehingga kuah sayur merembes ke tepi baki.',
+        tindak_lanjut: 'Ompreng langsung diganti dengan stok cadangan higienis di posko piket. Nomor seri ompreng dicatat untuk klaim retur ke SPPG.',
+        petugas_pelapor_id: null,
+        nama_petugas_pelapor: 'Siti Rahmawati, S.Pd',
+        status_penyelesaian: 'selesai',
+        dibuat_pada: new Date().toISOString(),
+        diperbarui_pada: new Date().toISOString(),
+      },
+    ];
+    setLocalItem(`mbg_incidents_${targetSchoolId}`, demoIncidents);
+    localItems = demoIncidents;
+  }
+
+  return localItems.filter((item) => {
+    if (filters?.startDate && item.tanggal < filters.startDate) return false;
+    if (filters?.endDate && item.tanggal > filters.endDate) return false;
+    if (filters?.kategori && filters.kategori !== 'semua' && item.kategori !== filters.kategori) return false;
+    if (filters?.severity && filters.severity !== 'semua' && item.tingkat_keparahan !== filters.severity) return false;
+    if (filters?.status && filters.status !== 'semua' && item.status_penyelesaian !== filters.status) return false;
+    return true;
+  });
+}
+
+export async function createIncidentReport(
+  payload: Omit<IncidentReport, 'id' | 'dibuat_pada' | 'diperbarui_pada'>
+): Promise<IncidentReport> {
+  const nowIso = new Date().toISOString();
+  const targetSchoolId = getActiveSchoolIdFromStorage(payload.id_sekolah);
+  const newId =
+    typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `inc-${Date.now()}`;
+
+  const record: IncidentReport = {
+    ...payload,
+    id: newId,
+    id_sekolah: targetSchoolId,
+    dibuat_pada: nowIso,
+    diperbarui_pada: nowIso,
+  };
+
+  try {
+    const { data, error } = await supabase
+      .from('incident_reports')
+      .insert({
+        id: newId,
+        id_sekolah: targetSchoolId,
+        id_uji: payload.id_uji || null,
+        tanggal: payload.tanggal,
+        waktu_kejadian: payload.waktu_kejadian,
+        judul_kejadian: payload.judul_kejadian,
+        kategori: payload.kategori,
+        tingkat_keparahan: payload.tingkat_keparahan,
+        deskripsi: payload.deskripsi,
+        tindak_lanjut: payload.tindak_lanjut || null,
+        petugas_pelapor_id: payload.petugas_pelapor_id || null,
+        nama_petugas_pelapor: payload.nama_petugas_pelapor || null,
+        status_penyelesaian: payload.status_penyelesaian,
+      })
+      .select()
+      .maybeSingle();
+
+    if (!error && data) {
+      record.id = data.id;
+    }
+  } catch (err) {
+    console.warn('Supabase createIncidentReport notice:', err);
+  }
+
+  // Local storage caching
+  const key = `mbg_incidents_${targetSchoolId}`;
+  const existing = getLocalItem<IncidentReport[]>(key, []);
+  setLocalItem(key, [record, ...existing]);
+
+  const allKey = 'mbg_incidents_all';
+  const allExisting = getLocalItem<IncidentReport[]>(allKey, []);
+  setLocalItem(allKey, [record, ...allExisting.filter((i) => i.id !== record.id)]);
+
+  logActivity(
+    'create_incident_report',
+    'incident_reports',
+    record.id,
+    null,
+    record,
+    payload.petugas_pelapor_id || null
+  );
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('mbg-incidents-updated', { detail: record }));
+  }
+
+  return record;
+}
+
+export async function updateIncidentReport(
+  id: string,
+  payload: Partial<IncidentReport>
+): Promise<IncidentReport> {
+  const nowIso = new Date().toISOString();
+  let updatedRecord: IncidentReport | null = null;
+
+  try {
+    const { data, error } = await supabase
+      .from('incident_reports')
+      .update({
+        ...payload,
+        diperbarui_pada: nowIso,
+      })
+      .eq('id', id)
+      .select()
+      .maybeSingle();
+
+    if (!error && data) {
+      updatedRecord = data as IncidentReport;
+    }
+  } catch (err) {
+    console.warn('Supabase updateIncidentReport notice:', err);
+  }
+
+  // Fallback to local storage update
+  const allKey = 'mbg_incidents_all';
+  const allItems = getLocalItem<IncidentReport[]>(allKey, []);
+  const targetItem = allItems.find((i) => i.id === id);
+  if (!updatedRecord) {
+    if (targetItem) {
+      updatedRecord = { ...targetItem, ...payload, diperbarui_pada: nowIso };
+    } else {
+      updatedRecord = {
+        id,
+        id_sekolah: payload.id_sekolah || SEED_SCHOOL.id,
+        tanggal: payload.tanggal || getJakartaDateString(),
+        waktu_kejadian: payload.waktu_kejadian || '10:00:00',
+        judul_kejadian: payload.judul_kejadian || 'Kejadian MBG',
+        kategori: payload.kategori || 'lainnya',
+        tingkat_keparahan: payload.tingkat_keparahan || 'sedang',
+        deskripsi: payload.deskripsi || '',
+        tindak_lanjut: payload.tindak_lanjut || null,
+        petugas_pelapor_id: payload.petugas_pelapor_id || null,
+        nama_petugas_pelapor: payload.nama_petugas_pelapor || null,
+        status_penyelesaian: payload.status_penyelesaian || 'menunggu',
+        dibuat_pada: nowIso,
+        diperbarui_pada: nowIso,
+        ...payload,
+      };
+    }
+  }
+
+  const schoolKey = `mbg_incidents_${updatedRecord.id_sekolah}`;
+  const schoolItems = getLocalItem<IncidentReport[]>(schoolKey, []);
+  setLocalItem(
+    schoolKey,
+    schoolItems.map((i) => (i.id === id ? updatedRecord! : i))
+  );
+  setLocalItem(
+    allKey,
+    allItems.map((i) => (i.id === id ? updatedRecord! : i))
+  );
+
+  logActivity(
+    'update_incident_report',
+    'incident_reports',
+    id,
+    targetItem,
+    updatedRecord,
+    payload.petugas_pelapor_id || null
+  );
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('mbg-incidents-updated', { detail: updatedRecord }));
+  }
+
+  return updatedRecord;
+}
+
+export async function deleteIncidentReport(id: string): Promise<boolean> {
+  try {
+    const { error } = await supabase.from('incident_reports').delete().eq('id', id);
+    if (error) console.warn('Supabase deleteIncidentReport notice:', error.message);
+  } catch (err) {
+    console.warn('deleteIncidentReport exception:', err);
+  }
+
+  const allKey = 'mbg_incidents_all';
+  const allItems = getLocalItem<IncidentReport[]>(allKey, []);
+  const target = allItems.find((i) => i.id === id);
+  setLocalItem(
+    allKey,
+    allItems.filter((i) => i.id !== id)
+  );
+
+  if (target) {
+    const schoolKey = `mbg_incidents_${target.id_sekolah}`;
+    const schoolItems = getLocalItem<IncidentReport[]>(schoolKey, []);
+    setLocalItem(
+      schoolKey,
+      schoolItems.filter((i) => i.id !== id)
+    );
+    logActivity('delete_incident_report', 'incident_reports', id, target, null, null);
+  }
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('mbg-incidents-updated', { detail: { id, deleted: true } }));
+  }
+
+  return true;
 }

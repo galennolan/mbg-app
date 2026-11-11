@@ -63,6 +63,7 @@ export interface DistribusiMBG {
   waktu_kedatangan: string | null;
   waktu_input: string | null;
   petugas_id: string | null;
+  nama_sppg_aktual?: string | null;
   keterangan: string | null;
   dibuat_pada: string;
   diperbarui_pada: string;
@@ -109,7 +110,37 @@ export interface OrganolepticTest {
   catatan_kelayakan: string | null;
   kesimpulan: OrganolepticKesimpulan;
   catatan_kejadian_khusus: string | null;
+  nama_sppg_aktual?: string | null;
   dibuat_pada: string;
+}
+
+export type IncidentCategory =
+  | 'keterlambatan'
+  | 'kualitas_makanan'
+  | 'kemasan_rusak'
+  | 'alergi_siswa'
+  | 'lainnya';
+
+export type IncidentSeverity = 'rendah' | 'sedang' | 'tinggi' | 'kritis';
+
+export type IncidentStatus = 'menunggu' | 'diproses' | 'selesai';
+
+export interface IncidentReport {
+  id: string;
+  id_sekolah: string;
+  id_uji?: string | null;
+  tanggal: string;
+  waktu_kejadian: string;
+  judul_kejadian: string;
+  kategori: IncidentCategory;
+  tingkat_keparahan: IncidentSeverity;
+  deskripsi: string;
+  tindak_lanjut?: string | null;
+  petugas_pelapor_id?: string | null;
+  nama_petugas_pelapor?: string | null;
+  status_penyelesaian: IncidentStatus;
+  dibuat_pada: string;
+  diperbarui_pada: string;
 }
 
 export type AttendanceStatus = 'MENUNGGU' | 'SUDAH_TERIMA_MBG' | 'OMPRENG_KEMBALI';
@@ -209,3 +240,50 @@ export interface RiwayatAktivitas {
   waktu_aktivitas: string;
   pengguna?: Pengguna;
 }
+
+// Chart Visualization Types
+export interface OmprengHealthStats {
+  utuh: number;
+  rusak: number;
+  hilang: number;
+  totalKembali: number;
+  hasReturned: boolean;
+}
+
+export interface PeakHourBucket {
+  label: string;
+  count: number;
+  percentage: number;
+  isPeak: boolean;
+}
+
+export interface DepartmentAbsorptionStats {
+  jurusan: string;
+  totalSiswa: number;
+  jumlahHadir: number;
+  jumlahAbsen: number;
+  persen: number;
+}
+
+export interface GradeLevelAbsorptionStats {
+  tingkat: string;
+  totalSiswa: number;
+  jumlahHadir: number;
+  jumlahAbsen: number;
+  persen: number;
+}
+
+export interface MonitoringOverviewData {
+  session: OrganolepticTest | null;
+  classes: ClassMonitoringStatus[];
+  liveActivities: LiveActivityFeedItem[];
+  totalPorsiTerserap: number;
+  totalPorsiSisa: number;
+  totalSiswaSemua: number;
+  persenSelesai: number;
+  omprengStats: OmprengHealthStats;
+  peakHours: PeakHourBucket[];
+  deptStats: DepartmentAbsorptionStats[];
+  gradeStats: GradeLevelAbsorptionStats[];
+}
+

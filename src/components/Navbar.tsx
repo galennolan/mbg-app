@@ -230,52 +230,6 @@ export default function Navbar() {
           </div>
         </div>
 
-        {/* Theme Switcher */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-[11px] font-bold text-sky-200/70 uppercase tracking-wider">
-            <span className="flex items-center gap-1.5">
-              <Sparkles className="h-3.5 w-3.5 text-amber-400" aria-hidden="true" />
-              Tampilan Aplikasi
-            </span>
-          </div>
-
-          <div className="grid grid-cols-3 gap-2 rounded-2xl border border-white/10 bg-slate-950/50 p-1.5">
-            <button
-              type="button"
-              onClick={() => setTheme('light')}
-              className={`min-h-[44px] flex flex-col items-center justify-center gap-1 rounded-xl py-2 px-3 text-[10px] font-bold transition-all micro-tap ${theme === 'light'
-                ? 'bg-brand-blue text-white shadow-elev-2'
-                : 'text-sky-300 hover:bg-surface-card/5 hover:text-white'
-                }`}
-            >
-              <Sun className="h-4 w-4" aria-hidden="true" />
-              Light
-            </button>
-            <button
-              type="button"
-              onClick={() => setTheme('dark')}
-              className={`min-h-[44px] flex flex-col items-center justify-center gap-1 rounded-xl py-2 px-3 text-[10px] font-bold transition-all micro-tap ${theme === 'dark'
-                ? 'bg-brand-blue text-white shadow-elev-2'
-                : 'text-sky-300 hover:bg-surface-card/5 hover:text-white'
-                }`}
-            >
-              <Moon className="h-4 w-4" aria-hidden="true" />
-              Dark
-            </button>
-            <button
-              type="button"
-              onClick={() => setTheme('system')}
-              className={`min-h-[44px] flex flex-col items-center justify-center gap-1 rounded-xl py-2 px-3 text-[10px] font-bold transition-all micro-tap ${theme === 'system'
-                ? 'bg-brand-blue text-white shadow-elev-2'
-                : 'text-sky-300 hover:bg-surface-card/5 hover:text-white'
-                }`}
-            >
-              <Monitor className="h-4 w-4" aria-hidden="true" />
-              System
-            </button>
-          </div>
-        </div>
-
         {/* Segmented Control Role Switcher */}
         <div className="space-y-2">
           <div className="flex items-center justify-between text-[11px] font-bold text-sky-200/70 uppercase tracking-wider">
@@ -490,12 +444,12 @@ export default function Navbar() {
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5">
-                    <span className="block text-sm font-black leading-tight tracking-wider text-white group-hover:text-cyan-200 transition">
+                    <span className="block text-xs sm:text-sm font-black leading-tight tracking-wider text-white group-hover:text-cyan-200 transition truncate max-w-[120px] sm:max-w-none">
                       NUTRI KAMPUS HUB
                     </span>
-                    <ExternalLink className="w-3 h-3 text-sky-300 opacity-70 group-hover:opacity-100 transition" />
+                    <ExternalLink className="w-3 h-3 text-sky-300 opacity-70 group-hover:opacity-100 transition hidden xs:block" />
                   </div>
-                  <span className="block text-[10px] font-normal leading-none text-sky-200">
+                  <span className="block text-[9px] sm:text-[10px] font-normal leading-none text-sky-200 opacity-80 hidden md:block">
                     Universitas Bina Sarana Informatika Surakarta
                   </span>
                 </div>
@@ -503,17 +457,17 @@ export default function Navbar() {
             </div>
 
             {/* Desktop Navigation */}
-            <div className="hidden items-center space-x-1 lg:flex">
-              <Link
-                href="/"
-                className={`min-h-[40px] flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold micro-tap ${isActive('/')
-                  ? 'bg-brand-blue text-white shadow-sm'
-                  : 'text-sky-200 hover:bg-surface-card/10 hover:text-white'
-                  }`}
-              >
-                <QrCode className="h-3.5 w-3.5" aria-hidden="true" />
-                Portal Siswa (Scan)
-              </Link>
+              <div className="hidden lg:flex items-center space-x-0.5 xl:space-x-1">
+                <Link
+                  href="/"
+                  className={`min-h-[40px] flex items-center gap-1.5 rounded-xl px-2 xl:px-3 py-2 text-[11px] xl:text-xs font-bold micro-tap ${isActive('/')
+                    ? 'bg-brand-blue text-white shadow-sm'
+                    : 'text-sky-200 hover:bg-white/10 hover:text-white'
+                    }`}
+                >
+                  <QrCode className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span className="hidden xl:inline">Portal Siswa</span>
+                </Link>
 
               {isStaff && (
                 <>
@@ -656,42 +610,6 @@ export default function Navbar() {
 
             {/* Right Action: Active User Icon + Profile, Login & Logout Dropdown */}
             <div className="flex items-center gap-2 sm:gap-3">
-              <div className="flex items-center rounded-xl border border-white/10 bg-slate-950/50 p-1 text-[11px] font-bold">
-                <button
-                  type="button"
-                  onClick={() => setTheme('light')}
-                  className={`rounded-lg p-2 transition-all ${theme === 'light'
-                    ? 'bg-brand-blue text-white shadow-sm'
-                    : 'text-sky-300 hover:text-white'
-                    }`}
-                  title="Light Mode"
-                >
-                  <Sun className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTheme('dark')}
-                  className={`rounded-lg p-2 transition-all ${theme === 'dark'
-                    ? 'bg-brand-blue text-white shadow-sm'
-                    : 'text-sky-300 hover:text-white'
-                    }`}
-                  title="Dark Mode"
-                >
-                  <Moon className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTheme('system')}
-                  className={`rounded-lg p-2 transition-all ${theme === 'system'
-                    ? 'bg-brand-blue text-white shadow-sm'
-                    : 'text-sky-300 hover:text-white'
-                    }`}
-                  title="System Theme"
-                >
-                  <Monitor className="h-4 w-4" />
-                </button>
-              </div>
-
               <div className="hidden items-center rounded-xl border border-white/15 bg-brand-navy p-1 text-[11px] font-bold xl:flex">
                 <button
                   type="button"
@@ -770,189 +688,209 @@ export default function Navbar() {
         </div>
       </nav>
 
-      {/* USER PROFILE, LOGIN & LOGOUT DROPDOWN PORTAL */}
-      {mounted &&
-        userDropdownOpen &&
-        createPortal(
-          <div className="fixed inset-0 z-overlay">
-            <div
-              className="fixed inset-0 bg-slate-950/25"
-              onClick={() => setUserDropdownOpen(false)}
-              aria-hidden="true"
-            />
-
-            <div className="fixed inset-x-0 top-[68px] z-modal mx-auto max-w-7xl px-3 sm:px-6 lg:px-8 pointer-events-none flex justify-end">
-              <div
-                className="pointer-events-auto w-full max-w-[340px] overflow-hidden rounded-3xl border border-slate-200 bg-surface-card text-text-primary shadow-elev-5 animate-slide-up"
-                role="menu"
-                aria-label="Menu Akun dan Profil Pengguna"
-              >
-                <div className="bg-brand-navy-dark p-4 text-white">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/20 bg-brand-blue text-white">
-                        <User className="h-5 w-5" aria-hidden="true" />
-                        <span
-                          className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-slate-900 ${isLoggedIn ? 'bg-emerald-400' : 'bg-amber-400'
-                            }`}
-                        />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-black text-white leading-snug">
-                          {displayName}
-                        </p>
-                        <p className="truncate text-[11px] font-mono text-sky-200/90 mt-0.5">
-                          {displaySub}
-                        </p>
-                        <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
-                          <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/20 border border-emerald-400/40 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
-                            <ShieldCheck className="h-3 w-3" aria-hidden="true" />
-                            {displayRoleLabel}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => setUserDropdownOpen(false)}
-                      className="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-xl text-sky-200/80 hover:bg-surface-card/10 hover:text-white micro-tap"
-                      aria-label="Tutup dropdown profil"
-                    >
-                      <X className="h-4 w-4" aria-hidden="true" />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="p-4 space-y-4 bg-surface-card">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
-                        Simulasi Peran Cepat (RBAC)
-                      </span>
-                      <span className="text-[10px] font-bold text-brand-blue">1-Klik Aktif</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          await loginAsDemoRole('super_admin');
-                          setUserDropdownOpen(false);
-                          notify.info('Beralih ke peran Super Admin (UBSI)', 'Mode RBAC');
-                        }}
-                        className={`min-h-[40px] flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-[11px] font-bold text-left border micro-tap ${role === 'super_admin' && !isStudent
-                          ? 'bg-amber-50 border-amber-400 text-amber-900'
-                          : 'bg-surface-canvas border-slate-200 text-slate-700 hover:bg-slate-100'
-                          }`}
-                      >
-                        <ShieldCheck className="w-3.5 h-3.5 text-amber-600 shrink-0" aria-hidden="true" />
-                        <span className="truncate">Super Admin</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          await loginAsDemoRole('guru_piket');
-                          setUserDropdownOpen(false);
-                          notify.info('Beralih ke peran Guru Piket', 'Mode RBAC');
-                        }}
-                        className={`min-h-[40px] flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-[11px] font-bold text-left border micro-tap ${role === 'guru_piket' && !isStudent
-                          ? 'bg-brand-blue-50 border-brand-blue text-brand-blue'
-                          : 'bg-surface-canvas border-slate-200 text-slate-700 hover:bg-slate-100'
-                          }`}
-                      >
-                        <Truck className="w-3.5 h-3.5 text-brand-blue shrink-0" aria-hidden="true" />
-                        <span className="truncate">Guru Piket</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          await loginAsDemoRole('kepala_sekolah');
-                          setUserDropdownOpen(false);
-                          notify.info('Beralih ke peran Kepala Sekolah', 'Mode RBAC');
-                        }}
-                        className={`min-h-[40px] flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-[11px] font-bold text-left border micro-tap ${role === 'kepala_sekolah' && !isStudent
-                          ? 'bg-purple-50 border-purple-400 text-purple-900'
-                          : 'bg-surface-canvas border-slate-200 text-slate-700 hover:bg-slate-100'
-                          }`}
-                      >
-                        <UserCheck className="w-3.5 h-3.5 text-purple-600 shrink-0" aria-hidden="true" />
-                        <span className="truncate">Kepala Sekolah</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          await signInStudent('Alroy Theola Ardanta', '6281234567890');
-                          setUserDropdownOpen(false);
-                          notify.info('Beralih ke akun Siswa (Alroy Theola Ardanta)', 'Mode RBAC');
-                        }}
-                        className={`min-h-[40px] flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-[11px] font-bold text-left border micro-tap ${isStudent
-                          ? 'bg-cyan-50 border-cyan-500 text-cyan-900'
-                          : 'bg-surface-canvas border-slate-200 text-slate-700 hover:bg-slate-100'
-                          }`}
-                      >
-                        <GraduationCap className="w-3.5 h-3.5 text-cyan-600 shrink-0" aria-hidden="true" />
-                        <span className="truncate">Akun Siswa</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5 border-t border-slate-100 pt-3">
-                    <button
-                      type="button"
-                      onClick={handleOpenProfileModal}
-                      className="min-h-[44px] flex w-full items-center justify-between rounded-xl border border-slate-200 bg-surface-canvas hover:bg-slate-100 px-3.5 py-2.5 text-xs font-bold text-text-primary micro-tap"
-                    >
-                      <span className="flex items-center gap-2.5">
-                        <User className="h-4 w-4 text-brand-blue" aria-hidden="true" />
-                        Profil Saya & Hak Akses
-                      </span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setUserDropdownOpen(false);
-                        window.dispatchEvent(new CustomEvent('mbg:show-splash'));
-                      }}
-                      className="min-h-[44px] flex w-full items-center justify-between rounded-xl border border-cyan-200 bg-cyan-50/60 hover:bg-cyan-100/70 px-3.5 py-2.5 text-xs font-bold text-cyan-900 micro-tap"
-                    >
-                      <span className="flex items-center gap-2.5">
-                        <Sparkles className="h-4 w-4 text-cyan-600" aria-hidden="true" />
-                        Tampilkan Splash Screen Mobile
-                      </span>
-                    </button>
-
-                    <Link
-                      href="/login"
-                      onClick={() => setUserDropdownOpen(false)}
-                      className="min-h-[44px] flex w-full items-center justify-between rounded-xl border border-brand-blue-100 bg-brand-blue-50 hover:bg-brand-blue-100/70 px-3.5 py-2.5 text-xs font-bold text-brand-navy micro-tap"
-                    >
-                      <span className="flex items-center gap-2.5">
-                        <LogIn className="h-4 w-4 text-brand-blue" aria-hidden="true" />
-                        {isLoggedIn ? 'Ganti Akun / Halaman Login' : 'Login Petugas / Siswa'}
-                      </span>
-                    </Link>
-
-                    <button
-                      type="button"
-                      onClick={handleFullLogout}
-                      className="min-h-[44px] flex w-full items-center justify-between rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 px-3.5 py-2.5 text-xs font-bold text-red-700 micro-tap"
-                    >
-                      <span className="flex items-center gap-2.5">
-                        <LogOut className="h-4 w-4 text-red-600" aria-hidden="true" />
-                        Logout (Keluar Akun)
-                      </span>
-                    </button>
-                  </div>
+{/* USER PROFILE, LOGIN & LOGOUT DROPDOWN - Using Modal like MobileNavModal */}
+      {mounted && userDropdownOpen && (
+        <Modal
+          isOpen={userDropdownOpen}
+          onClose={() => setUserDropdownOpen(false)}
+          title="Menu Pengguna"
+          description="Kelola akun dan preferensi"
+          size="md"
+          className="bg-brand-navy-dark text-white border-slate-800"
+          closeOnEscape={true}
+          closeOnOverlayClick={true}
+        >
+          <div className="space-y-6">
+            {/* User Header */}
+            <div className="flex items-center gap-4 pb-4 border-b border-white/10">
+              <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-brand-blue text-white shadow-sm">
+                <User className="h-6 w-6" aria-hidden="true" />
+                <span
+                  className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-slate-950 ${isLoggedIn ? 'bg-emerald-400' : 'bg-amber-400'}`}
+                />
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-black text-white leading-snug">{displayName}</p>
+                <p className="truncate text-[11px] font-mono text-sky-200/90 mt-0.5">{displaySub}</p>
+                <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                  <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/20 border border-emerald-400/40 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
+                    <ShieldCheck className="h-3 w-3" aria-hidden="true" />
+                    {displayRoleLabel}
+                  </span>
                 </div>
               </div>
             </div>
-          </div>,
-          document.body
-        )}
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-[11px] font-bold text-sky-200/70 uppercase tracking-wider">
+                <span className="flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-amber-400" aria-hidden="true" />
+                  Tampilan Aplikasi
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 rounded-2xl border border-white/10 bg-slate-950/50 p-1.5">
+                <button
+                  type="button"
+                  onClick={() => setTheme('light')}
+                  className={`min-h-[44px] flex flex-col items-center justify-center gap-1 rounded-xl py-2 px-3 text-[10px] font-bold transition-all micro-tap ${theme === 'light'
+                    ? 'bg-brand-blue text-white shadow-elev-2'
+                    : 'text-sky-300 hover:bg-surface-card/5 hover:text-white'
+                    }`}
+                >
+                  <Sun className="h-4 w-4" aria-hidden="true" />
+                  Light
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTheme('dark')}
+                  className={`min-h-[44px] flex flex-col items-center justify-center gap-1 rounded-xl py-2 px-3 text-[10px] font-bold transition-all micro-tap ${theme === 'dark'
+                    ? 'bg-brand-blue text-white shadow-elev-2'
+                    : 'text-sky-300 hover:bg-surface-card/5 hover:text-white'
+                    }`}
+                >
+                  <Moon className="h-4 w-4" aria-hidden="true" />
+                  Dark
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTheme('system')}
+                  className={`min-h-[44px] flex flex-col items-center justify-center gap-1 rounded-xl py-2 px-3 text-[10px] font-bold transition-all micro-tap ${theme === 'system'
+                    ? 'bg-brand-blue text-white shadow-elev-2'
+                    : 'text-sky-300 hover:bg-surface-card/5 hover:text-white'
+                    }`}
+                >
+                  <Monitor className="h-4 w-4" aria-hidden="true" />
+                  System
+                </button>
+              </div>
+            </div>
+
+            {/* Role Switcher Section */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-[11px] font-bold text-sky-200/70 uppercase tracking-wider">
+                <span className="flex items-center gap-1.5">
+                  <ShieldCheck className="h-3.5 w-3.5 text-cyan-400" aria-hidden="true" />
+                  Role Switcher (RBAC)
+                </span>
+                <span className="text-[10px] font-bold text-brand-blue">1-Klik Aktif</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-slate-950/50 p-1.5">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await loginAsDemoRole('super_admin');
+                    setUserDropdownOpen(false);
+                    notify.info('Beralih ke peran Super Admin (UBSI)', 'Mode RBAC');
+                  }}
+                  className={`min-h-[44px] flex items-center justify-center gap-2 rounded-xl py-2 px-3 text-xs font-bold transition-all micro-tap ${role === 'super_admin' && !isStudent
+                    ? 'bg-amber-400/20 text-amber-300 border border-amber-400/30'
+                    : 'text-sky-300 hover:bg-surface-card/5 hover:text-white border border-white/5'
+                    }`}
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-amber-600 shrink-0" aria-hidden="true" />
+                  Super Admin
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await loginAsDemoRole('guru_piket');
+                    setUserDropdownOpen(false);
+                    notify.info('Beralih ke peran Guru Piket', 'Mode RBAC');
+                  }}
+                  className={`min-h-[44px] flex items-center justify-center gap-2 rounded-xl py-2 px-3 text-xs font-bold transition-all micro-tap ${role === 'guru_piket' && !isStudent
+                    ? 'bg-brand-blue/20 text-brand-blue border border-brand-blue/30'
+                    : 'text-sky-300 hover:bg-surface-card/5 hover:text-white border border-white/5'
+                    }`}
+                >
+                  <Truck className="h-4 w-4" aria-hidden="true" />
+                  Guru Piket
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await loginAsDemoRole('kepala_sekolah');
+                    setUserDropdownOpen(false);
+                    notify.info('Beralih ke peran Kepala Sekolah', 'Mode RBAC');
+                  }}
+                  className={`min-h-[44px] flex items-center justify-center gap-2 rounded-xl py-2 px-3 text-xs font-bold transition-all micro-tap ${role === 'kepala_sekolah' && !isStudent
+                    ? 'bg-purple-400/20 text-purple-300 border border-purple-400/30'
+                    : 'text-sky-300 hover:bg-surface-card/5 hover:text-white border border-white/5'
+                    }`}
+                >
+                  <UserCheck className="w-3.5 h-3.5 text-purple-600 shrink-0" aria-hidden="true" />
+                  Kepala Sekolah
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await signInStudent('Alroy Theola Ardanta', '6281234567890');
+                    setUserDropdownOpen(false);
+                    notify.info('Beralih ke akun Siswa (Alroy Theola Ardanta)', 'Mode RBAC');
+                  }}
+                  className={`min-h-[44px] flex items-center justify-center gap-2 rounded-xl py-2 px-3 text-xs font-bold transition-all micro-tap ${isStudent
+                    ? 'bg-cyan-400/20 text-cyan-300 border border-cyan-400/30'
+                    : 'text-sky-300 hover:bg-surface-card/5 hover:text-white border border-white/5'
+                    }`}
+                >
+                  <GraduationCap className="h-4 w-4" aria-hidden="true" />
+                  Akun Siswa
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="space-y-2 border-t border-white/10 pt-4">
+              <button
+                type="button"
+                onClick={handleOpenProfileModal}
+                className="w-full flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-surface-card/10 py-3 px-4 text-xs font-bold text-white hover:bg-surface-card/20 transition-colors micro-tap"
+              >
+                <span className="flex items-center gap-3">
+                  <User className="h-4 w-4 text-cyan-400" aria-hidden="true" />
+                  Profil Saya & Hak Akses
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setUserDropdownOpen(false);
+                  window.dispatchEvent(new CustomEvent('mbg:show-splash'));
+                }}
+                className="w-full flex items-center justify-between gap-4 rounded-xl border border-cyan-400/20 bg-cyan-400/10 py-3 px-4 text-xs font-bold text-cyan-300 hover:bg-cyan-400/20 transition-colors micro-tap"
+              >
+                <span className="flex items-center gap-3">
+                  <Sparkles className="h-4 w-4 text-cyan-400" aria-hidden="true" />
+                  Tampilkan Splash Screen Mobile
+                </span>
+              </button>
+
+              <Link
+                href="/login"
+                onClick={() => setUserDropdownOpen(false)}
+                className="w-full flex items-center justify-between gap-4 rounded-xl border border-brand-blue/20 bg-brand-blue/10 py-3 px-4 text-xs font-bold text-brand-blue hover:bg-brand-blue/20 transition-colors micro-tap"
+              >
+                <span className="flex items-center gap-3">
+                  <LogIn className="h-4 w-4 text-brand-blue" aria-hidden="true" />
+                  {isLoggedIn ? 'Ganti Akun / Halaman Login' : 'Login Petugas / Siswa'}
+                </span>
+              </Link>
+
+              <button
+                type="button"
+                onClick={handleFullLogout}
+                className="w-full flex items-center justify-between gap-4 rounded-xl border border-red-400/20 bg-red-400/10 py-3 px-4 text-xs font-bold text-red-200 hover:bg-red-400/20 transition-colors micro-tap"
+              >
+                <span className="flex items-center gap-3">
+                  <LogOut className="h-4 w-4 text-red-400" aria-hidden="true" />
+                  Logout (Keluar Akun)
+                </span>
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {mounted && mobileMenuOpen ? <MobileNavModal /> : null}
 
@@ -965,7 +903,7 @@ export default function Navbar() {
         size="sm"
       >
         <div className="space-y-4">
-          <div className="rounded-2xl bg-surface-canvas border border-slate-200 p-4 space-y-2.5 text-xs">
+          <div className="rounded-2xl bg-surface-canvas border border-surface-border p-4 space-y-2.5 text-xs">
             <div className="flex items-center justify-between">
               <span className="font-bold text-text-secondary">Status Sesi:</span>
               <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-2.5 py-0.5 font-bold text-emerald-800">
@@ -1007,11 +945,11 @@ export default function Navbar() {
             </form>
           )}
 
-          <div className="grid grid-cols-2 gap-2.5 pt-2 border-t border-slate-100">
+          <div className="grid grid-cols-2 gap-2.5 pt-2 border-t border-surface-border">
             <Link
               href="/login"
               onClick={() => setProfileModalOpen(false)}
-              className="min-h-[44px] flex items-center justify-center gap-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 py-2.5 text-xs font-bold text-text-primary micro-tap"
+              className="min-h-[44px] flex items-center justify-center gap-1.5 rounded-xl bg-surface-canvas hover:bg-slate-100 py-2.5 text-xs font-bold text-text-primary micro-tap"
             >
               <LogIn className="h-4 w-4 text-brand-blue" aria-hidden="true" />
               Ganti Akun

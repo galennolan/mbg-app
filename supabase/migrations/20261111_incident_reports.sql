@@ -45,3 +45,4 @@ create policy "Staff manage incident reports" on public.incident_reports for all
 );
 
 grant all on public.incident_reports to anon, authenticated, service_role;
+

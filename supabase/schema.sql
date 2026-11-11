@@ -158,6 +158,25 @@ create table if not exists public.riwayat_aktivitas (
   waktu_aktivitas timestamptz not null default now()
 );
 
+-- 11. Tabel Kejadian Khusus (Incident Reports)
+create table if not exists public.incident_reports (
+  id uuid primary key default gen_random_uuid(),
+  id_sekolah uuid not null references public.schools(id) on delete cascade,
+  id_uji uuid references public.organoleptic_tests(id) on delete set null,
+  tanggal date not null default current_date,
+  waktu_kejadian time not null default current_time,
+  judul_kejadian varchar(200) not null,
+  kategori varchar(50) not null check (kategori in ('keterlambatan', 'kualitas_makanan', 'kemasan_rusak', 'alergi_siswa', 'lainnya')),
+  tingkat_keparahan varchar(20) not null default 'sedang' check (tingkat_keparahan in ('rendah', 'sedang', 'tinggi', 'kritis')),
+  deskripsi text not null,
+  tindak_lanjut text,
+  petugas_pelapor_id uuid references public.pengguna(id) on delete set null,
+  nama_petugas_pelapor varchar(150),
+  status_penyelesaian varchar(20) not null default 'menunggu' check (status_penyelesaian in ('menunggu', 'diproses', 'selesai')),
+  dibuat_pada timestamptz not null default now(),
+  diperbarui_pada timestamptz not null default now()
+);
+
 -- ============================================================
 -- INDEXES
 -- ============================================================
@@ -168,6 +187,9 @@ create index if not exists idx_daily_attendances_kelas on public.daily_attendanc
 create index if not exists idx_daily_attendances_tanggal on public.daily_attendances (tanggal);
 create index if not exists idx_organoleptic_tanggal on public.organoleptic_tests (tanggal);
 create index if not exists idx_student_mbg_logs_log on public.student_mbg_logs (id_log);
+create index if not exists idx_incidents_sekolah_tanggal on public.incident_reports(id_sekolah, tanggal);
+create index if not exists idx_incidents_kategori on public.incident_reports(kategori);
+create index if not exists idx_incidents_tingkat on public.incident_reports(tingkat_keparahan);
 
 -- ============================================================
 -- RLS (Row Level Security) - Multi-Tenant SaaS Isolation
@@ -182,6 +204,7 @@ alter table public.student_mbg_logs enable row level security;
 alter table public.riwayat_aktivitas enable row level security;
 alter table public.crm_campaigns enable row level security;
 alter table public.crm_click_logs enable row level security;
+alter table public.incident_reports enable row level security;
 
 -- Schools: Public read, Super Admin manage
 drop policy if exists "Public read schools" on public.schools;
@@ -302,6 +325,15 @@ create policy "Students insert clicks" on public.crm_click_logs for insert with 
 drop policy if exists "Admin read clicks" on public.crm_click_logs;
 create policy "Admin read clicks" on public.crm_click_logs for select to authenticated using (
   exists (select 1 from public.pengguna where id = auth.uid() and peran = 'super_admin')
+);
+
+-- Incident Reports: Public read, Staff manage for their school, Super Admin manage all
+drop policy if exists "Public read incident reports" on public.incident_reports;
+create policy "Public read incident reports" on public.incident_reports for select using (true);
+drop policy if exists "Staff manage incident reports" on public.incident_reports;
+create policy "Staff manage incident reports" on public.incident_reports for all to authenticated using (
+  id_sekolah = nullif(auth.jwt() ->> 'id_sekolah', '')::uuid or
+  exists (select 1 from public.pengguna where id = auth.uid() and (id_sekolah = public.incident_reports.id_sekolah or peran = 'super_admin'))
 );
 
 -- ============================================================

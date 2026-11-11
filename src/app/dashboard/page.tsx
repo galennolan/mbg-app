@@ -35,11 +35,16 @@ import {
   OrganolepticTest,
   ClassMonitoringStatus,
   LiveActivityFeedItem,
+  DepartmentAbsorptionStats,
+  GradeLevelAbsorptionStats,
+  PeakHourBucket,
+  OmprengHealthStats,
 } from '@/lib/types';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Modal, ModalInput, ModalActions } from '@/components/ui/ModalField';
 import { Button, Select, FeedbackBanner, useNotify } from '@/components/ui';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
+import { DashboardCharts } from '@/components/dashboard/DashboardCharts';
 
 function formatCurrentDateTime(date: Date) {
   const pad = (value: number) => value.toString().padStart(2, '0');
@@ -87,6 +92,18 @@ export default function DashboardPage() {
   const [totalSiswa, setTotalSiswa] = useState(0);
   const [persenSelesai, setPersenSelesai] = useState(0);
 
+  // Chart Data States
+  const [deptStats, setDeptStats] = useState<DepartmentAbsorptionStats[]>([]);
+  const [gradeStats, setGradeStats] = useState<GradeLevelAbsorptionStats[]>([]);
+  const [peakHours, setPeakHours] = useState<PeakHourBucket[]>([]);
+  const [omprengStats, setOmprengStats] = useState<OmprengHealthStats>({
+    utuh: 0,
+    rusak: 0,
+    hilang: 0,
+    totalKembali: 0,
+    hasReturned: false,
+  });
+
   useEffect(() => {
     const updateDateTime = () => setCurrentDateTime(formatCurrentDateTime(new Date()));
 
@@ -110,6 +127,18 @@ export default function DashboardPage() {
       setTotalSisa(data.totalPorsiSisa);
       setTotalSiswa(data.totalSiswaSemua);
       setPersenSelesai(data.persenSelesai);
+      setDeptStats(data.deptStats || []);
+      setGradeStats(data.gradeStats || []);
+      setPeakHours(data.peakHours || []);
+      setOmprengStats(
+        data.omprengStats || {
+          utuh: 0,
+          rusak: 0,
+          hilang: 0,
+          totalKembali: 0,
+          hasReturned: false,
+        }
+      );
       setSchoolsList(allSchools);
       setGlobalStats({
         totalSekolahAktif: gStats.totalSekolahAktif,
@@ -462,6 +491,18 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* MODUL GRAFIK MONITOR: Donut Gauge, Bar Komparatif, Peak Hours Histogram, Mini Health Bar */}
+      <DashboardCharts
+        totalTerserap={totalTerserap}
+        totalSisa={totalSisa}
+        totalSiswa={totalSiswa}
+        persenSelesai={persenSelesai}
+        deptStats={deptStats}
+        gradeStats={gradeStats}
+        peakHours={peakHours}
+        omprengStats={omprengStats}
+      />
 
       {/* Main Grid: Status Per Kelas (Left) & Live Activity Feed (Right) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
