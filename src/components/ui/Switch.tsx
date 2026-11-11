@@ -36,9 +36,9 @@ export function Switch({
     <div className={cn('space-y-1', className)}>
       <div className="min-h-[44px] flex items-center justify-between gap-3 py-1">
         <label htmlFor={switchId} className="cursor-pointer select-none">
-          <span className="block text-xs sm:text-sm font-bold text-slate-900">{label}</span>
+          <span className="block text-xs sm:text-sm font-bold text-text-primary">{label}</span>
           {description && (
-            <span className="block text-xs text-slate-600 mt-0.5">{description}</span>
+            <span className="block text-xs text-text-secondary mt-0.5">{description}</span>
           )}
         </label>
 
@@ -59,7 +59,7 @@ export function Switch({
           <span
             aria-hidden="true"
             className={cn(
-              'pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-out',
+              'pointer-events-none inline-block h-6 w-6 transform rounded-full bg-surface-card shadow-md ring-0 transition duration-200 ease-out',
               checked ? 'translate-x-5' : 'translate-x-0'
             )}
           />

@@ -17,7 +17,7 @@ export const Label = forwardRef<HTMLElement, LabelProps>(
         <Component
           ref={ref as any}
           className={cn(
-            'block text-xs font-bold tracking-wide text-slate-800 select-none cursor-pointer',
+            'block text-xs font-bold tracking-wide text-text-primary select-none cursor-pointer',
             className
           )}
           {...props}

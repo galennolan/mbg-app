@@ -93,6 +93,7 @@ create table if not exists public.organoleptic_tests (
   catatan_kelayakan text,
   kesimpulan text check (kesimpulan in ('LAYAK_EDAR', 'TOLAK_RETUR')),
   catatan_kejadian_khusus text,
+  nama_sppg_aktual text,
   dibuat_pada timestamptz not null default now()
 );
 

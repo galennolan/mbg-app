@@ -38,9 +38,9 @@ const variantClasses: Record<ButtonVariant, string> = {
   warning:
     'bg-amber-600 hover:bg-amber-700 text-white border border-amber-800/20 shadow-elev-2',
   secondary:
-    'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200/80',
+    'bg-slate-100 hover:bg-slate-200 text-text-primary border border-slate-200/80',
   outline:
-    'bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 shadow-elev-1',
+    'bg-surface-card hover:bg-surface-canvas text-text-primary border border-slate-300 shadow-elev-1',
   ghost:
     'bg-transparent hover:bg-slate-100 text-slate-700 border border-transparent',
 };

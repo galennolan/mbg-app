@@ -72,9 +72,9 @@ export const DatePicker = forwardRef<HTMLInputElement, DatePickerProps>(
           aria-describedby={ariaDescribedBy}
           aria-label={label || 'Pilih tanggal'}
           className={cn(
-            'w-full min-h-[44px] pl-10 pr-3.5 py-2 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm font-bold text-slate-900',
+            'w-full min-h-[44px] pl-10 pr-3.5 py-2 bg-surface-card border border-slate-300 rounded-xl text-xs sm:text-sm font-bold text-text-primary',
             'shadow-elev-1 transition-all duration-150 cursor-pointer',
-            'focus:bg-white focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/15 focus:outline-none',
+            'focus:bg-surface-card focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/15 focus:outline-none',
             'disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed',
             error && 'border-red-500 focus:border-red-600 focus:ring-red-500/15',
             className

@@ -40,7 +40,7 @@ export function FieldHelper({ text, children, className, id, ...props }: FieldHe
   return (
     <p
       id={id}
-      className={cn('flex items-center gap-1 text-xs text-slate-600 pt-0.5', className)}
+      className={cn('flex items-center gap-1 text-xs text-text-secondary pt-0.5', className)}
       {...props}
     >
       <Info className="w-3 h-3 text-slate-400 shrink-0" aria-hidden="true" />

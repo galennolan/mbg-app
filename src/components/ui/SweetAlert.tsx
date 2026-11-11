@@ -179,7 +179,7 @@ export function SweetAlertModal({ options, onResolve }: SweetAlertModalProps) {
       aria-describedby={options.text ? descId : undefined}
     >
       <div
-        className="w-full max-w-sm bg-white rounded-3xl border border-slate-200 shadow-elev-5 p-6 text-center space-y-4 animate-pop-in"
+        className="w-full max-w-sm bg-surface-card rounded-3xl border border-slate-200 shadow-elev-5 p-6 text-center space-y-4 animate-pop-in"
         onClick={(e) => e.stopPropagation()}
       >
         <AnimatedSvgIcon icon={icon} />
@@ -195,21 +195,21 @@ export function SweetAlertModal({ options, onResolve }: SweetAlertModalProps) {
             {options.title}
           </h3>
           {options.text && (
-            <p id={descId} className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+            <p id={descId} className="text-xs sm:text-sm text-text-secondary leading-relaxed">
               {options.text}
             </p>
           )}
         </div>
 
         {options.details && options.details.length > 0 && (
-          <div className="rounded-2xl bg-slate-50 border border-slate-200/80 p-3.5 text-left space-y-2">
+          <div className="rounded-2xl bg-surface-canvas border border-slate-200/80 p-3.5 text-left space-y-2">
             {options.details.map((item, idx) => (
               <div key={idx} className="flex items-center justify-between gap-2 text-xs">
-                <span className="text-slate-600 font-medium">{item.label}</span>
+                <span className="text-text-secondary font-medium">{item.label}</span>
                 <span
                   className={cn(
                     'font-bold font-mono',
-                    item.highlight ? 'text-emerald-700' : 'text-slate-900'
+                    item.highlight ? 'text-emerald-700' : 'text-text-primary'
                   )}
                 >
                   {item.value}

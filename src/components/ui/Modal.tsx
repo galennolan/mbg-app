@@ -47,13 +47,13 @@ export function ModalHeader({
   hideCloseButton?: boolean;
 }) {
   return (
-    <div className="flex items-start justify-between gap-3 p-5 border-b border-slate-100 sticky top-0 bg-white rounded-t-2xl z-10">
+    <div className="flex items-start justify-between gap-3 p-5 border-b border-slate-100 sticky top-0 bg-surface-card rounded-t-2xl z-10">
       <div className="min-w-0">
         <h3 id={titleId} className="font-black text-base sm:text-lg text-brand-navy tracking-tight">
           {title}
         </h3>
         {description && (
-          <p id={descriptionId} className="text-xs text-slate-600 mt-1 leading-relaxed">
+          <p id={descriptionId} className="text-xs text-text-secondary mt-1 leading-relaxed">
             {description}
           </p>
         )}
@@ -92,7 +92,7 @@ export function ModalFooter({
   return (
     <div
       className={cn(
-        'flex items-center justify-end gap-3 px-5 py-4 border-t border-slate-100 bg-slate-50/70 rounded-b-2xl',
+        'flex items-center justify-end gap-3 px-5 py-4 border-t border-slate-100 bg-surface-canvas/70 rounded-b-2xl',
         className
       )}
     >
@@ -220,7 +220,7 @@ export function Modal({
       <div
         ref={modalRef}
         className={cn(
-          'w-full bg-white rounded-2xl sm:rounded-3xl shadow-elev-5 border border-slate-200 animate-sheet-up sm:animate-slide-up max-h-[90vh] overflow-y-auto',
+          'w-full bg-surface-card rounded-2xl sm:rounded-3xl shadow-elev-5 border border-surface-border animate-sheet-up sm:animate-slide-up max-h-[90vh] overflow-y-auto',
           sizeClasses[size],
           className
         )}

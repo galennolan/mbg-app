@@ -1,5 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  darkMode: 'class',
   content: [
     './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
@@ -43,11 +44,15 @@ module.exports = {
           },
         },
         surface: {
-          canvas: '#F4F7FB',
-          card: '#FFFFFF',
-          subtle: '#F8FAFC',
-          muted: '#F1F5F9',
-          border: '#E2E8F0',
+          canvas: 'var(--surface-canvas)',
+          card: 'var(--surface-card)',
+          subtle: 'var(--accent-muted)',
+          muted: 'var(--accent-muted)',
+          border: 'var(--surface-border)',
+        },
+        text: {
+          primary: 'var(--text-primary)',
+          secondary: 'var(--text-secondary)',
         },
       },
       zIndex: {

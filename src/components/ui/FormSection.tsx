@@ -23,7 +23,7 @@ export function FormSection({
   return (
     <fieldset
       className={cn(
-        'micro-card rounded-2xl p-5 sm:p-6 space-y-4 border border-slate-200/90 bg-white',
+        'micro-card rounded-2xl p-5 sm:p-6 space-y-4 border border-slate-200/90 bg-surface-card',
         className
       )}
       {...props}
@@ -43,7 +43,7 @@ export function FormSection({
               {title}
             </legend>
             {description && (
-              <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">{description}</p>
+              <p className="text-xs text-text-secondary mt-0.5 leading-relaxed">{description}</p>
             )}
           </div>
         </div>

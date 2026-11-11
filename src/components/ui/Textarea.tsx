@@ -96,9 +96,9 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
         aria-required={required || undefined}
         aria-describedby={ariaDescribedBy}
         className={cn(
-          'w-full bg-white border border-slate-300 rounded-xl text-sm sm:text-base text-slate-900 placeholder-slate-400',
+          'w-full bg-surface-card border border-slate-300 rounded-xl text-sm sm:text-base text-text-primary placeholder-slate-400',
           'p-3.5 shadow-elev-1 transition-all duration-150 resize-y',
-          'focus:bg-white focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/15 focus:outline-none',
+          'focus:bg-surface-card focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/15 focus:outline-none',
           'disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed',
           error && 'border-red-500 focus:border-red-600 focus:ring-red-500/15',
           className

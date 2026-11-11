@@ -33,25 +33,25 @@ const variantStyles: Record<
   }
 > = {
   success: {
-    container: 'border-emerald-200 bg-white text-slate-900',
+    container: 'border-emerald-200 bg-surface-card text-text-primary',
     iconWrap: 'bg-emerald-50 text-emerald-600 border-emerald-200',
     progressBar: 'bg-emerald-500',
     icon: <CheckCircle2 className="w-5 h-5" aria-hidden="true" />,
   },
   error: {
-    container: 'border-red-200 bg-white text-slate-900',
+    container: 'border-red-200 bg-surface-card text-text-primary',
     iconWrap: 'bg-red-50 text-red-600 border-red-200',
     progressBar: 'bg-red-500',
     icon: <AlertCircle className="w-5 h-5" aria-hidden="true" />,
   },
   warning: {
-    container: 'border-amber-200 bg-white text-slate-900',
+    container: 'border-amber-200 bg-surface-card text-text-primary',
     iconWrap: 'bg-amber-50 text-amber-600 border-amber-200',
     progressBar: 'bg-amber-500',
     icon: <AlertTriangle className="w-5 h-5" aria-hidden="true" />,
   },
   info: {
-    container: 'border-brand-blue-200 bg-white text-slate-900',
+    container: 'border-brand-blue-200 bg-surface-card text-text-primary',
     iconWrap: 'bg-brand-blue-50 text-brand-blue border-brand-blue-100',
     progressBar: 'bg-brand-blue',
     icon: <Info className="w-5 h-5" aria-hidden="true" />,

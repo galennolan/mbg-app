@@ -85,7 +85,7 @@ export function RadioGroup({
                 isDisabled && 'opacity-55 cursor-not-allowed',
                 isSelected
                   ? 'border-brand-blue bg-brand-blue-50/70 shadow-elev-1'
-                  : 'border-slate-200 bg-white hover:bg-slate-50'
+                  : 'border-slate-200 bg-surface-card hover:bg-surface-canvas'
               )}
             >
               <input
@@ -102,7 +102,7 @@ export function RadioGroup({
                 className={cn(
                   'mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all',
                   'peer-focus-visible:ring-4 peer-focus-visible:ring-brand-blue/25',
-                  isSelected ? 'border-brand-blue bg-white' : 'border-slate-300 bg-white'
+                  isSelected ? 'border-brand-blue bg-surface-card' : 'border-slate-300 bg-surface-card'
                 )}
                 aria-hidden="true"
               >
@@ -114,9 +114,9 @@ export function RadioGroup({
                 />
               </span>
               <span className="min-w-0 text-xs sm:text-sm">
-                <span className="block font-bold text-slate-900">{opt.label}</span>
+                <span className="block font-bold text-text-primary">{opt.label}</span>
                 {opt.description && (
-                  <span className="block text-xs text-slate-600 mt-0.5">{opt.description}</span>
+                  <span className="block text-xs text-text-secondary mt-0.5">{opt.description}</span>
                 )}
               </span>
             </label>

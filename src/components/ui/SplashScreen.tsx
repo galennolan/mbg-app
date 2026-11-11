@@ -144,7 +144,7 @@ export default function SplashScreen({
 
       {/* Bagian Atas: Status Bar Mobile & Tombol Lewati */}
       <div className="relative z-10 flex items-center justify-between px-6 pt-6 sm:px-8">
-        <div className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold text-sky-200 backdrop-blur-md">
+        <div className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-surface-card/5 px-3 py-1 text-[11px] font-semibold text-sky-200 backdrop-blur-md">
           <span className="relative flex h-2 w-2">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
@@ -156,7 +156,7 @@ export default function SplashScreen({
           <button
             type="button"
             onClick={dismiss}
-            className="group inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold text-sky-100 backdrop-blur-md transition-all hover:bg-white/20 active:scale-95"
+            className="group inline-flex items-center gap-1 rounded-full border border-white/15 bg-surface-card/10 px-3 py-1.5 text-xs font-semibold text-sky-100 backdrop-blur-md transition-all hover:bg-surface-card/20 active:scale-95"
             aria-label="Lewati splash screen"
           >
             <span>Lewati</span>
@@ -210,7 +210,7 @@ export default function SplashScreen({
         {/* Indikator Loading Mobile-Native */}
         <div className="mt-8 w-full max-w-xs space-y-3">
           {/* Progress Bar dengan Gradient & Glow */}
-          <div className="relative h-2 w-full overflow-hidden rounded-full bg-white/10 p-0.5 shadow-inner">
+          <div className="relative h-2 w-full overflow-hidden rounded-full bg-surface-card/10 p-0.5 shadow-inner">
             <div
               className="h-full rounded-full bg-gradient-to-r from-sky-400 via-brand-blue to-emerald-400 shadow-[0_0_12px_rgba(56,189,248,0.6)] transition-all duration-300 ease-out relative"
               style={{ width: `${progress}%` }}

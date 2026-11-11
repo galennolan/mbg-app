@@ -27,6 +27,9 @@ import {
   ExternalLink,
   Building2,
   Sparkles,
+  Sun,
+  Moon,
+  Monitor,
 } from 'lucide-react';
 import { SEED_SCHOOL } from '@/lib/services';
 import { Modal, ModalBody, ModalHeader, ModalFooter, Input, Button, useNotify } from '@/components/ui';
@@ -52,6 +55,51 @@ export default function Navbar() {
   const [editNameValue, setEditNameValue] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
+
+  // Theme Logic
+  useEffect(() => {
+    const savedTheme = (localStorage.getItem('theme') as 'light' | 'dark' | 'system') || 'system';
+    setTheme(savedTheme);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+    
+    const root = window.document.documentElement;
+    localStorage.setItem('theme', theme);
+    
+    if (theme === 'system') {
+      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      if (systemTheme === 'dark') {
+        root.classList.add('dark');
+      } else {
+        root.classList.remove('dark');
+      }
+    } else if (theme === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+  }, [theme, mounted]);
+
+  // Listen for system theme changes
+  useEffect(() => {
+    if (theme !== 'system') return;
+    
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = () => {
+      const root = window.document.documentElement;
+      if (mediaQuery.matches) {
+        root.classList.add('dark');
+      } else {
+        root.classList.remove('dark');
+      }
+    };
+    
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, [theme]);
 
   // Active Role State for demo/testing toggle (Guru Piket vs Siswa)
   const [activeRoleView, setActiveRoleView] = useState<'guru_piket' | 'siswa'>('guru_piket');
@@ -182,6 +230,52 @@ export default function Navbar() {
           </div>
         </div>
 
+        {/* Theme Switcher */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-[11px] font-bold text-sky-200/70 uppercase tracking-wider">
+            <span className="flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5 text-amber-400" aria-hidden="true" />
+              Tampilan Aplikasi
+            </span>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 rounded-2xl border border-white/10 bg-slate-950/50 p-1.5">
+            <button
+              type="button"
+              onClick={() => setTheme('light')}
+              className={`min-h-[44px] flex flex-col items-center justify-center gap-1 rounded-xl py-2 px-3 text-[10px] font-bold transition-all micro-tap ${theme === 'light'
+                ? 'bg-brand-blue text-white shadow-elev-2'
+                : 'text-sky-300 hover:bg-surface-card/5 hover:text-white'
+                }`}
+            >
+              <Sun className="h-4 w-4" aria-hidden="true" />
+              Light
+            </button>
+            <button
+              type="button"
+              onClick={() => setTheme('dark')}
+              className={`min-h-[44px] flex flex-col items-center justify-center gap-1 rounded-xl py-2 px-3 text-[10px] font-bold transition-all micro-tap ${theme === 'dark'
+                ? 'bg-brand-blue text-white shadow-elev-2'
+                : 'text-sky-300 hover:bg-surface-card/5 hover:text-white'
+                }`}
+            >
+              <Moon className="h-4 w-4" aria-hidden="true" />
+              Dark
+            </button>
+            <button
+              type="button"
+              onClick={() => setTheme('system')}
+              className={`min-h-[44px] flex flex-col items-center justify-center gap-1 rounded-xl py-2 px-3 text-[10px] font-bold transition-all micro-tap ${theme === 'system'
+                ? 'bg-brand-blue text-white shadow-elev-2'
+                : 'text-sky-300 hover:bg-surface-card/5 hover:text-white'
+                }`}
+            >
+              <Monitor className="h-4 w-4" aria-hidden="true" />
+              System
+            </button>
+          </div>
+        </div>
+
         {/* Segmented Control Role Switcher */}
         <div className="space-y-2">
           <div className="flex items-center justify-between text-[11px] font-bold text-sky-200/70 uppercase tracking-wider">
@@ -197,7 +291,7 @@ export default function Navbar() {
               onClick={() => setActiveRoleView('guru_piket')}
               className={`min-h-[44px] flex items-center justify-center gap-2 rounded-xl py-2 px-3 text-xs font-bold transition-all micro-tap ${activeRoleView === 'guru_piket'
                 ? 'bg-brand-blue text-white shadow-elev-2'
-                : 'text-sky-300 hover:bg-white/5 hover:text-white'
+                : 'text-sky-300 hover:bg-surface-card/5 hover:text-white'
                 }`}
             >
               <Truck className="h-4 w-4" aria-hidden="true" />
@@ -208,7 +302,7 @@ export default function Navbar() {
               onClick={() => setActiveRoleView('siswa')}
               className={`min-h-[44px] flex items-center justify-center gap-2 rounded-xl py-2 px-3 text-xs font-bold transition-all micro-tap ${activeRoleView === 'siswa'
                 ? 'bg-brand-blue text-white shadow-elev-2'
-                : 'text-sky-300 hover:bg-white/5 hover:text-white'
+                : 'text-sky-300 hover:bg-surface-card/5 hover:text-white'
                 }`}
             >
               <QrCode className="h-4 w-4" aria-hidden="true" />
@@ -224,7 +318,7 @@ export default function Navbar() {
             onClick={() => setMobileMenuOpen(false)}
             className={`group flex items-center justify-between gap-4 rounded-2xl border p-4 transition-all micro-tap ${isActive('/')
               ? 'border-cyan-400/50 bg-brand-blue/20'
-              : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
+              : 'border-white/10 bg-surface-card/5 hover:border-white/20 hover:bg-surface-card/10'
               }`}
           >
             <div className="flex items-center gap-4">
@@ -243,7 +337,7 @@ export default function Navbar() {
                 </p>
               </div>
             </div>
-            <div className="h-8 w-8 flex items-center justify-center rounded-full bg-white/5 text-sky-300 group-hover:bg-brand-blue group-hover:text-white transition-colors">
+            <div className="h-8 w-8 flex items-center justify-center rounded-full bg-surface-card/5 text-sky-300 group-hover:bg-brand-blue group-hover:text-white transition-colors">
               <ExternalLink className="h-4 w-4" />
             </div>
           </Link>
@@ -264,7 +358,7 @@ export default function Navbar() {
                   onClick={() => setMobileMenuOpen(false)}
                   className={`flex items-center gap-4 rounded-2xl border p-4 transition-all micro-tap ${isActive(item.href)
                     ? 'border-blue-400/50 bg-brand-blue/20'
-                    : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
+                    : 'border-white/10 bg-surface-card/5 hover:border-white/20 hover:bg-surface-card/10'
                     }`}
                 >
                   <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-${item.color === 'emerald' ? 'green' : item.color === 'navy' ? 'navy-light' : 'blue'} text-white shadow-sm`}>
@@ -291,7 +385,7 @@ export default function Navbar() {
                 <Link
                   href="/admin/campaign"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-2 rounded-xl border border-white/5 bg-white/5 p-3 hover:bg-white/10 transition-colors"
+                  className="flex items-center gap-2 rounded-xl border border-white/5 bg-surface-card/5 p-3 hover:bg-surface-card/10 transition-colors"
                 >
                   <Megaphone className="h-4 w-4 text-amber-300" aria-hidden="true" />
                   <span className="text-[10px] font-bold text-white">Campaign</span>
@@ -299,7 +393,7 @@ export default function Navbar() {
                 <Link
                   href="/admin/pengguna"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-2 rounded-xl border border-white/5 bg-white/5 p-3 hover:bg-white/10 transition-colors"
+                  className="flex items-center gap-2 rounded-xl border border-white/5 bg-surface-card/5 p-3 hover:bg-surface-card/10 transition-colors"
                 >
                   <UserCheck className="h-4 w-4 text-sky-300" aria-hidden="true" />
                   <span className="text-[10px] font-bold text-white">Pengguna</span>
@@ -335,7 +429,7 @@ export default function Navbar() {
             <button
               type="button"
               onClick={handleOpenProfileModal}
-              className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/5 py-3 px-1.5 text-[10px] font-bold text-white hover:bg-white/10 transition-colors micro-tap"
+              className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-surface-card/5 py-3 px-1.5 text-[10px] font-bold text-white hover:bg-surface-card/10 transition-colors micro-tap"
             >
               <User className="h-4 w-4 text-cyan-400" aria-hidden="true" />
               Profil
@@ -414,7 +508,7 @@ export default function Navbar() {
                 href="/"
                 className={`min-h-[40px] flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold micro-tap ${isActive('/')
                   ? 'bg-brand-blue text-white shadow-sm'
-                  : 'text-sky-200 hover:bg-white/10 hover:text-white'
+                  : 'text-sky-200 hover:bg-surface-card/10 hover:text-white'
                   }`}
               >
                 <QrCode className="h-3.5 w-3.5" aria-hidden="true" />
@@ -427,7 +521,7 @@ export default function Navbar() {
                     href="/kedatangan"
                     className={`min-h-[40px] flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold micro-tap ${isActive('/kedatangan')
                       ? 'bg-brand-blue text-white shadow-sm'
-                      : 'text-sky-200 hover:bg-white/10 hover:text-white'
+                      : 'text-sky-200 hover:bg-surface-card/10 hover:text-white'
                       }`}
                   >
                     <Truck className="h-3.5 w-3.5" aria-hidden="true" />
@@ -438,7 +532,7 @@ export default function Navbar() {
                     href="/dashboard"
                     className={`min-h-[40px] flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold micro-tap ${isActive('/dashboard')
                       ? 'bg-brand-blue text-white shadow-sm'
-                      : 'text-sky-200 hover:bg-white/10 hover:text-white'
+                      : 'text-sky-200 hover:bg-surface-card/10 hover:text-white'
                       }`}
                   >
                     <LayoutDashboard className="h-3.5 w-3.5" aria-hidden="true" />
@@ -449,7 +543,7 @@ export default function Navbar() {
                     href="/konfirmasi/kelas"
                     className={`min-h-[40px] flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold micro-tap ${isActive('/konfirmasi/kelas')
                       ? 'bg-brand-blue text-white shadow-sm'
-                      : 'text-sky-200 hover:bg-white/10 hover:text-white'
+                      : 'text-sky-200 hover:bg-surface-card/10 hover:text-white'
                       }`}
                   >
                     <Users className="h-3.5 w-3.5" aria-hidden="true" />
@@ -460,7 +554,7 @@ export default function Navbar() {
                     href="/admin/kelas"
                     className={`min-h-[40px] flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold micro-tap ${isActive('/admin/kelas')
                       ? 'bg-brand-blue text-white shadow-sm'
-                      : 'text-sky-200 hover:bg-white/10 hover:text-white'
+                      : 'text-sky-200 hover:bg-surface-card/10 hover:text-white'
                       }`}
                   >
                     <Building2 className="h-3.5 w-3.5" aria-hidden="true" />
@@ -471,7 +565,7 @@ export default function Navbar() {
                     href="/siswa"
                     className={`min-h-[40px] flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold micro-tap ${isActive('/siswa')
                       ? 'bg-brand-blue text-white shadow-sm'
-                      : 'text-sky-200 hover:bg-white/10 hover:text-white'
+                      : 'text-sky-200 hover:bg-surface-card/10 hover:text-white'
                       }`}
                   >
                     <GraduationCap className="h-3.5 w-3.5" aria-hidden="true" />
@@ -482,7 +576,7 @@ export default function Navbar() {
                     href="/laporan"
                     className={`min-h-[40px] flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold micro-tap ${isActive('/laporan')
                       ? 'bg-brand-blue text-white shadow-sm'
-                      : 'text-sky-200 hover:bg-white/10 hover:text-white'
+                      : 'text-sky-200 hover:bg-surface-card/10 hover:text-white'
                       }`}
                   >
                     <FileSpreadsheet className="h-3.5 w-3.5" aria-hidden="true" />
@@ -498,7 +592,7 @@ export default function Navbar() {
                           setAdminDropdownOpen(!adminDropdownOpen);
                         }}
                         aria-expanded={adminDropdownOpen}
-                        className="min-h-[40px] flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-bold text-sky-200 micro-tap hover:bg-white/10 hover:text-white"
+                        className="min-h-[40px] flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-bold text-sky-200 micro-tap hover:bg-surface-card/10 hover:text-white"
                       >
                         <ShieldCheck className="h-3.5 w-3.5 text-amber-300" aria-hidden="true" />
                         Super Admin
@@ -512,42 +606,42 @@ export default function Navbar() {
                         >
                           <Link
                             href="/admin/sekolah"
-                            className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-cyan-200 hover:bg-white/10"
+                            className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-cyan-200 hover:bg-surface-card/10"
                           >
                             <Building2 className="h-4 w-4 text-cyan-300" aria-hidden="true" />
                             Manajemen Sekolah (SaaS)
                           </Link>
                           <Link
                             href="/admin/kelas"
-                            className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-sky-100 hover:bg-white/10"
+                            className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-sky-100 hover:bg-surface-card/10"
                           >
                             <Users className="h-4 w-4 text-sky-300" aria-hidden="true" />
                             Manajemen Kelas
                           </Link>
                           <Link
                             href="/admin/campaign"
-                            className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-amber-200 hover:bg-white/10"
+                            className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-amber-200 hover:bg-surface-card/10"
                           >
                             <Megaphone className="h-4 w-4 text-amber-300" aria-hidden="true" />
                             Campaign Manager (CRM)
                           </Link>
                           <Link
                             href="/siswa"
-                            className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-sky-100 hover:bg-white/10"
+                            className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-sky-100 hover:bg-surface-card/10"
                           >
                             <GraduationCap className="h-4 w-4 text-sky-300" aria-hidden="true" />
                             Data Siswa
                           </Link>
                           <Link
                             href="/admin/pengguna"
-                            className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-sky-100 hover:bg-white/10"
+                            className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-sky-100 hover:bg-surface-card/10"
                           >
                             <UserCheck className="h-4 w-4 text-sky-300" aria-hidden="true" />
                             Kelola Pengguna
                           </Link>
                           <Link
                             href="/admin/audit"
-                            className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-sky-100 hover:bg-white/10"
+                            className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-sky-100 hover:bg-surface-card/10"
                           >
                             <History className="h-4 w-4 text-sky-300" aria-hidden="true" />
                             Audit Log
@@ -562,6 +656,42 @@ export default function Navbar() {
 
             {/* Right Action: Active User Icon + Profile, Login & Logout Dropdown */}
             <div className="flex items-center gap-2 sm:gap-3">
+              <div className="flex items-center rounded-xl border border-white/10 bg-slate-950/50 p-1 text-[11px] font-bold">
+                <button
+                  type="button"
+                  onClick={() => setTheme('light')}
+                  className={`rounded-lg p-2 transition-all ${theme === 'light'
+                    ? 'bg-brand-blue text-white shadow-sm'
+                    : 'text-sky-300 hover:text-white'
+                    }`}
+                  title="Light Mode"
+                >
+                  <Sun className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTheme('dark')}
+                  className={`rounded-lg p-2 transition-all ${theme === 'dark'
+                    ? 'bg-brand-blue text-white shadow-sm'
+                    : 'text-sky-300 hover:text-white'
+                    }`}
+                  title="Dark Mode"
+                >
+                  <Moon className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTheme('system')}
+                  className={`rounded-lg p-2 transition-all ${theme === 'system'
+                    ? 'bg-brand-blue text-white shadow-sm'
+                    : 'text-sky-300 hover:text-white'
+                    }`}
+                  title="System Theme"
+                >
+                  <Monitor className="h-4 w-4" />
+                </button>
+              </div>
+
               <div className="hidden items-center rounded-xl border border-white/15 bg-brand-navy p-1 text-[11px] font-bold xl:flex">
                 <button
                   type="button"
@@ -594,7 +724,7 @@ export default function Navbar() {
                   }}
                   className={`min-h-[44px] flex items-center gap-2 rounded-xl border px-2.5 py-1.5 text-left micro-tap ${userDropdownOpen
                     ? 'border-cyan-400 bg-brand-navy-light ring-2 ring-cyan-400/30'
-                    : 'border-white/20 bg-white/10 hover:bg-white/15'
+                    : 'border-white/20 bg-surface-card/10 hover:bg-surface-card/15'
                     }`}
                   aria-label="Menu Profil Pengguna, Login & Logout"
                   aria-expanded={userDropdownOpen}
@@ -630,7 +760,7 @@ export default function Navbar() {
                   setAdminDropdownOpen(false);
                   setMobileMenuOpen(true);
                 }}
-                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white hover:bg-white/20 micro-tap lg:hidden"
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl border border-white/15 bg-surface-card/10 text-white hover:bg-surface-card/20 micro-tap lg:hidden"
                 aria-label="Buka navigasi menu"
               >
                 <Menu className="h-5 w-5 text-sky-200" aria-hidden="true" />
@@ -653,7 +783,7 @@ export default function Navbar() {
 
             <div className="fixed inset-x-0 top-[68px] z-modal mx-auto max-w-7xl px-3 sm:px-6 lg:px-8 pointer-events-none flex justify-end">
               <div
-                className="pointer-events-auto w-full max-w-[340px] overflow-hidden rounded-3xl border border-slate-200 bg-white text-slate-900 shadow-elev-5 animate-slide-up"
+                className="pointer-events-auto w-full max-w-[340px] overflow-hidden rounded-3xl border border-slate-200 bg-surface-card text-text-primary shadow-elev-5 animate-slide-up"
                 role="menu"
                 aria-label="Menu Akun dan Profil Pengguna"
               >
@@ -686,7 +816,7 @@ export default function Navbar() {
                     <button
                       type="button"
                       onClick={() => setUserDropdownOpen(false)}
-                      className="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-xl text-sky-200/80 hover:bg-white/10 hover:text-white micro-tap"
+                      className="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-xl text-sky-200/80 hover:bg-surface-card/10 hover:text-white micro-tap"
                       aria-label="Tutup dropdown profil"
                     >
                       <X className="h-4 w-4" aria-hidden="true" />
@@ -694,7 +824,7 @@ export default function Navbar() {
                   </div>
                 </div>
 
-                <div className="p-4 space-y-4 bg-white">
+                <div className="p-4 space-y-4 bg-surface-card">
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
@@ -712,7 +842,7 @@ export default function Navbar() {
                         }}
                         className={`min-h-[40px] flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-[11px] font-bold text-left border micro-tap ${role === 'super_admin' && !isStudent
                           ? 'bg-amber-50 border-amber-400 text-amber-900'
-                          : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                          : 'bg-surface-canvas border-slate-200 text-slate-700 hover:bg-slate-100'
                           }`}
                       >
                         <ShieldCheck className="w-3.5 h-3.5 text-amber-600 shrink-0" aria-hidden="true" />
@@ -728,7 +858,7 @@ export default function Navbar() {
                         }}
                         className={`min-h-[40px] flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-[11px] font-bold text-left border micro-tap ${role === 'guru_piket' && !isStudent
                           ? 'bg-brand-blue-50 border-brand-blue text-brand-blue'
-                          : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                          : 'bg-surface-canvas border-slate-200 text-slate-700 hover:bg-slate-100'
                           }`}
                       >
                         <Truck className="w-3.5 h-3.5 text-brand-blue shrink-0" aria-hidden="true" />
@@ -744,7 +874,7 @@ export default function Navbar() {
                         }}
                         className={`min-h-[40px] flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-[11px] font-bold text-left border micro-tap ${role === 'kepala_sekolah' && !isStudent
                           ? 'bg-purple-50 border-purple-400 text-purple-900'
-                          : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                          : 'bg-surface-canvas border-slate-200 text-slate-700 hover:bg-slate-100'
                           }`}
                       >
                         <UserCheck className="w-3.5 h-3.5 text-purple-600 shrink-0" aria-hidden="true" />
@@ -760,7 +890,7 @@ export default function Navbar() {
                         }}
                         className={`min-h-[40px] flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-[11px] font-bold text-left border micro-tap ${isStudent
                           ? 'bg-cyan-50 border-cyan-500 text-cyan-900'
-                          : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                          : 'bg-surface-canvas border-slate-200 text-slate-700 hover:bg-slate-100'
                           }`}
                       >
                         <GraduationCap className="w-3.5 h-3.5 text-cyan-600 shrink-0" aria-hidden="true" />
@@ -773,7 +903,7 @@ export default function Navbar() {
                     <button
                       type="button"
                       onClick={handleOpenProfileModal}
-                      className="min-h-[44px] flex w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 px-3.5 py-2.5 text-xs font-bold text-slate-800 micro-tap"
+                      className="min-h-[44px] flex w-full items-center justify-between rounded-xl border border-slate-200 bg-surface-canvas hover:bg-slate-100 px-3.5 py-2.5 text-xs font-bold text-text-primary micro-tap"
                     >
                       <span className="flex items-center gap-2.5">
                         <User className="h-4 w-4 text-brand-blue" aria-hidden="true" />
@@ -835,28 +965,28 @@ export default function Navbar() {
         size="sm"
       >
         <div className="space-y-4">
-          <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4 space-y-2.5 text-xs">
+          <div className="rounded-2xl bg-surface-canvas border border-slate-200 p-4 space-y-2.5 text-xs">
             <div className="flex items-center justify-between">
-              <span className="font-bold text-slate-600">Status Sesi:</span>
+              <span className="font-bold text-text-secondary">Status Sesi:</span>
               <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-2.5 py-0.5 font-bold text-emerald-800">
                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
                 {isLoggedIn ? 'Terautentikasi Aktif' : 'Mode Pratinjau / Tamu'}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="font-bold text-slate-600">Peran (RBAC):</span>
+              <span className="font-bold text-text-secondary">Peran (RBAC):</span>
               <span className="font-black text-brand-navy uppercase">{displayRoleLabel}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="font-bold text-slate-600">
+              <span className="font-bold text-text-secondary">
                 {student ? 'Nomor WhatsApp:' : 'Email / Kontak:'}
               </span>
-              <span className="font-mono font-bold text-slate-800">{displaySub}</span>
+              <span className="font-mono font-bold text-text-primary">{displaySub}</span>
             </div>
             {student && (
               <div className="flex items-center justify-between">
-                <span className="font-bold text-slate-600">NISN / Kelas:</span>
-                <span className="font-mono font-bold text-slate-800">
+                <span className="font-bold text-text-secondary">NISN / Kelas:</span>
+                <span className="font-mono font-bold text-text-primary">
                   {student.nisn} ({student.nama_kelas})
                 </span>
               </div>
@@ -881,7 +1011,7 @@ export default function Navbar() {
             <Link
               href="/login"
               onClick={() => setProfileModalOpen(false)}
-              className="min-h-[44px] flex items-center justify-center gap-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 py-2.5 text-xs font-bold text-slate-800 micro-tap"
+              className="min-h-[44px] flex items-center justify-center gap-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 py-2.5 text-xs font-bold text-text-primary micro-tap"
             >
               <LogIn className="h-4 w-4 text-brand-blue" aria-hidden="true" />
               Ganti Akun

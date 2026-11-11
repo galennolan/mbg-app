@@ -189,9 +189,9 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
           aria-label={label || placeholder}
           onClick={() => !disabled && setIsOpen((prev) => !prev)}
           className={cn(
-            'w-full min-h-[44px] bg-white border border-slate-300 rounded-xl text-left text-sm sm:text-base text-slate-900',
+            'w-full min-h-[44px] bg-surface-card border border-slate-300 rounded-xl text-left text-sm sm:text-base text-text-primary',
             'px-3.5 py-2.5 shadow-elev-1 transition-all duration-150 flex items-center justify-between gap-2 micro-tap',
-            'focus:bg-white focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/15 focus:outline-none',
+            'focus:bg-surface-card focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/15 focus:outline-none',
             'disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed',
             isOpen && 'border-brand-blue ring-4 ring-brand-blue/15',
             error && 'border-red-500 focus:border-red-600 focus:ring-red-500/15',
@@ -207,7 +207,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
             <span
               className={cn(
                 'truncate font-semibold',
-                selectedOption ? 'text-slate-900' : 'text-slate-400 font-normal'
+                selectedOption ? 'text-text-primary' : 'text-slate-400 font-normal'
               )}
             >
               {selectedOption ? selectedOption.label : placeholder}
@@ -244,10 +244,10 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
             id={listboxId}
             role="listbox"
             aria-label={label || placeholder}
-            className="absolute left-0 right-0 z-dropdown mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-elev-4 overflow-hidden animate-slide-up"
+            className="absolute left-0 right-0 z-dropdown mt-1.5 bg-surface-card border border-slate-200 rounded-2xl shadow-elev-4 overflow-hidden animate-slide-up"
           >
             {(searchable || options.length > 6) && (
-              <div className="p-2 border-b border-slate-100 bg-slate-50/70">
+              <div className="p-2 border-b border-slate-100 bg-surface-canvas/70">
                 <div className="relative">
                   <Search
                     className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"
@@ -263,7 +263,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                     }}
                     placeholder="Ketik untuk mencari..."
                     aria-label="Cari opsi"
-                    className="w-full min-h-[38px] pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:border-brand-blue focus:outline-none"
+                    className="w-full min-h-[38px] pl-8 pr-3 py-1.5 text-xs bg-surface-card border border-slate-200 rounded-lg text-text-primary placeholder-slate-400 focus:border-brand-blue focus:outline-none"
                   />
                 </div>
               </div>
@@ -293,8 +293,8 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                         isSelected
                           ? 'bg-brand-blue-50 text-brand-blue font-bold'
                           : isHighlighted
-                          ? 'bg-slate-100 text-slate-900 font-medium'
-                          : 'text-slate-700 hover:bg-slate-50'
+                          ? 'bg-slate-100 text-text-primary font-medium'
+                          : 'text-slate-700 hover:bg-surface-canvas'
                       )}
                     >
                       <div className="min-w-0">

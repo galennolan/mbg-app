@@ -70,7 +70,7 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
           htmlFor={checkboxId}
           className={cn(
             'min-h-[44px] flex items-start gap-3 py-1.5 px-2 -mx-2 rounded-xl select-none cursor-pointer micro-tap',
-            disabled ? 'opacity-60 cursor-not-allowed' : 'hover:bg-slate-50/80'
+            disabled ? 'opacity-60 cursor-not-allowed' : 'hover:bg-surface-canvas/80'
           )}
         >
           <div className="relative flex items-center justify-center mt-0.5 shrink-0">
@@ -92,7 +92,7 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
                 'peer-focus-visible:ring-4 peer-focus-visible:ring-brand-blue/25 peer-focus-visible:border-brand-blue',
                 checked || indeterminate
                   ? 'bg-brand-blue border-brand-blue text-white shadow-elev-1 scale-100'
-                  : 'bg-white border-slate-300 text-transparent',
+                  : 'bg-surface-card border-slate-300 text-transparent',
                 error && 'border-red-500'
               )}
               aria-hidden="true"
@@ -111,7 +111,7 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
           </div>
 
           <div className="text-xs sm:text-sm leading-snug">
-            <span className="font-bold text-slate-900">
+            <span className="font-bold text-text-primary">
               {label}
               {required && (
                 <span className="text-brand-red ml-1" aria-hidden="true">
@@ -120,7 +120,7 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
               )}
             </span>
             {description && (
-              <span className="block text-xs text-slate-600 font-normal mt-0.5">
+              <span className="block text-xs text-text-secondary font-normal mt-0.5">
                 {description}
               </span>
             )}

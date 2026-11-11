@@ -11,10 +11,26 @@
   --surface-canvas: #f4f7fb;
   --surface-card: #ffffff;
   --surface-border: #e2e8f0;
+  --text-primary: #172d50;
+  --text-secondary: #475569;
+  --accent-muted: #f1f5f9;
   --focus-ring-width: 2px;
   --focus-ring-color: #1769aa;
   --focus-ring-offset: 2px;
   --focus-ring-offset-color: #ffffff;
+}
+
+.dark {
+  --primary-blue: #3b82f6;
+  --primary-navy: #f1f5f9;
+  --surface-canvas: #0f172a;
+  --surface-card: #1e293b;
+  --surface-border: #334155;
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --accent-muted: #334155;
+  --focus-ring-color: #3b82f6;
+  --focus-ring-offset-color: #0f172a;
 }
 
 * {
@@ -25,15 +41,17 @@ html {
   min-height: 100%;
   background: var(--surface-canvas);
   scroll-behavior: smooth;
+  transition: background-color 200ms ease;
 }
 
 body {
   min-height: 100vh;
-  color: var(--primary-navy);
+  color: var(--text-primary);
   background: var(--surface-canvas);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: color 200ms ease, background-color 200ms ease;
 }
 
 /* Smartphone-friendly tap response & touch target ergonomics */

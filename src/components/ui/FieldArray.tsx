@@ -58,7 +58,7 @@ export function FieldArray<T>({
         {items.map((item, idx) => (
           <div
             key={idx}
-            className="flex items-start gap-2 animate-slide-up bg-slate-50/70 p-2.5 rounded-xl border border-slate-200/80"
+            className="flex items-start gap-2 animate-slide-up bg-surface-canvas/70 p-2.5 rounded-xl border border-slate-200/80"
           >
             <div className="flex-1 min-w-0">{renderItem(item, idx)}</div>
             {canRemove && (

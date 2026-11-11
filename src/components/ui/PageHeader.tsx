@@ -42,7 +42,7 @@ export function PageHeader({
     <header
       aria-labelledby={headingId}
       className={cn(
-        'micro-card flex flex-col gap-4 rounded-2xl sm:rounded-3xl border border-slate-200 bg-white p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6',
+        'micro-card flex flex-col gap-4 rounded-2xl sm:rounded-3xl border border-slate-200 bg-surface-card p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6',
         className
       )}
     >
@@ -65,7 +65,7 @@ export function PageHeader({
             </span>
           )}
         </div>
-        {desc && <p className="max-w-2xl text-xs sm:text-sm text-slate-600 leading-relaxed">{desc}</p>}
+        {desc && <p className="max-w-2xl text-xs sm:text-sm text-text-secondary leading-relaxed">{desc}</p>}
       </div>
 
       {rightAction && <div className="shrink-0 flex flex-wrap items-center gap-2">{rightAction}</div>}

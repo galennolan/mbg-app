@@ -78,7 +78,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
       <button
         type="button"
         onClick={() => setShowPassword((prev) => !prev)}
-        className="p-1 rounded-lg text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 transition-colors pointer-events-auto"
+        className="p-1 rounded-lg text-slate-400 hover:text-text-secondary focus:outline-none focus:ring-2 focus:ring-brand-blue/30 transition-colors pointer-events-auto"
         aria-label={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
         title={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
       >
@@ -109,9 +109,9 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           aria-required={required || undefined}
           aria-describedby={ariaDescribedBy}
           className={cn(
-            'w-full min-h-[44px] bg-white border border-slate-300 rounded-xl text-sm sm:text-base text-slate-900 placeholder-slate-400',
+            'w-full min-h-[44px] bg-surface-card border border-slate-300 rounded-xl text-sm sm:text-base text-text-primary placeholder-slate-400',
             'px-3.5 py-2.5 shadow-elev-1 transition-all duration-150',
-            'focus:bg-white focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/15 focus:outline-none',
+            'focus:bg-surface-card focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/15 focus:outline-none',
             'disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed',
             leftIcon && 'pl-10',
             hasTrailing && 'pr-10',

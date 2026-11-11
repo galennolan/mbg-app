@@ -89,7 +89,7 @@ export function Alert({
         <button
           type="button"
           onClick={onDismiss}
-          className="min-h-[36px] min-w-[36px] -mr-1 -my-1 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-black/5 rounded-xl transition micro-tap shrink-0"
+          className="min-h-[36px] min-w-[36px] -mr-1 -my-1 flex items-center justify-center text-slate-500 hover:text-text-primary hover:bg-black/5 rounded-xl transition micro-tap shrink-0"
           aria-label="Tutup pesan"
         >
           <X className="w-4 h-4" aria-hidden="true" />
