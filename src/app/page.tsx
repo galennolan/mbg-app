@@ -35,6 +35,7 @@ import {
   normalizePhone628,
   SEED_CLASSES,
   SEED_SCHOOL,
+  subscribeToLiveUpdates,
 } from '@/lib/services';
 import { OrganolepticTest, StudentRecord, Kelas, CrmCampaign } from '@/lib/types';
 import { formatIndonesianDate, getJakartaDateString, formatWIBTime } from '@/lib/utils';
@@ -42,10 +43,14 @@ import { Modal, ModalInput, ModalActions } from '@/components/ui/ModalField';
 import { PageHeader, Input, Select, Button, Alert, useNotify } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
 import { enqueueOfflineClaim, getPendingOfflineClaims, clearSyncedOfflineClaim } from '@/lib/offline-queue';
-import { subscribeBrowserPushNotification, getBrowserPushState } from '@/lib/push-notification';
+import {
+  subscribeBrowserPushNotification,
+  getBrowserPushState,
+  triggerLocalBrowserPush,
+} from '@/lib/push-notification';
 
 export default function StudentPortalPage() {
-  const { student, user, isGuest, guestIdentity, setGuestIdentity, activeSchoolId } = useAuth();
+  const { student, user, role, isStudent, isGuest, guestIdentity, setGuestIdentity, activeSchoolId } = useAuth();
   const notify = useNotify();
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<OrganolepticTest | null>(null);
@@ -163,14 +168,24 @@ export default function StudentPortalPage() {
       }
     }
 
-    // Listen to simulated push notifications
+    // Listen to simulated push notifications (in-app banner + browser Notification API)
     const handlePushEvent = (e: any) => {
       if (e.detail) {
         setPushNotification(e.detail);
+        triggerLocalBrowserPush(
+          e.detail.title || 'MBG Tiba di Sekolah!',
+          e.detail.body || 'Distribusi Makan Bergizi Gratis telah dibuka.',
+          '/'
+        );
         setTimeout(() => setPushNotification(null), 8000);
       }
     };
     window.addEventListener('mbg-push-notification', handlePushEvent);
+
+    // Subscribe to Supabase Realtime updates so open tabs also receive arrival notifications immediately
+    const unsubscribeRealtime = subscribeToLiveUpdates(() => {
+      void loadSession();
+    });
 
     // Sync pending offline claims when internet reconnects
     const handleOnlineSync = async () => {
@@ -214,6 +229,7 @@ export default function StudentPortalPage() {
     return () => {
       window.removeEventListener('mbg-push-notification', handlePushEvent);
       window.removeEventListener('online', handleOnlineSync);
+      unsubscribeRealtime();
     };
   }, []);
 
@@ -662,7 +678,10 @@ export default function StudentPortalPage() {
   const handleToggleWebPush = async () => {
     setSubscribingPush(true);
     try {
-      const res = await subscribeBrowserPushNotification();
+      const res = await subscribeBrowserPushNotification({
+        schoolId: activeSchoolId || session?.id_sekolah || SEED_SCHOOL.id,
+        role: role || (isStudent ? 'siswa' : isGuest ? 'guest' : 'siswa'),
+      });
       if (res.success) {
         notify.success('Push Notification Aktif', res.message);
         setPushSubState(getBrowserPushState());

@@ -118,7 +118,7 @@ export default function SplashScreen({
       role="status"
       aria-live="polite"
       aria-label="Memuat aplikasi Nutri Kampus Hub"
-      className={`fixed inset-0 z-[100] flex flex-col justify-between select-none overflow-hidden transition-all duration-500 ease-out ${
+      className={`no-print fixed inset-0 z-[100] flex flex-col justify-between select-none overflow-hidden transition-all duration-500 ease-out ${
         isExiting
           ? 'opacity-0 scale-105 pointer-events-none'
           : 'opacity-100 scale-100'

@@ -92,7 +92,7 @@ export default function BottomNavigation() {
 
   return (
     <nav
-      className="mobile-bottom-nav fixed inset-x-0 bottom-0 z-bottom-nav border-t border-white/15 bg-brand-navy-dark/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-elev-4 backdrop-blur-md lg:hidden"
+      className="no-print mobile-bottom-nav fixed inset-x-0 bottom-0 z-bottom-nav border-t border-white/15 bg-brand-navy-dark/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-elev-4 backdrop-blur-md lg:hidden"
       aria-label="Navigasi utama perangkat seluler"
     >
       <div className={`mx-auto grid max-w-md ${colCountClass} gap-1.5`}>

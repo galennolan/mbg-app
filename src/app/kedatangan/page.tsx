@@ -37,6 +37,7 @@ import {
   deleteIncidentReport,
   SEED_SCHOOL,
 } from '@/lib/services';
+import { sendWebPushBroadcast } from '@/lib/push-notification';
 import {
   OrganolepticTest,
   OrganolepticKesimpulan,
@@ -403,6 +404,15 @@ export default function KedatanganMBGPage() {
       setSession(newSess);
       const msg = `MBG Datang berhasil dicatat. Master QR (${newSess.master_qr_token}) & PIN (${newSess.kode_pin_harian}) telah aktif.`;
       setSuccessMsg(msg);
+
+      if (newSess.kesimpulan === 'LAYAK_EDAR') {
+        void sendWebPushBroadcast({
+          title: 'MBG Tiba di Sekolah!',
+          body: `Paket Makan Bergizi Gratis telah tiba (${effectiveJamTiba} WIB) dan dinyatakan LAYAK EDAR. Silakan scan QR atau masukkan PIN.`,
+          url: '/',
+          schoolId: targetSchoolId,
+        });
+      }
 
       await notify.fire({
         icon: newSess.kesimpulan === 'LAYAK_EDAR' ? 'success' : 'warning',

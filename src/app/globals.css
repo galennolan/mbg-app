@@ -187,14 +187,30 @@ textarea,
 }
 
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm 15mm 15mm 15mm;
+  }
+
+  html,
   body {
-    background: white !important;
-    color: black !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: none !important;
+    width: 100% !important;
   }
 
   main .bg-white,
   .micro-card {
-    background: white !important;
+    background: #ffffff !important;
+    background-image: none !important;
     box-shadow: none !important;
     backdrop-filter: none !important;
   }
@@ -203,7 +219,19 @@ textarea,
     display: none !important;
   }
 
-  .print-only {
+  .print-only,
+  .print-only-block,
+  .print-document-container {
     display: block !important;
+  }
+
+  tr,
+  .print-avoid-break {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .print-table-header {
+    display: table-header-group !important;
   }
 }

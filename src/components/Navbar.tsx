@@ -425,9 +425,11 @@ export default function Navbar() {
     </Modal>
   );
 
+  if (pathname === '/login' || pathname === '/login-siswa') return null;
+
   return (
     <>
-      <nav className="sticky top-0 z-sticky border-b border-white/10 bg-brand-navy-dark/95 text-white shadow-elev-3 backdrop-blur-md">
+      <nav className="no-print sticky top-0 z-sticky border-b border-white/10 bg-brand-navy-dark/95 text-white shadow-elev-3 backdrop-blur-md">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
             {/* Logo & UBSI Brand */}
@@ -456,9 +458,9 @@ export default function Navbar() {
               </a>
             </div>
 
-            {/* Desktop Navigation */}
-              <div className="hidden lg:flex items-center space-x-0.5 xl:space-x-1">
-                <Link
+            {/* Desktop Navigation - Hidden since we now have Sidebar */}
+            <div className="hidden items-center space-x-0.5 lg:hidden">
+              <Link
                   href="/"
                   className={`min-h-[40px] flex items-center gap-1.5 rounded-xl px-2 xl:px-3 py-2 text-[11px] xl:text-xs font-bold micro-tap ${isActive('/')
                     ? 'bg-brand-blue text-white shadow-sm'

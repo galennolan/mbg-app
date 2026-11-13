@@ -42,7 +42,7 @@ export function PageHeader({
     <header
       aria-labelledby={headingId}
       className={cn(
-        'micro-card flex flex-col gap-4 rounded-2xl sm:rounded-3xl border border-slate-200 bg-surface-card p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6',
+        'micro-card flex flex-col gap-4 rounded-2xl border border-surface-border bg-surface-card p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between',
         className
       )}
     >
@@ -55,7 +55,7 @@ export function PageHeader({
           )}
           <h1
             id={headingId}
-            className="text-xl font-black tracking-tight text-brand-navy sm:text-2xl lg:text-3xl"
+            className="text-xl font-black tracking-tight text-text-primary sm:text-2xl"
           >
             {title}
           </h1>

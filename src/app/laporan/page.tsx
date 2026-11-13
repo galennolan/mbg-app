@@ -24,6 +24,7 @@ import {
   IncidentCategory,
   IncidentSeverity,
   IncidentStatus,
+  School,
 } from '@/lib/types';
 import {
   formatWIBTime,
@@ -35,6 +36,8 @@ import {
   getTodayDistribution,
   getMonitoringOverview,
   SEED_CLASSES,
+  SEED_SCHOOL,
+  getSchoolById,
   getClassRoster,
   correctClassAttendance,
   getIncidentReports,
@@ -52,6 +55,7 @@ import {
 } from '@/components/ui';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { LaporanCharts } from '@/components/laporan/LaporanCharts';
+import { PrintReportDocument } from '@/components/laporan/PrintReportDocument';
 
 export default function LaporanPage() {
   const { user, role, activeSchoolId } = useAuth();
@@ -71,6 +75,7 @@ export default function LaporanPage() {
 
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(getJakartaDateString());
+  const [schoolInfo, setSchoolInfo] = useState<School>(SEED_SCHOOL);
   const [distribusi, setDistribusi] = useState<DistribusiMBG | null>(null);
   const [receipts, setReceipts] = useState<any[]>([]);
   const [kelasList, setKelasList] = useState<Kelas[]>([]);
@@ -92,10 +97,14 @@ export default function LaporanPage() {
   const loadReportData = async () => {
     setLoading(true);
     try {
-      const dist = await getTodayDistribution(activeSchoolId);
+      const [school, dist, overview] = await Promise.all([
+        getSchoolById(activeSchoolId),
+        getTodayDistribution(activeSchoolId),
+        getMonitoringOverview(activeSchoolId),
+      ]);
+      setSchoolInfo(school);
       setDistribusi(dist as any);
 
-      const overview = await getMonitoringOverview(activeSchoolId);
       const mappedClasses = overview.classes.map((c) => ({
         id: c.id_kelas,
         nama_kelas: c.nama_kelas,
@@ -236,84 +245,337 @@ export default function LaporanPage() {
     }
   };
 
-  // Export to Excel (FR-22 + Sheet Kejadian Khusus)
-  const handleExportExcel = () => {
-    const formattedDate = formatDateDDMMYYYY(selectedDate);
-    const wb = XLSX.utils.book_new();
+  const sanitizeFilePart = (val: string) =>
+    val.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '') || 'Semua';
 
-    // Sheet 1: Transaksi Siswa
-    const dataToExport = filteredReceipts.map((r, i) => {
-      const row: Record<string, any> = {
-        No: i + 1,
-        'Tanggal Distribusi': formattedDate,
-        'Nama Siswa': r.nama_siswa,
-      };
-
-      if (showNISN) {
-        row['NISN'] = r.nisn || '-';
-      }
-
-      row['Kelas'] = r.kelas;
-      row['Jurusan'] = r.jurusan;
-      row['Status'] = r.status_penerimaan.toUpperCase();
-      row['Jam Penerimaan'] = r.waktu_penerimaan ? formatWIBTime(r.waktu_penerimaan) : '-';
-      row['Sumber Konfirmasi'] = r.sumber_pencatatan === 'siswa' ? 'Siswa (Scan)' : 'Guru';
-      row['Petugas Pencatat'] = r.petugas?.nama || '-';
-
-      return row;
-    });
-
-    const ws1 = XLSX.utils.json_to_sheet(dataToExport);
-    XLSX.utils.book_append_sheet(wb, ws1, 'Rekap Siswa');
-
-    // Sheet 2: Rekap Kelas
-    const classData = kelasList.map((k: any, i) => {
-      const total = k.total_siswa_dapodik || k.siswa?.length || 0;
-      const sudah =
-        typeof k.jumlah_hadir === 'number'
-          ? k.jumlah_hadir
-          : validDiterima.filter((r) => r.kelas === k.nama_kelas).length;
-      const belum =
-        typeof k.jumlah_absen === 'number'
-          ? k.jumlah_absen
-          : Math.max(0, total - sudah);
-      return {
-        No: i + 1,
-        'Nama Kelas': k.nama_kelas,
-        Jurusan: k.jurusan,
-        'Total Siswa': total,
-        'Sudah Menerima': sudah,
-        'Belum Tercatat': belum,
-        'Capaian (%)': total > 0 ? `${((sudah / total) * 100).toFixed(0)}%` : '0%',
-      };
-    });
-    const ws2 = XLSX.utils.json_to_sheet(classData);
-    XLSX.utils.book_append_sheet(wb, ws2, 'Rekap Kelas');
-
-    // Sheet 3: Kejadian Khusus MBG
-    const incidentData = filteredIncidents.map((inc, i) => ({
-      No: i + 1,
-      Tanggal: formatDateDDMMYYYY(inc.tanggal),
-      Waktu: `${inc.waktu_kejadian.slice(0, 5)} WIB`,
-      Kategori: inc.kategori.replace(/_/g, ' ').toUpperCase(),
-      Keparahan: inc.tingkat_keparahan.toUpperCase(),
-      'Judul Kejadian': inc.judul_kejadian,
-      Deskripsi: inc.deskripsi,
-      'Tindak Lanjut': inc.tindak_lanjut || '-',
-      Pelapor: inc.nama_petugas_pelapor || '-',
-      Status: inc.status_penyelesaian.toUpperCase(),
-    }));
-    const ws3 = XLSX.utils.json_to_sheet(incidentData);
-    XLSX.utils.book_append_sheet(wb, ws3, 'Kejadian Khusus');
-
-    XLSX.writeFile(wb, `Laporan_MBG_${formattedDate}.xlsx`);
-    notify.success('Ekspor Excel Berhasil', `File Laporan_MBG_${formattedDate}.xlsx telah diunduh.`);
+  const buildStyledSheet = (
+    title: string,
+    filterInfo: string,
+    headers: string[],
+    rows: (string | number)[][],
+    colWidths: number[],
+    totalRow?: (string | number)[]
+  ) => {
+    const aoa: (string | number)[][] = [
+      [title],
+      [`Sekolah: ${schoolInfo.nama_sekolah} (NPSN: ${schoolInfo.npsn})`],
+      [`Tanggal Laporan: ${formatIndonesianDate(selectedDate)} (${formatDateDDMMYYYY(selectedDate)})`],
+      [`Filter: ${filterInfo}`],
+      [],
+      headers,
+      ...rows,
+    ];
+    if (totalRow) {
+      aoa.push(totalRow);
+    }
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = colWidths.map((wch) => ({ wch }));
+    return ws;
   };
 
-  // Export to CSV (FR-24)
-  const handleExportCSV = () => {
+  // Export to Excel (Tab-Aware & Terstruktur)
+  const handleExportExcel = () => {
+    if (loading) {
+      notify.warning('Data laporan masih dimuat, mohon tunggu sebentar.', 'Data Belum Siap');
+      return;
+    }
+
     const formattedDate = formatDateDDMMYYYY(selectedDate);
     const wb = XLSX.utils.book_new();
+
+    const buildSiswaSheet = (filterDesc: string) => {
+      const headers = [
+        'No',
+        'Tanggal Distribusi',
+        'Nama Lengkap Siswa',
+        ...(showNISN ? ['NISN'] : []),
+        'Kelas',
+        'Jurusan',
+        'Status Penerimaan',
+        'Waktu Terima (WIB)',
+        'Sumber Konfirmasi',
+        'Petugas Pencatat',
+      ];
+      const rows = filteredReceipts.map((r, i) => [
+        i + 1,
+        formattedDate,
+        r.nama_siswa,
+        ...(showNISN ? [r.nisn || '-'] : []),
+        r.kelas,
+        r.jurusan || '-',
+        r.status_penerimaan.toUpperCase(),
+        r.waktu_penerimaan ? formatWIBTime(r.waktu_penerimaan) : '-',
+        r.sumber_pencatatan === 'siswa' ? 'Scan Mandiri' : 'Guru Piket',
+        r.petugas?.nama || '-',
+      ]);
+      const colWidths = [
+        5,
+        18,
+        28,
+        ...(showNISN ? [15] : []),
+        14,
+        22,
+        18,
+        18,
+        18,
+        22,
+      ];
+      const diterimaFiltered = filteredReceipts.filter((r) => r.status_penerimaan === 'diterima').length;
+      const totalRow = [
+        'TOTAL',
+        `${filteredReceipts.length} Siswa`,
+        `Diterima: ${diterimaFiltered}`,
+        ...(showNISN ? [''] : []),
+        '',
+        '',
+        `Belum/Absen: ${filteredReceipts.length - diterimaFiltered}`,
+        '',
+        '',
+        '',
+      ];
+      return buildStyledSheet(
+        'DAFTAR PENERIMAAN MAKAN BERGIZI GRATIS (MBG) TINGKAT SISWA',
+        filterDesc,
+        headers,
+        rows,
+        colWidths,
+        totalRow
+      );
+    };
+
+    const buildKelasSheet = (filterDesc: string) => {
+      const headers = [
+        'No',
+        'Nama Kelas',
+        'Tingkat',
+        'Jurusan',
+        'Total Kuota Siswa',
+        'Sudah Menerima',
+        'Belum / Sisa',
+        'Penyerapan (%)',
+        'Status Rombel',
+      ];
+      const rows = kelasList.map((k: any, i) => {
+        const total = k.total_siswa_dapodik || k.siswa?.length || 0;
+        const sudah =
+          typeof k.jumlah_hadir === 'number'
+            ? k.jumlah_hadir
+            : validDiterima.filter((r) => r.kelas === k.nama_kelas).length;
+        const belum =
+          typeof k.jumlah_absen === 'number'
+            ? k.jumlah_absen
+            : Math.max(0, total - sudah);
+        const pct = total > 0 ? `${Math.round((sudah / total) * 100)}%` : '0%';
+        const statusRombel =
+          sudah >= total && total > 0 ? 'Selesai 100%' : sudah > 0 ? 'Berjalan' : 'Belum Mulai';
+
+        return [i + 1, k.nama_kelas, k.tingkat || '-', k.jurusan || '-', total, sudah, belum, pct, statusRombel];
+      });
+      const totalRow = [
+        'TOTAL',
+        'Akumulasi Sekolah',
+        '-',
+        '-',
+        totalSiswaSekolah,
+        totalDiterima,
+        totalBelum,
+        `${persentase}%`,
+        '-',
+      ];
+      return buildStyledSheet(
+        'REKAPITULASI PENYERAPAN MBG TINGKAT KELAS / ROMBEL',
+        filterDesc,
+        headers,
+        rows,
+        [5, 18, 10, 24, 18, 16, 14, 16, 16],
+        totalRow
+      );
+    };
+
+    const buildKejadianSheet = (list: IncidentReport[], filterDesc: string) => {
+      const headers = [
+        'No',
+        'Tanggal',
+        'Jam (WIB)',
+        'Kategori Insiden',
+        'Tingkat Keparahan',
+        'Judul Kejadian',
+        'Deskripsi Lengkap',
+        'Tindak Lanjut',
+        'Petugas Pelapor',
+        'Status Penyelesaian',
+      ];
+      const rows = list.map((inc, i) => [
+        i + 1,
+        formatDateDDMMYYYY(inc.tanggal),
+        `${inc.waktu_kejadian.slice(0, 5)} WIB`,
+        inc.kategori.replace(/_/g, ' ').toUpperCase(),
+        inc.tingkat_keparahan.toUpperCase(),
+        inc.judul_kejadian,
+        inc.deskripsi,
+        inc.tindak_lanjut || '-',
+        inc.nama_petugas_pelapor || '-',
+        inc.status_penyelesaian.toUpperCase(),
+      ]);
+      const totalRow = ['TOTAL', `${list.length} Kejadian`, '', '', '', '', '', '', '', ''];
+      return buildStyledSheet(
+        'BERITA ACARA & LOG REKAPITULASI KEJADIAN KHUSUS MBG',
+        filterDesc,
+        headers,
+        rows,
+        [5, 14, 12, 22, 18, 28, 42, 32, 22, 20],
+        totalRow
+      );
+    };
+
+    if (activeTab === 'harian') {
+      const sppgName =
+        distribusi?.nama_sppg_aktual || schoolInfo.nama_sppg_mitra || 'SPPG Mitra Bergizi';
+      const summaryRows: (string | number)[][] = [
+        ['Mitra Penyedia (SPPG)', sppgName],
+        ['Waktu Kedatangan MBG', distribusi?.waktu_kedatangan ? `${formatWIBTime(distribusi.waktu_kedatangan)} WIB` : 'Belum Tercatat'],
+        ['Status Distribusi / QC', distribusi?.status ? distribusi.status.toUpperCase() : 'MENUNGGU'],
+        ['Total Siswa Terdaftar', totalSiswaSekolah],
+        ['Sudah Menerima', `${totalDiterima} (${persentase}%)`],
+        ['Belum Tercatat', totalBelum],
+        ['Tidak Hadir / Tidak Mengambil', tidakHadir.length + tidakMengambil.length],
+        ['Penerimaan Pertama', waktuPertama ? `${formatWIBTime(waktuPertama)} WIB` : '-'],
+        ['Penerimaan Terakhir', waktuTerakhir ? `${formatWIBTime(waktuTerakhir)} WIB` : '-'],
+      ];
+      const wsRingkasan = buildStyledSheet(
+        'RINGKASAN LAPORAN HARIAN PELAKSANAAN MBG',
+        `Tanggal ${formattedDate}`,
+        ['Parameter Pelaksanaan', 'Nilai / Keterangan'],
+        summaryRows,
+        [34, 48]
+      );
+      XLSX.utils.book_append_sheet(wb, wsRingkasan, 'Ringkasan Harian');
+      XLSX.utils.book_append_sheet(wb, buildKelasSheet(`Tanggal ${formattedDate}`), 'Rekap Kelas');
+      XLSX.utils.book_append_sheet(wb, buildSiswaSheet(`Tanggal ${formattedDate}`), 'Daftar Siswa');
+      XLSX.utils.book_append_sheet(
+        wb,
+        buildKejadianSheet(incidentsForSelectedDate, `Tanggal ${formattedDate}`),
+        'Kejadian Khusus'
+      );
+
+      const fileName = `Laporan_Harian_MBG_${formattedDate}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+      notify.success('Ekspor Excel Berhasil', `File ${fileName} telah diunduh.`);
+      return;
+    }
+
+    if (activeTab === 'siswa') {
+      const kelasSlug = filterKelas ? sanitizeFilePart(filterKelas) : 'Semua_Kelas';
+      const filterDesc = `Kelas: ${filterKelas || 'Semua'}, Status: ${filterStatus || 'Semua'}, Sumber: ${filterSumber || 'Semua'}`;
+      XLSX.utils.book_append_sheet(wb, buildSiswaSheet(filterDesc), 'Daftar Siswa');
+      const fileName = `Laporan_Siswa_MBG_${kelasSlug}_${formattedDate}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+      notify.success('Ekspor Excel Berhasil', `File ${fileName} telah diunduh.`);
+      return;
+    }
+
+    if (activeTab === 'kelas') {
+      XLSX.utils.book_append_sheet(wb, buildKelasSheet(`Tanggal ${formattedDate}`), 'Rekap Kelas');
+      const fileName = `Laporan_Rekap_Kelas_MBG_${formattedDate}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+      notify.success('Ekspor Excel Berhasil', `File ${fileName} telah diunduh.`);
+      return;
+    }
+
+    // Tab Kejadian Khusus
+    const filterSlug = sanitizeFilePart(
+      `${filterIncDateRange}_${filterIncKategori || 'Semua'}_${filterIncStatus || 'Semua'}`
+    );
+    const incFilterDesc = `Rentang: ${filterIncDateRange}, Kategori: ${filterIncKategori || 'Semua'}, Keparahan: ${filterIncSeverity || 'Semua'}, Status: ${filterIncStatus || 'Semua'}`;
+    XLSX.utils.book_append_sheet(
+      wb,
+      buildKejadianSheet(filteredIncidents, incFilterDesc),
+      'Kejadian Khusus'
+    );
+    const fileName = `Laporan_Kejadian_Khusus_MBG_${filterSlug}_${formattedDate}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+    notify.success('Ekspor Excel Berhasil', `File ${fileName} telah diunduh.`);
+  };
+
+  // Export to CSV (Tab-Aware + UTF-8 BOM)
+  const downloadCSV = (csvOutput: string, fileName: string) => {
+    const blob = new Blob(['\uFEFF' + csvOutput], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', fileName);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportCSV = () => {
+    if (loading) {
+      notify.warning('Data laporan masih dimuat, mohon tunggu sebentar.', 'Data Belum Siap');
+      return;
+    }
+
+    const formattedDate = formatDateDDMMYYYY(selectedDate);
+
+    if (activeTab === 'harian') {
+      const harianData = [
+        { Parameter: 'Sekolah', Nilai: schoolInfo.nama_sekolah },
+        { Parameter: 'NPSN', Nilai: schoolInfo.npsn },
+        { Parameter: 'Tanggal Laporan', Nilai: formattedDate },
+        {
+          Parameter: 'Mitra SPPG',
+          Nilai: distribusi?.nama_sppg_aktual || schoolInfo.nama_sppg_mitra || 'SPPG Mitra Bergizi',
+        },
+        {
+          Parameter: 'Waktu Kedatangan MBG',
+          Nilai: distribusi?.waktu_kedatangan ? `${formatWIBTime(distribusi.waktu_kedatangan)} WIB` : 'Belum Tercatat',
+        },
+        { Parameter: 'Total Siswa Terdaftar', Nilai: totalSiswaSekolah },
+        { Parameter: 'Porsi Diterima', Nilai: totalDiterima },
+        { Parameter: 'Porsi Belum Tercatat', Nilai: totalBelum },
+        { Parameter: 'Tidak Hadir / Tidak Mengambil', Nilai: tidakHadir.length + tidakMengambil.length },
+        { Parameter: 'Persentase Penyerapan (%)', Nilai: `${persentase}%` },
+        {
+          Parameter: 'Kejadian Khusus Tanggal Ini',
+          Nilai: incidentsForSelectedDate.length,
+        },
+      ];
+      const ws = XLSX.utils.json_to_sheet(harianData);
+      const fileName = `Laporan_Harian_MBG_${formattedDate}.csv`;
+      downloadCSV(XLSX.utils.sheet_to_csv(ws), fileName);
+      notify.success('Ekspor CSV Berhasil', `File ${fileName} telah diunduh.`);
+      return;
+    }
+
+    if (activeTab === 'kelas') {
+      const kelasData = kelasList.map((k: any, i) => {
+        const total = k.total_siswa_dapodik || k.siswa?.length || 0;
+        const sudah =
+          typeof k.jumlah_hadir === 'number'
+            ? k.jumlah_hadir
+            : validDiterima.filter((r) => r.kelas === k.nama_kelas).length;
+        const belum =
+          typeof k.jumlah_absen === 'number'
+            ? k.jumlah_absen
+            : Math.max(0, total - sudah);
+        return {
+          No: i + 1,
+          'Nama Kelas': k.nama_kelas,
+          Tingkat: k.tingkat || '-',
+          Jurusan: k.jurusan || '-',
+          'Total Kuota': total,
+          'Sudah Menerima': sudah,
+          'Sisa / Belum': belum,
+          'Penyerapan (%)': total > 0 ? `${Math.round((sudah / total) * 100)}%` : '0%',
+        };
+      });
+      const ws = XLSX.utils.json_to_sheet(kelasData);
+      const fileName = `Laporan_Kelas_MBG_${formattedDate}.csv`;
+      downloadCSV(XLSX.utils.sheet_to_csv(ws), fileName);
+      notify.success('Ekspor CSV Berhasil', `File ${fileName} telah diunduh.`);
+      return;
+    }
 
     if (activeTab === 'kejadian') {
       const dataToExport = filteredIncidents.map((inc, i) => ({
@@ -329,19 +591,13 @@ export default function LaporanPage() {
         Status: inc.status_penyelesaian,
       }));
       const ws = XLSX.utils.json_to_sheet(dataToExport);
-      const csvOutput = XLSX.utils.sheet_to_csv(ws);
-      const blob = new Blob([csvOutput], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.setAttribute('href', url);
-      link.setAttribute('download', `Laporan_Kejadian_Khusus_${formattedDate}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      notify.success('Ekspor CSV Berhasil', `File Laporan_Kejadian_Khusus_${formattedDate}.csv telah diunduh.`);
+      const fileName = `Laporan_Kejadian_Khusus_${formattedDate}.csv`;
+      downloadCSV(XLSX.utils.sheet_to_csv(ws), fileName);
+      notify.success('Ekspor CSV Berhasil', `File ${fileName} telah diunduh.`);
       return;
     }
 
+    // Tab Siswa
     const dataToExport = filteredReceipts.map((r, i) => {
       const row: Record<string, any> = {
         No: i + 1,
@@ -364,66 +620,63 @@ export default function LaporanPage() {
     });
 
     const ws = XLSX.utils.json_to_sheet(dataToExport);
-    const csvOutput = XLSX.utils.sheet_to_csv(ws);
-    const blob = new Blob([csvOutput], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `Laporan_MBG_${formattedDate}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    notify.success('Ekspor CSV Berhasil', `File Laporan_MBG_${formattedDate}.csv telah diunduh.`);
+    const fileName = `Laporan_Siswa_MBG_${formattedDate}.csv`;
+    downloadCSV(XLSX.utils.sheet_to_csv(ws), fileName);
+    notify.success('Ekspor CSV Berhasil', `File ${fileName} telah diunduh.`);
   };
 
   // Print PDF
   const handlePrint = () => {
+    if (loading) {
+      notify.warning('Data laporan masih dimuat sebelum mencetak.', 'Tunggu Sebentar');
+      return;
+    }
     window.print();
   };
 
   return (
     <ProtectedRoute allowedRoles={['guru_piket', 'kepala_sekolah', 'super_admin', 'admin', 'guru']}>
-      <div className="space-y-6 pb-12">
-        {/* Top Header & Export Controls (Hidden on Print) */}
-      <div className="no-print">
-        <PageHeader
-          title="Laporan Distribusi MBG"
-          subtitle="Rekap harian, per siswa, per kelas, serta ekspor format Excel, CSV, dan cetak PDF."
-          badgeText="LAPORAN & REKAPITULASI"
-        >
-          <div className="flex flex-wrap items-center gap-2.5">
-            <Button
-              type="button"
-              variant="primary"
-              size="sm"
-              onClick={handleExportExcel}
-              leftIcon={<Download className="w-4 h-4" />}
-              className="bg-emerald-600 hover:bg-emerald-700"
-            >
-              Export Excel (.xlsx)
-            </Button>
+      <div className="no-print space-y-6 pb-12">
+        {/* Top Header & Export Controls */}
+        <div>
+          <PageHeader
+            title="Laporan Distribusi MBG"
+            subtitle="Rekap harian, per siswa, per kelas, serta ekspor format Excel, CSV, dan cetak PDF."
+            badgeText="LAPORAN & REKAPITULASI"
+          >
+            <div className="flex flex-wrap items-center gap-2.5">
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                onClick={handleExportExcel}
+                leftIcon={<Download className="w-4 h-4" />}
+                className="bg-emerald-600 hover:bg-emerald-700"
+              >
+                Export Excel (Tab Ini)
+              </Button>
 
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={handleExportCSV}
-            >
-              Export CSV
-            </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={handleExportCSV}
+              >
+                Export CSV (Tab Ini)
+              </Button>
 
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={handlePrint}
-              leftIcon={<Printer className="w-4 h-4" />}
-            >
-              Cetak PDF
-            </Button>
-          </div>
-        </PageHeader>
-      </div>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={handlePrint}
+                leftIcon={<Printer className="w-4 h-4" />}
+              >
+                Cetak PDF (Tab Ini)
+              </Button>
+            </div>
+          </PageHeader>
+        </div>
 
       {/* Filter Tanggal & Tab Nav (Hidden on Print) */}
       <div className="no-print micro-card rounded-2xl p-5 flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -483,12 +736,6 @@ export default function LaporanPage() {
             Kejadian Khusus ({filteredIncidents.length})
           </button>
         </div>
-      </div>
-
-      {/* PRINT-ONLY HEADER */}
-      <div className="hidden print:block text-center border-b pb-4 mb-6">
-        <h2 className="text-xl font-bold uppercase">LAPORAN REKAPITULASI MAKAN BERGIZI GRATIS (MBG)</h2>
-        <p className="text-sm">Tanggal: {formatDateDDMMYYYY(selectedDate)}</p>
       </div>
 
       {/* TAB 1: LAPORAN HARIAN (PRD 9.1) */}
@@ -1250,6 +1497,41 @@ export default function LaporanPage() {
         )}
       </Modal>
       </div>
+
+      {/* Dedicated Formal Print Sheet (Hidden on Screen, Visible on Print) */}
+      <PrintReportDocument
+        activeTab={activeTab}
+        selectedDate={selectedDate}
+        distribusi={distribusi}
+        schoolInfo={schoolInfo}
+        kelasList={kelasList}
+        receipts={receipts}
+        filteredReceipts={filteredReceipts}
+        filteredIncidents={filteredIncidents}
+        incidentsForSelectedDate={incidentsForSelectedDate}
+        totalStats={{
+          totalSiswaSekolah,
+          totalDiterima,
+          totalBelum,
+          totalAbsenAtauTidakAmbil: tidakHadir.length + tidakMengambil.length,
+          persentase,
+          waktuPertama,
+          waktuTerakhir,
+        }}
+        filtersApplied={{
+          searchSiswa,
+          filterKelas,
+          filterStatus,
+          filterSumber,
+          searchIncident,
+          filterIncKategori,
+          filterIncSeverity,
+          filterIncStatus,
+          filterIncDateRange,
+        }}
+        showNISN={showNISN}
+        petugasNama={user?.nama}
+      />
     </ProtectedRoute>
   );
 }
