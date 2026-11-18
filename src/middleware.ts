@@ -7,47 +7,47 @@ const ROLE_ROUTE_RULES: Array<{
   prefix: string;
   allowedRoles: string[];
 }> = [
-  {
-    prefix: '/admin/sekolah',
-    allowedRoles: ['super_admin', 'admin'],
-  },
-  {
-    prefix: '/admin/campaign',
-    allowedRoles: ['super_admin', 'admin'],
-  },
-  {
-    prefix: '/admin/pengguna',
-    allowedRoles: ['super_admin', 'admin'],
-  },
-  {
-    prefix: '/admin/audit',
-    allowedRoles: ['super_admin', 'admin'],
-  },
-  {
-    prefix: '/admin/kelas',
-    allowedRoles: ['super_admin', 'admin', 'guru_piket', 'kepala_sekolah', 'guru'],
-  },
-  {
-    prefix: '/siswa',
-    allowedRoles: ['super_admin', 'admin', 'guru_piket', 'kepala_sekolah', 'guru'],
-  },
-  {
-    prefix: '/kedatangan',
-    allowedRoles: ['super_admin', 'admin', 'guru_piket', 'guru'],
-  },
-  {
-    prefix: '/dashboard',
-    allowedRoles: ['super_admin', 'admin', 'guru_piket', 'kepala_sekolah', 'guru'],
-  },
-  {
-    prefix: '/laporan',
-    allowedRoles: ['super_admin', 'admin', 'guru_piket', 'kepala_sekolah', 'guru'],
-  },
-  {
-    prefix: '/konfirmasi',
-    allowedRoles: ['super_admin', 'admin', 'guru_piket', 'kepala_sekolah', 'guru'],
-  },
-];
+    {
+      prefix: '/admin/sekolah',
+      allowedRoles: ['super_admin', 'admin'],
+    },
+    {
+      prefix: '/admin/campaign',
+      allowedRoles: ['super_admin', 'admin'],
+    },
+    {
+      prefix: '/admin/pengguna',
+      allowedRoles: ['super_admin', 'admin'],
+    },
+    {
+      prefix: '/admin/audit',
+      allowedRoles: ['super_admin', 'admin'],
+    },
+    {
+      prefix: '/admin/kelas',
+      allowedRoles: ['super_admin', 'admin', 'guru_piket', 'kepala_sekolah', 'guru'],
+    },
+    {
+      prefix: '/siswa',
+      allowedRoles: ['super_admin', 'admin', 'guru_piket', 'kepala_sekolah', 'guru'],
+    },
+    {
+      prefix: '/kedatangan',
+      allowedRoles: ['super_admin', 'admin', 'guru_piket', 'guru'],
+    },
+    {
+      prefix: '/dashboard',
+      allowedRoles: ['super_admin', 'admin', 'guru_piket', 'kepala_sekolah', 'guru'],
+    },
+    {
+      prefix: '/laporan',
+      allowedRoles: ['super_admin', 'admin', 'guru_piket', 'kepala_sekolah', 'guru'],
+    },
+    {
+      prefix: '/konfirmasi',
+      allowedRoles: ['super_admin', 'admin', 'guru_piket', 'kepala_sekolah', 'guru'],
+    },
+  ];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -66,16 +66,19 @@ export function middleware(request: NextRequest) {
   const cookieRole = request.cookies.get('mbg_role')?.value || '';
   const cookieSchoolId = request.cookies.get('mbg_school_id')?.value || '';
 
-  // If role cookie is explicitly set (e.g., 'siswa' or a staff role), enforce route matrix at Edge level
-  if (cookieRole) {
-    const matchedRule = ROLE_ROUTE_RULES.find(
-      (rule) => pathname === rule.prefix || pathname.startsWith(`${rule.prefix}/`)
-    );
+  const matchedRule = ROLE_ROUTE_RULES.find(
+    (rule) => pathname === rule.prefix || pathname.startsWith(`${rule.prefix}/`)
+  );
 
-    if (matchedRule && !matchedRule.allowedRoles.includes(cookieRole)) {
-      const redirectTarget = cookieRole === 'siswa' ? '/' : '/dashboard';
-      return NextResponse.redirect(new URL(redirectTarget, request.url));
-    }
+  // Wajib login untuk rute non-publik yang masuk daftar proteksi RBAC
+  if (matchedRule && !cookieRole) {
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
+
+  // Enforce route matrix at Edge level when role cookie is set
+  if (matchedRule && cookieRole && !matchedRule.allowedRoles.includes(cookieRole)) {
+    const redirectTarget = cookieRole === 'siswa' ? '/' : '/dashboard';
+    return NextResponse.redirect(new URL(redirectTarget, request.url));
   }
 
   const response = NextResponse.next();

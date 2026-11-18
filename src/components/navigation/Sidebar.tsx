@@ -3,12 +3,12 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { 
-  LayoutDashboard, 
-  Truck, 
-  Users, 
-  FileSpreadsheet, 
-  QrCode, 
+import {
+  LayoutDashboard,
+  Truck,
+  Users,
+  FileSpreadsheet,
+  QrCode,
   ShieldCheck,
   Building2,
   GraduationCap,
@@ -25,47 +25,94 @@ import { cn } from '@/lib/utils';
 export default function Sidebar() {
   const pathname = usePathname();
   const { user, role, isStudent, student } = useAuth();
-  
+
   const isActive = (path: string) => pathname === path;
-  const isStaff = user !== null || !isStudent;
-  const isSuperAdmin = role === 'super_admin' || role === 'admin';
+  const isStaff = user !== null && !isStudent;
+  const activeRole = isStudent ? 'siswa' : isStaff && role ? role : 'guest';
 
-  const menuItems = [
-    {
-      title: 'Utama',
-      items: [
-        { href: '/', label: 'Portal Siswa (Scan)', icon: QrCode },
-        { href: '/dashboard', label: 'Monitor Real-time', icon: LayoutDashboard, staffOnly: true },
-      ]
-    },
-    {
-      title: 'Operasional',
-      staffOnly: true,
-      items: [
-        { href: '/kedatangan', label: 'Kedatangan MBG', icon: Truck },
-        { href: '/konfirmasi/kelas', label: 'Konfirmasi Kelas', icon: Users },
-        { href: '/laporan', label: 'Laporan & SPPG', icon: FileSpreadsheet },
-      ]
-    },
-    {
-      title: 'Master Data',
-      adminOnly: true,
-      items: [
-        { href: '/admin/kelas', label: 'Data Kelas', icon: Building2 },
-        { href: '/siswa', label: 'Data Siswa', icon: GraduationCap },
-        { href: '/admin/pengguna', label: 'Kelola Pengguna', icon: Users },
-        { href: '/admin/audit', label: 'Audit Log', icon: History },
-      ]
-    }
-  ];
-
-  // Helper type for items
   interface NavItem {
     href: string;
     label: string;
     icon: any;
-    staffOnly?: boolean;
+    allowedRoles: string[];
   }
+
+  interface NavGroup {
+    title: string;
+    items: NavItem[];
+  }
+
+  const menuItems: NavGroup[] = [
+    {
+      title: 'Utama',
+      items: [
+        {
+          href: '/',
+          label: 'Portal Siswa (Scan)',
+          icon: QrCode,
+          allowedRoles: ['guest', 'siswa', 'guru_piket', 'kepala_sekolah', 'super_admin', 'admin', 'guru'],
+        },
+        {
+          href: '/dashboard',
+          label: 'Monitor Real-time',
+          icon: LayoutDashboard,
+          allowedRoles: ['guru_piket', 'kepala_sekolah', 'super_admin', 'admin', 'guru'],
+        },
+      ],
+    },
+    {
+      title: 'Operasional',
+      items: [
+        {
+          href: '/kedatangan',
+          label: 'Kedatangan MBG',
+          icon: Truck,
+          allowedRoles: ['guru_piket', 'super_admin', 'admin', 'guru'],
+        },
+        {
+          href: '/konfirmasi/kelas',
+          label: 'Konfirmasi Kelas',
+          icon: Users,
+          allowedRoles: ['guru_piket', 'kepala_sekolah', 'super_admin', 'admin', 'guru'],
+        },
+        {
+          href: '/laporan',
+          label: 'Laporan & SPPG',
+          icon: FileSpreadsheet,
+          allowedRoles: ['guru_piket', 'kepala_sekolah', 'super_admin', 'admin', 'guru'],
+        },
+      ],
+    },
+    {
+      title: 'Master Data',
+      items: [
+        {
+          href: '/admin/kelas',
+          label: 'Data Kelas',
+          icon: Building2,
+          allowedRoles: ['guru_piket', 'kepala_sekolah', 'super_admin', 'admin', 'guru'],
+        },
+        {
+          href: '/siswa',
+          label: 'Data Siswa',
+          icon: GraduationCap,
+          allowedRoles: ['guru_piket', 'kepala_sekolah', 'super_admin', 'admin', 'guru'],
+        },
+        {
+          href: '/admin/pengguna',
+          label: 'Kelola Pengguna',
+          icon: Users,
+          allowedRoles: ['super_admin', 'admin'],
+        },
+        {
+          href: '/admin/audit',
+          label: 'Audit Log',
+          icon: History,
+          allowedRoles: ['super_admin', 'admin'],
+        },
+      ],
+    },
+  ];
 
 
   if (pathname === '/login' || pathname === '/login-siswa') return null;
@@ -89,8 +136,10 @@ export default function Sidebar() {
 
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-6" aria-label="Navigasi utama">
         {menuItems.map((group, idx) => {
-          if (group.staffOnly && !isStaff) return null;
-          if (group.adminOnly && !isSuperAdmin) return null;
+          const visibleItems = group.items.filter((item) =>
+            item.allowedRoles.includes(activeRole)
+          );
+          if (visibleItems.length === 0) return null;
 
           return (
             <div key={idx} className="space-y-1.5">
@@ -98,9 +147,7 @@ export default function Sidebar() {
                 {group.title}
               </h2>
               <div className="space-y-1">
-                {group.items.map((item: NavItem) => {
-                  if (item.staffOnly && !isStaff) return null;
-
+                {visibleItems.map((item: NavItem) => {
                   const active = isActive(item.href);
 
                   return (
@@ -143,7 +190,9 @@ export default function Sidebar() {
               {user?.nama || student?.nama_lengkap || 'Tamu'}
             </p>
             <p className="truncate text-[11px] text-sky-200/70 mt-0.5">
-              {(role || (student ? 'siswa' : 'tamu')).replace('_', ' ')}
+              {role === 'guru_piket'
+                ? 'Guru PIC MBG'
+                : (role || (student ? 'siswa' : 'tamu')).replace('_', ' ')}
             </p>
           </div>
         </div>

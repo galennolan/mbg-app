@@ -310,7 +310,7 @@ export default function KedatanganMBGPage() {
     setSavingIncident(true);
     try {
       const targetSchoolId = activeSchoolId || school?.id || user?.id_sekolah || SEED_SCHOOL.id;
-      const reporterName = user?.nama || 'Petugas Guru Piket';
+      const reporterName = user?.nama || 'Petugas Guru PIC MBG';
 
       if (editingIncident) {
         const updated = await updateIncidentReport(editingIncident.id, {
@@ -469,7 +469,7 @@ export default function KedatanganMBGPage() {
     try {
       const updated = await updateOrganolepticQC(session, {
         kesimpulan: 'TOLAK_RETUR',
-        catatan_kejadian_khusus: 'Distribusi ditutup oleh Guru Piket',
+        catatan_kejadian_khusus: 'Distribusi ditutup oleh Guru PIC MBG',
       });
       setSession(updated);
       setShowCloseModal(false);
@@ -490,7 +490,7 @@ export default function KedatanganMBGPage() {
         <PageHeader
           title="Kedatangan MBG & Organoleptik (FR-2.1)"
           subtitle="Verifikasi penerimaan SPPG, Uji Keamanan Pangan 2-Klik, dan Generate Master QR Token."
-          badgeText="GURU PIKET"
+          badgeText="GURU PIC MBG"
         >
           <Button
             type="button"
@@ -938,7 +938,7 @@ export default function KedatanganMBGPage() {
                 <div>
                   <h3 className="text-base font-black text-brand-navy">Menunggu Kedatangan MBG</h3>
                   <p className="text-xs text-slate-600 mt-1 max-w-xs mx-auto leading-relaxed">
-                    Master QR Code dan PIN 4-Digit harian akan otomatis dibuat setelah Guru Piket menekan
+                    Master QR Code dan PIN 4-Digit harian akan otomatis dibuat setelah Guru PIC MBG menekan
                     tombol <strong>Lapor MBG Datang</strong>.
                   </p>
                 </div>

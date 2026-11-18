@@ -21,7 +21,7 @@ import { Input, Button, Alert, useNotify } from '@/components/ui';
 export default function LoginPage() {
   const router = useRouter();
   const notify = useNotify();
-  const { signIn, signInStudent, loginAsDemoRole, user, isStudent } = useAuth();
+  const { signIn, signInStudent, user, isStudent } = useAuth();
 
   // Dual-Mode Login Tab State ('staff' | 'student')
   const [loginMode, setLoginMode] = useState<'staff' | 'student'>('staff');
@@ -78,7 +78,7 @@ export default function LoginPage() {
       if (res.error) {
         if (res.error.toLowerCase().includes('invalid login credentials')) {
           setErrorMsg(
-            'Email atau kata sandi salah. Gunakan tombol Simulasi Cepat di bawah jika baru pertama kali mencoba.'
+            'Email atau kata sandi salah. Pastikan akun Anda terdaftar dan aktif.'
           );
         } else {
           setErrorMsg(res.error);
@@ -131,34 +131,6 @@ export default function LoginPage() {
     }
   };
 
-  // Helper to register/sign-in initial Staff accounts (Super Admin, Guru Piket, Kepala Sekolah)
-  const handleCreateInitialAccount = async (
-    role: 'super_admin' | 'guru_piket' | 'kepala_sekolah'
-  ) => {
-    const emailMap = {
-      super_admin: 'admin@mbg.sekolah.id',
-      guru_piket: 'guru@mbg.sekolah.id',
-      kepala_sekolah: 'kepsek@mbg.sekolah.id',
-    };
-    const targetEmail = emailMap[role];
-    const targetPassword = 'Password123!';
-    setEmail(targetEmail);
-    setPassword(targetPassword);
-    setLoading(true);
-    setErrorMsg('');
-    setInfoMsg('');
-
-    try {
-      await loginAsDemoRole(role);
-      notify.success('Sesi Demo Aktif', `Masuk sebagai ${role.replace('_', ' ').toUpperCase()}.`);
-      router.push('/dashboard');
-    } catch (e: any) {
-      setErrorMsg(e.message || 'Gagal menyiapkan akun.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Helper for 1-Click Student Demo Login
   const handleQuickStudentLogin = async (nama: string, phone: string) => {
     setNamaSiswa(nama);
@@ -195,7 +167,7 @@ export default function LoginPage() {
           </h1>
           <p className="text-xs text-sky-200 mt-1">
             {loginMode === 'staff'
-              ? 'Akses Operasional Guru Piket, Kepala Sekolah & Super Admin'
+              ? 'Akses Operasional Guru PIC MBG, Kepala Sekolah & Super Admin'
               : 'Masuk dengan Nama Lengkap & Nomor WhatsApp (628xxx)'}
           </p>
 
@@ -291,39 +263,6 @@ export default function LoginPage() {
                   Masuk Sebagai Petugas
                 </Button>
               </form>
-
-              {/* Quick Helper for Initial RBAC Testing / Setup */}
-              <div className="pt-4 border-t border-slate-200 text-center space-y-2.5">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-                  Simulasi Cepat RBAC (1-Klik Masuk)
-                </span>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleCreateInitialAccount('super_admin')}
-                    className="micro-tap min-h-[42px] py-2 px-2 text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-900 rounded-xl border border-amber-200 transition text-center"
-                  >
-                    Super Admin
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleCreateInitialAccount('guru_piket')}
-                    className="micro-tap min-h-[42px] py-2 px-2 text-xs font-bold bg-blue-50 hover:bg-blue-100 text-blue-900 rounded-xl border border-blue-200 transition text-center"
-                  >
-                    Guru Piket
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleCreateInitialAccount('kepala_sekolah')}
-                    className="micro-tap min-h-[42px] py-2 px-2 text-xs font-bold bg-purple-50 hover:bg-purple-100 text-purple-900 rounded-xl border border-purple-200 transition text-center"
-                  >
-                    Kepala Sekolah
-                  </button>
-                </div>
-                <p className="text-[11px] text-slate-500">
-                  Password default: <code className="font-mono font-bold">Password123!</code>
-                </p>
-              </div>
             </>
           ) : (
             /* ==================== TAB 2: LOGIN SISWA (NAMA + NO. HP 628xxx) ==================== */

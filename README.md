@@ -95,10 +95,12 @@ Skrip ini mencakup:
 
 ---
 
-## 🔑 Login Default & Akun Inisiasi
+## 🔑 Login Petugas
 
-Pada halaman login (`/login`), terdapat tombol cepat inisiasi akun:
-- **Akun Admin Percobaan**: `admin@mbg.sekolah.id`
-- **Akun Guru Percobaan**: `guru@mbg.sekolah.id`
-- **Password Default**: `Password123!`
+Login petugas memakai **Supabase Auth asli** (email + kata sandi). Tidak ada akun atau tombol demo.
+
+Membuat Super Admin pertama:
+1. Supabase Dashboard → Authentication → Users → **Add user** (email + password).
+2. Tambahkan baris di tabel `pengguna` dengan `id` = UUID user tersebut dan `peran = 'super_admin'`.
+3. Login di `/login` dengan email dan password itu.
 

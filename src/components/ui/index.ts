@@ -90,6 +90,9 @@ export type { NotifyContextValue } from './NotificationProvider';
 export { PageHeader } from './PageHeader';
 export type { PageHeaderProps } from './PageHeader';
 
+export { Pagination } from './Pagination';
+export type { PaginationProps } from './Pagination';
+
 export { default as SplashScreen } from './SplashScreen';
 
 

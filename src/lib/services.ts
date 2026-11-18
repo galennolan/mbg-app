@@ -28,6 +28,7 @@ import {
   MonitoringOverviewData,
 } from './types';
 import { getJakartaDateString } from './utils';
+import type { DapodikStudentRow } from './dapodik-import';
 
 // ============================================================
 // LOCAL STORAGE RESILIENCE HELPERS (OFFLINE-FIRST PWA)
@@ -198,7 +199,7 @@ export async function triggerMBGArrivalSession(params: {
     // ignore
   }
 
-  // 1. Validate Guru Piket ID & Get School ID if not provided
+  // 1. Validate Guru PIC MBG ID & Get School ID if not provided
   let validGuruPiketId: string | null = null;
   let schoolId: string | null = params.idSekolah || null;
 
@@ -823,7 +824,7 @@ export async function verifyStudentPinOrQr(tokenOrPin: string): Promise<{
   if (!session) {
     return {
       valid: false,
-      message: 'MBG hari ini belum dibuka oleh Guru Piket.',
+      message: 'MBG hari ini belum dibuka oleh Guru PIC MBG.',
     };
   }
 
@@ -2179,7 +2180,9 @@ export async function importStudentsWithAutoAccount(params: {
 
   if (!params.allowUpdate) {
     for (const s of existingLocal) {
-      dedupSet.add(`${s.nama_lengkap.trim().toLowerCase()}|${normalizePhone628(s.no_hp)}`);
+      if (s.no_hp) {
+        dedupSet.add(`${s.nama_lengkap.trim().toLowerCase()}|${normalizePhone628(s.no_hp)}`);
+      }
       if (s.nisn) nisnSet.add(s.nisn);
     }
     for (const seed of SEED_STUDENTS) {
@@ -2206,22 +2209,24 @@ export async function importStudentsWithAutoAccount(params: {
       continue;
     }
 
+    // No. HP bersifat opsional: dibiarkan kosong, tidak dibuatkan nomor acak.
     const rawPhone = (row.no_hp || '').trim();
-    const normalizedPhone = rawPhone
-      ? normalizePhone628(rawPhone)
-      : `62813${String(Math.floor(1000000 + Math.random() * 9000000))}`;
+    const normalizedPhone = rawPhone ? normalizePhone628(rawPhone) : '';
 
     const cleanNisn =
       row.nisn && String(row.nisn).trim().length >= 5
         ? String(row.nisn).replace(/\D/g, '').slice(0, 10).padStart(10, '0')
         : String(Math.floor(1000000000 + Math.random() * 9000000000));
 
-    const dedupKey = `${cleanNama.toLowerCase()}|${normalizedPhone}`;
-    if (!params.allowUpdate && (dedupSet.has(dedupKey) || (row.nisn && nisnSet.has(cleanNisn)))) {
+    const dedupKey = normalizedPhone ? `${cleanNama.toLowerCase()}|${normalizedPhone}` : null;
+    if (
+      !params.allowUpdate &&
+      ((dedupKey && dedupSet.has(dedupKey)) || (row.nisn && nisnSet.has(cleanNisn)))
+    ) {
       skippedDuplicateCount++;
       continue;
     }
-    dedupSet.add(dedupKey);
+    if (dedupKey) dedupSet.add(dedupKey);
     nisnSet.add(cleanNisn);
 
     const targetCls =
@@ -2238,7 +2243,7 @@ export async function importStudentsWithAutoAccount(params: {
       nisn: cleanNisn,
       kelas_id: row.kelas_id,
       email: row.email ? row.email.trim() : null,
-      no_hp: normalizedPhone,
+      no_hp: normalizedPhone || null,
       status_aktif: isAktif,
     });
 
@@ -2246,7 +2251,7 @@ export async function importStudentsWithAutoAccount(params: {
       nisn: cleanNisn,
       id_kelas: row.kelas_id,
       nama_lengkap: cleanNama,
-      no_hp: normalizedPhone,
+      no_hp: normalizedPhone || null,
       email: row.email ? row.email.trim() : null,
       jurusan,
       alergi_makanan: alergi,
@@ -2344,42 +2349,230 @@ export async function importStudentsWithAutoAccount(params: {
 }
 
 // ============================================================
+// IMPORT DATA DAPODIK (BULK, KE SUPABASE)
+// Data pribadi (NIK, alamat, orang tua) masuk tabel `student_private`
+// yang tidak bisa dibaca publik dan tidak pernah dimuat oleh antarmuka web.
+// ============================================================
+
+function explainImportError(stage: string, err: { message?: string; code?: string } | null): Error {
+  const msg = err?.message || 'Kesalahan tidak diketahui';
+  let hint = '';
+  if (msg.includes('classes_jurusan_check') || msg.includes('student_private') || msg.includes('null value in column "no_hp"')) {
+    hint =
+      ' Jalankan dulu migrasi supabase/migrations/20261117_smkn5_import_support.sql di Supabase SQL Editor.';
+  } else if (err?.code === '42501' || msg.toLowerCase().includes('row-level security')) {
+    hint =
+      ' Akses ditolak RLS: login dengan akun Supabase asli berperan super_admin, atau gunakan script SQL sekali jalan.';
+  }
+  return new Error(`Gagal pada tahap "${stage}": ${msg}.${hint}`);
+}
+
+export async function importDapodikStudents(params: {
+  npsn: string;
+  schoolName: string;
+  rows: DapodikStudentRow[];
+  penggunaId?: string | null;
+  onProgress?: (done: number, total: number, stage: string) => void;
+}): Promise<{
+  schoolId: string;
+  schoolName: string;
+  classesCount: number;
+  classesCreated: number;
+  studentsUpserted: number;
+  withoutPhone: number;
+  message: string;
+}> {
+  const npsn = params.npsn.trim();
+  const schoolName = params.schoolName.trim();
+  if (!npsn) throw new Error('NPSN sekolah wajib diisi.');
+  if (!schoolName) throw new Error('Nama sekolah wajib diisi.');
+  if (params.rows.length === 0) throw new Error('Tidak ada data siswa untuk diimpor.');
+
+  const CHUNK = 100;
+  const total = params.rows.length * 2;
+  let done = 0;
+  const report = (stage: string) => params.onProgress?.(done, total, stage);
+
+  // 1. Sekolah (cari berdasarkan NPSN, buat bila belum ada)
+  report('Menyiapkan sekolah');
+  const { data: foundSchool, error: schoolErr } = await supabase
+    .from('schools')
+    .select('*')
+    .eq('npsn', npsn)
+    .maybeSingle();
+  if (schoolErr) throw explainImportError('cek sekolah', schoolErr);
+
+  let schoolId = foundSchool?.id as string | undefined;
+  let finalSchoolName = (foundSchool?.nama_sekolah as string | undefined) || schoolName;
+  if (!schoolId) {
+    const { data: createdSchool, error: createErr } = await supabase
+      .from('schools')
+      .insert({ npsn, nama_sekolah: schoolName, nama_sppg_mitra: 'SPPG Mitra Bergizi' })
+      .select()
+      .single();
+    if (createErr || !createdSchool) throw explainImportError('buat sekolah', createErr);
+    schoolId = createdSchool.id as string;
+    finalSchoolName = createdSchool.nama_sekolah as string;
+  }
+
+  // 2. Kelas (pakai yang sudah ada, buat yang belum ada)
+  report('Menyiapkan kelas');
+  const { data: existingClasses, error: classErr } = await supabase
+    .from('classes')
+    .select('id, nama_kelas')
+    .eq('id_sekolah', schoolId);
+  if (classErr) throw explainImportError('baca kelas', classErr);
+
+  const classIdByName = new Map<string, string>();
+  for (const c of existingClasses || []) {
+    classIdByName.set(String(c.nama_kelas).trim().toLowerCase(), c.id as string);
+  }
+
+  const classPlan = new Map<string, { nama: string; tingkat: string; jurusan: string; jumlah: number }>();
+  for (const r of params.rows) {
+    const key = r.kelas.trim().toLowerCase();
+    const entry = classPlan.get(key) || {
+      nama: r.kelas,
+      tingkat: r.tingkat,
+      jurusan: r.jurusan,
+      jumlah: 0,
+    };
+    entry.jumlah += 1;
+    classPlan.set(key, entry);
+  }
+
+  let classesCreated = 0;
+  const classPayload = Array.from(classPlan.entries()).map(([key, plan]) => {
+    let id = classIdByName.get(key);
+    if (!id) {
+      id = crypto.randomUUID();
+      classIdByName.set(key, id);
+      classesCreated++;
+    }
+    return {
+      id,
+      id_sekolah: schoolId,
+      nama_kelas: plan.nama,
+      tingkat: plan.tingkat,
+      jurusan: plan.jurusan,
+      total_siswa_dapodik: plan.jumlah,
+      status_aktif: true,
+      diperbarui_pada: new Date().toISOString(),
+    };
+  });
+  const { error: classUpsertErr } = await supabase
+    .from('classes')
+    .upsert(classPayload, { onConflict: 'id' });
+  if (classUpsertErr) throw explainImportError('simpan kelas', classUpsertErr);
+
+  // 3. Siswa (baris tanpa HP tidak menyentuh kolom no_hp agar nomor yang diisi manual tidak tertimpa)
+  const nowIso = new Date().toISOString();
+  const buildStudent = (r: DapodikStudentRow, withPhone: boolean) => ({
+    nisn: r.nisn,
+    id_kelas: classIdByName.get(r.kelas.trim().toLowerCase()),
+    nama_lengkap: r.nama,
+    jurusan: r.jurusan,
+    status_aktif: true,
+    diperbarui_pada: nowIso,
+    ...(withPhone ? { no_hp: r.noHp } : {}),
+  });
+
+  const withPhoneRows = params.rows.filter((r) => r.noHp);
+  const withoutPhoneRows = params.rows.filter((r) => !r.noHp);
+
+  const upsertStudentGroup = async (group: DapodikStudentRow[], withPhone: boolean) => {
+    for (let i = 0; i < group.length; i += CHUNK) {
+      const slice = group.slice(i, i + CHUNK);
+      const { error } = await supabase
+        .from('students')
+        .upsert(
+          slice.map((r) => buildStudent(r, withPhone)),
+          { onConflict: 'nisn' }
+        );
+      if (error) throw explainImportError('simpan siswa', error);
+      done += slice.length;
+      report('Menyimpan data siswa');
+    }
+  };
+  await upsertStudentGroup(withPhoneRows, true);
+  await upsertStudentGroup(withoutPhoneRows, false);
+
+  // 4. Data pribadi (tabel terpisah, tanpa akses publik)
+  for (let i = 0; i < params.rows.length; i += CHUNK) {
+    const slice = params.rows.slice(i, i + CHUNK);
+    const { error } = await supabase.from('student_private').upsert(
+      slice.map((r) => ({
+        nisn: r.nisn,
+        nipd: r.nipd,
+        nik: r.nik,
+        jenis_kelamin: r.jenisKelamin,
+        tempat_lahir: r.tempatLahir,
+        tanggal_lahir: r.tanggalLahir,
+        agama: r.agama,
+        alamat: r.alamat,
+        rt: r.rt,
+        rw: r.rw,
+        desa_kelurahan: r.desaKelurahan,
+        kode_pos: r.kodePos,
+        nama_ayah: r.namaAyah,
+        nama_ibu: r.namaIbu,
+        diperbarui_pada: nowIso,
+      })),
+      { onConflict: 'nisn' }
+    );
+    if (error) throw explainImportError('simpan data pribadi', error);
+    done += slice.length;
+    report('Menyimpan data pribadi (tidak ditampilkan di web)');
+  }
+
+  await logActivity(
+    'IMPORT_DAPODIK_SISWA',
+    'students',
+    null,
+    null,
+    {
+      school_id: schoolId,
+      npsn,
+      total_siswa: params.rows.length,
+      total_kelas: classPlan.size,
+      tanpa_hp: withoutPhoneRows.length,
+    },
+    params.penggunaId || null
+  );
+
+  return {
+    schoolId,
+    schoolName: finalSchoolName,
+    classesCount: classPlan.size,
+    classesCreated,
+    studentsUpserted: params.rows.length,
+    withoutPhone: withoutPhoneRows.length,
+    message: `Berhasil mengimpor ${params.rows.length} siswa dari ${classPlan.size} kelas ke ${finalSchoolName} (${withoutPhoneRows.length} siswa belum memiliki No. HP).`,
+  };
+}
+
+// ============================================================
 // TAHAP 1 & 3 SAAS MULTI-TENANT: MANAJEMEN SEKOLAH & GLOBAL STATS
 // ============================================================
 
 export async function getAllSchools(): Promise<School[]> {
-  const localSchools = getLocalItem<School[]>('mbg_schools_store', []);
+  const { data, error } = await supabase
+    .from('schools')
+    .select('*')
+    .order('nama_sekolah');
 
-  try {
-    const { data, error } = await supabase
-      .from('schools')
-      .select('*')
-      .order('nama_sekolah');
-    if (!error && data && data.length > 0) {
-      const mergedMap = new Map<string, School>();
-      for (const s of SEED_SCHOOLS) mergedMap.set(s.id, s);
-      for (const s of localSchools) mergedMap.set(s.id, s);
-      for (const s of data as School[]) mergedMap.set(s.id, s);
-      const list = Array.from(mergedMap.values());
-      setLocalItem('mbg_schools_store', list);
-      return list;
-    }
-  } catch {
-    // Fallback to local store
+  if (error) {
+    console.error('Supabase getAllSchools error:', error.message);
+    return [];
   }
 
-  if (localSchools.length > 0) {
-    return localSchools;
-  }
-
-  setLocalItem('mbg_schools_store', SEED_SCHOOLS);
-  return SEED_SCHOOLS;
+  return (data as School[]) || [];
 }
 
 export async function getSchoolById(schoolId?: string): Promise<School> {
   const targetId = getActiveSchoolIdFromStorage(schoolId);
   const all = await getAllSchools();
-  return all.find((s) => s.id === targetId) || SEED_SCHOOL;
+  return all.find((s) => s.id === targetId) || all[0] || SEED_SCHOOL;
 }
 
 export async function saveSchool(
@@ -2417,43 +2610,38 @@ export async function saveSchool(
     diperbarui_pada: nowIso,
   };
 
-  try {
-    const { data, error } = await supabase
-      .from('schools')
-      .upsert({
-        id: newRecord.id,
-        npsn: newRecord.npsn,
-        nama_sekolah: newRecord.nama_sekolah,
-        nama_kepala_sekolah: newRecord.nama_kepala_sekolah,
-        nip_kepala_sekolah: newRecord.nip_kepala_sekolah,
-        nama_sppg_mitra: newRecord.nama_sppg_mitra,
-        diperbarui_pada: nowIso,
-      })
-      .select()
-      .maybeSingle();
+  const { data, error } = await supabase
+    .from('schools')
+    .upsert({
+      id: newRecord.id,
+      npsn: newRecord.npsn,
+      nama_sekolah: newRecord.nama_sekolah,
+      nama_kepala_sekolah: newRecord.nama_kepala_sekolah,
+      nip_kepala_sekolah: newRecord.nip_kepala_sekolah,
+      nama_sppg_mitra: newRecord.nama_sppg_mitra,
+      diperbarui_pada: nowIso,
+    })
+    .select()
+    .single();
 
-    if (!error && data) {
-      newRecord.id = data.id;
-    }
-  } catch {
-    // Offline fallback
+  if (error || !data) {
+    throw new Error(
+      error?.message || 'Gagal menyimpan data sekolah ke Supabase.'
+    );
   }
 
-  const updated = isEdit
-    ? all.map((s) => (s.id === id ? newRecord : s))
-    : [newRecord, ...all];
-  setLocalItem('mbg_schools_store', updated);
+  const saved = data as School;
 
   await logActivity(
     isEdit ? 'UPDATE_SEKOLAH_MITRA' : 'CREATE_SEKOLAH_MITRA',
     'schools',
-    newRecord.id,
+    saved.id,
     null,
-    newRecord,
+    saved,
     penggunaId || null
   );
 
-  return newRecord;
+  return saved;
 }
 
 export async function deleteSchool(
@@ -2465,13 +2653,10 @@ export async function deleteSchool(
   }
   const all = await getAllSchools();
   const target = all.find((s) => s.id === id);
-  const updated = all.filter((s) => s.id !== id);
-  setLocalItem('mbg_schools_store', updated);
 
-  try {
-    await supabase.from('schools').delete().eq('id', id);
-  } catch {
-    // Offline fallback
+  const { error } = await supabase.from('schools').delete().eq('id', id);
+  if (error) {
+    throw new Error(error.message || 'Gagal menghapus sekolah dari Supabase.');
   }
 
   await logActivity(
@@ -2483,7 +2668,7 @@ export async function deleteSchool(
     penggunaId || null
   );
 
-  return updated;
+  return getAllSchools();
 }
 
 export async function getGlobalMultiSchoolStats(): Promise<{
@@ -2498,35 +2683,33 @@ export async function getGlobalMultiSchoolStats(): Promise<{
   }>;
 }> {
   const schools = await getAllSchools();
-  const localClasses = getLocalItem<Kelas[]>('mbg_classes_store', []);
-  const allClassesMap = new Map<string, Kelas>();
-  for (const c of SEED_CLASSES) allClassesMap.set(c.id, c);
-  for (const c of localClasses) allClassesMap.set(c.id, c);
 
-  try {
-    const { data: dbClasses } = await supabase.from('classes').select('*');
-    if (dbClasses) {
-      for (const c of dbClasses as Kelas[]) allClassesMap.set(c.id, c);
-    }
-  } catch {
-    // fallback
-  }
-
-  const allClasses = Array.from(allClassesMap.values()).filter(
+  const { data: dbClasses } = await supabase.from('classes').select('*');
+  const allClasses = ((dbClasses as Kelas[]) || []).filter(
     (c) => c.status_aktif !== false
   );
 
   const today = getJakartaDateString();
-  const localAtt = getLocalItem<any[]>(`mbg_attendances_${today}`, []);
-  const totalPorsiTerserapGlobal = localAtt.reduce(
-    (acc, item) => acc + (Number(item.jumlah_hadir) || 0),
-    0
-  );
+  let totalPorsiTerserapGlobal = 0;
+  try {
+    const { data: attRows } = await supabase
+      .from('daily_attendances')
+      .select('jumlah_hadir, organoleptic_tests!inner(tanggal)')
+      .eq('organoleptic_tests.tanggal', today);
+    if (attRows) {
+      totalPorsiTerserapGlobal = attRows.reduce(
+        (acc, item: any) => acc + (Number(item.jumlah_hadir) || 0),
+        0
+      );
+    }
+  } catch {
+    // fallback 0
+  }
 
   const schoolsSummary = schools.map((school) => {
     const schoolCls = allClasses.filter((c) => c.id_sekolah === school.id);
     const totalSiswa = schoolCls.reduce(
-      (sum, c) => sum + (Number(c.total_siswa_dapodik) || 30),
+      (sum, c) => sum + (Number(c.total_siswa_dapodik) || 0),
       0
     );
     return {
@@ -2551,50 +2734,63 @@ export async function getGlobalMultiSchoolStats(): Promise<{
 }
 
 // ============================================================
-// TAHAP 4: MASTER DATA CRUD KELAS (GURU PIKET & SUPER ADMIN)
+// TAHAP 4: MASTER DATA CRUD KELAS (GURU PIC MBG & SUPER ADMIN)
 // ============================================================
 
 export async function getClassesBySchool(schoolId?: string): Promise<Kelas[]> {
   const targetSchoolId = getActiveSchoolIdFromStorage(schoolId);
-  const localClasses = getLocalItem<Kelas[]>('mbg_classes_store', []);
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('mbg_classes_store');
+  }
 
-  try {
+  const { data, error } = await supabase
+    .from('classes')
+    .select('*')
+    .eq('id_sekolah', targetSchoolId)
+    .order('tingkat')
+    .order('nama_kelas');
+
+  if (error) {
+    console.error('Supabase getClassesBySchool error:', error.message);
+    return [];
+  }
+
+  return ((data as Kelas[]) || []).map((c) => ({
+    ...c,
+    status_aktif: c.status_aktif ?? true,
+  }));
+}
+
+export async function getStudentCountsByClass(
+  classIds: string[]
+): Promise<Record<string, number>> {
+  const counts: Record<string, number> = {};
+  if (classIds.length === 0) return counts;
+
+  const pageSize = 1000;
+  let from = 0;
+
+  while (true) {
     const { data, error } = await supabase
-      .from('classes')
-      .select('*')
-      .eq('id_sekolah', targetSchoolId)
-      .order('tingkat')
-      .order('nama_kelas');
+      .from('students')
+      .select('id_kelas')
+      .in('id_kelas', classIds)
+      .eq('status_aktif', true)
+      .range(from, from + pageSize - 1);
 
-    if (!error && data && data.length > 0) {
-      const mergedMap = new Map<string, Kelas>();
-      for (const sc of SEED_CLASSES.filter((c) => c.id_sekolah === targetSchoolId)) {
-        mergedMap.set(sc.id, sc);
+    if (error || !data || data.length === 0) break;
+
+    for (const row of data as Array<{ id_kelas: string }>) {
+      if (row.id_kelas) {
+        counts[row.id_kelas] = (counts[row.id_kelas] || 0) + 1;
       }
-      for (const lc of localClasses.filter((c) => c.id_sekolah === targetSchoolId)) {
-        mergedMap.set(lc.id, lc);
-      }
-      for (const dbc of data as Kelas[]) {
-        mergedMap.set(dbc.id, {
-          ...dbc,
-          status_aktif: dbc.status_aktif ?? true,
-        });
-      }
-      return Array.from(mergedMap.values());
     }
-  } catch {
-    // Fallback to local
+
+    if (data.length < pageSize) break;
+    from += pageSize;
   }
 
-  const combinedMap = new Map<string, Kelas>();
-  for (const sc of SEED_CLASSES.filter((c) => c.id_sekolah === targetSchoolId)) {
-    combinedMap.set(sc.id, sc);
-  }
-  for (const lc of localClasses.filter((c) => c.id_sekolah === targetSchoolId)) {
-    combinedMap.set(lc.id, lc);
-  }
-
-  return Array.from(combinedMap.values());
+  return counts;
 }
 
 export async function saveClassRecord(
@@ -2607,9 +2803,7 @@ export async function saveClassRecord(
   penggunaId?: string | null
 ): Promise<Kelas> {
   const targetSchoolId = getActiveSchoolIdFromStorage(kelas.id_sekolah || schoolId);
-  const localClasses = getLocalItem<Kelas[]>('mbg_classes_store', []);
-  const allKnown = [...SEED_CLASSES, ...localClasses];
-  const isEdit = !!kelas.id && allKnown.some((c) => c.id === kelas.id);
+  const isEdit = !!kelas.id;
   const nowIso = new Date().toISOString();
 
   const id =
@@ -2630,47 +2824,37 @@ export async function saveClassRecord(
     diperbarui_pada: nowIso,
   };
 
-  try {
-    const validJurusan = ['IPA', 'IPS', 'RPL', 'TKJ', 'AKUNTANSI', 'UMUM'].includes(
-      newRecord.jurusan
-    )
-      ? newRecord.jurusan
-      : 'UMUM';
+  const { data, error } = await supabase
+    .from('classes')
+    .upsert({
+      id: newRecord.id,
+      id_sekolah: targetSchoolId,
+      nama_kelas: newRecord.nama_kelas,
+      tingkat: newRecord.tingkat,
+      jurusan: newRecord.jurusan,
+      total_siswa_dapodik: newRecord.total_siswa_dapodik,
+      status_aktif: newRecord.status_aktif,
+      diperbarui_pada: nowIso,
+    })
+    .select()
+    .single();
 
-    const { data, error } = await supabase
-      .from('classes')
-      .upsert({
-        id: newRecord.id,
-        id_sekolah: targetSchoolId,
-        nama_kelas: newRecord.nama_kelas,
-        tingkat: newRecord.tingkat,
-        jurusan: validJurusan,
-        total_siswa_dapodik: newRecord.total_siswa_dapodik,
-        diperbarui_pada: nowIso,
-      })
-      .select()
-      .maybeSingle();
-
-    if (!error && data) {
-      newRecord.id = data.id;
-    }
-  } catch {
-    // Offline fallback
+  if (error || !data) {
+    throw new Error(error?.message || 'Gagal menyimpan data kelas ke Supabase.');
   }
 
-  const filteredLocal = localClasses.filter((c) => c.id !== newRecord.id);
-  setLocalItem('mbg_classes_store', [newRecord, ...filteredLocal]);
+  const saved = data as Kelas;
 
   await logActivity(
     isEdit ? 'UPDATE_KELAS' : 'CREATE_KELAS',
     'classes',
-    newRecord.id,
+    saved.id,
     null,
-    newRecord,
+    saved,
     penggunaId || null
   );
 
-  return newRecord;
+  return saved;
 }
 
 export async function deleteClassRecord(
@@ -2678,23 +2862,16 @@ export async function deleteClassRecord(
   schoolId?: string,
   penggunaId?: string | null
 ): Promise<Kelas[]> {
-  const localClasses = getLocalItem<Kelas[]>('mbg_classes_store', []);
-  const target =
-    localClasses.find((c) => c.id === id) || SEED_CLASSES.find((c) => c.id === id);
-  const updatedLocal = localClasses.filter((c) => c.id !== id);
-  setLocalItem('mbg_classes_store', updatedLocal);
-
-  try {
-    await supabase.from('classes').delete().eq('id', id);
-  } catch {
-    // Offline fallback
+  const { error } = await supabase.from('classes').delete().eq('id', id);
+  if (error) {
+    throw new Error(error.message || 'Gagal menghapus data kelas dari Supabase.');
   }
 
   await logActivity(
     'DELETE_KELAS',
     'classes',
     id,
-    target || null,
+    null,
     null,
     penggunaId || null
   );
@@ -3018,9 +3195,9 @@ export async function getIncidentReports(filters?: {
         kategori: 'keterlambatan',
         tingkat_keparahan: 'rendah',
         deskripsi: 'Armada pengantar SPPG tertahan antrean lalu lintas di Jalan Slamet Riyadi karena proyek perbaikan jalan.',
-        tindak_lanjut: 'Guru piket mengontak driver SPPG dan berkoordinasi dengan wali kelas agar pembagian makanan disesuaikan saat istirahat kedua.',
+        tindak_lanjut: 'Guru PIC MBG mengontak driver SPPG dan berkoordinasi dengan wali kelas agar pembagian makanan disesuaikan saat istirahat kedua.',
         petugas_pelapor_id: null,
-        nama_petugas_pelapor: 'Drs. Joko Suwito (Guru Piket)',
+        nama_petugas_pelapor: 'Drs. Joko Suwito (Guru PIC MBG)',
         status_penyelesaian: 'selesai',
         dibuat_pada: new Date().toISOString(),
         diperbarui_pada: new Date().toISOString(),

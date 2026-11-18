@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     const title = body?.title || 'MBG Tiba di Sekolah!';
     const messageBody =
       body?.body ||
-      'Distribusi Makan Bergizi Gratis telah dibuka oleh Guru Piket. Silakan scan QR atau masukkan PIN.';
+      'Distribusi Makan Bergizi Gratis telah dibuka oleh Guru PIC MBG. Silakan scan QR atau masukkan PIN.';
     const url = body?.url || '/';
     const schoolId = typeof body?.schoolId === 'string' && body.schoolId ? body.schoolId : null;
 

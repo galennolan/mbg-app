@@ -749,7 +749,7 @@ export default function StudentPortalPage() {
       {/* Standardized PageHeader (R-09, R-10) */}
       <PageHeader
         title="Klaim Penerimaan MBG (FR-3.1, FR-3.2)"
-        subtitle={`Verifikasi Master QR atau PIN Harian dari Guru Piket (${formatIndonesianDate(
+        subtitle={`Verifikasi Master QR atau PIN Harian dari Guru PIC MBG (${formatIndonesianDate(
           getJakartaDateString()
         )}), lalu konfirmasi daftar siswa yang hadir mengambil makanan.`}
         badgeText="PWA SISWA & PERWAKILAN KELAS"
@@ -795,7 +795,7 @@ export default function StudentPortalPage() {
                 Verifikasi Lokasi & Hak Ambil MBG
               </h2>
               <p className="text-xs text-slate-600 max-w-md mx-auto">
-                Scan Master QR Code di meja Guru Piket atau masukkan 4-digit PIN harian sebagai fallback
+                Scan Master QR Code di meja Guru PIC MBG atau masukkan 4-digit PIN harian sebagai fallback
                 jika kamera buram atau tidak tersedia.
               </p>
             </div>
@@ -922,7 +922,7 @@ export default function StudentPortalPage() {
                       <span className="w-4 h-4 border-t-2 border-r-2 border-cyan-400" />
                     </div>
                     <p className="text-[10px] text-cyan-200 text-center font-bold bg-black/60 py-0.5 rounded-md px-2 self-center">
-                      Arahkan ke Master QR Guru Piket
+                      Arahkan ke Master QR Guru PIC MBG
                     </p>
                     <div className="flex justify-between">
                       <span className="w-4 h-4 border-b-2 border-l-2 border-cyan-400" />
@@ -1225,7 +1225,7 @@ export default function StudentPortalPage() {
             <div>
               <p className="text-base text-slate-600 mt-1">
                 Klaim untuk kelas <strong>{claimSuccess.className}</strong> telah dicatat ke audit
-                anti-fraud dan feed live monitoring Guru Piket.
+                anti-fraud dan feed live monitoring Guru PIC MBG.
               </p>
             </div>
 

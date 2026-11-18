@@ -179,7 +179,7 @@ export default function StudentLoginPage() {
               href="/login"
               className="text-xs font-bold text-brand-blue hover:underline inline-flex items-center gap-1"
             >
-              Login sebagai Guru Piket / Kepala Sekolah / Super Admin
+              Login sebagai Guru PIC MBG / Kepala Sekolah / Super Admin
             </Link>
           </div>
         </div>

@@ -168,7 +168,7 @@ export default function KonfirmasiKelasPage() {
     <div className="space-y-6 pb-24">
       <PageHeader
           title="Konfirmasi Kolektif Kelas (FR-3.2)"
-          subtitle="Checklist massal penerimaan MBG per kelas oleh Guru Piket atau Wali Kelas."
+          subtitle="Checklist massal penerimaan MBG per kelas oleh Guru PIC MBG atau Wali Kelas."
           badgeText="STAFF MODE"
         >
           <div className="flex items-center gap-2">

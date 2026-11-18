@@ -45,7 +45,7 @@ self.addEventListener('fetch', (event) => {
 self.addEventListener('push', (event) => {
   let payload = {
     title: 'MBG Tiba di Sekolah!',
-    body: 'Distribusi Makan Bergizi Gratis telah dibuka oleh Guru Piket. Silakan scan QR atau masukkan PIN.',
+    body: 'Distribusi Makan Bergizi Gratis telah dibuka oleh Guru PIC MBG. Silakan scan QR atau masukkan PIN.',
     url: '/',
   };
 

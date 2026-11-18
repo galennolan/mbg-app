@@ -206,23 +206,40 @@ alter table public.crm_campaigns enable row level security;
 alter table public.crm_click_logs enable row level security;
 alter table public.incident_reports enable row level security;
 
+-- Helper SECURITY DEFINER agar policy RLS tidak menyebabkan infinite recursion pada `pengguna`
+create or replace function public.is_super_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select
+    coalesce(auth.jwt() ->> 'peran', '') = 'super_admin'
+    or exists (
+      select 1
+      from public.pengguna p
+      where p.id = auth.uid()
+        and p.peran = 'super_admin'
+        and p.status_aktif = true
+    );
+$$;
+
 -- Schools: Public read, Super Admin manage
 drop policy if exists "Public read schools" on public.schools;
 create policy "Public read schools" on public.schools for select using (true);
 drop policy if exists "Admin manage schools" on public.schools;
-create policy "Admin manage schools" on public.schools for all to authenticated using (
-  (auth.jwt() ->> 'peran') = 'super_admin' or
-  exists (select 1 from public.pengguna where id = auth.uid() and peran = 'super_admin')
-);
+create policy "Admin manage schools" on public.schools for all to authenticated
+  using (public.is_super_admin())
+  with check (public.is_super_admin());
 
 -- Pengguna: User read own, Super Admin manage all
 drop policy if exists "User read own profile" on public.pengguna;
 create policy "User read own profile" on public.pengguna for select using (id = auth.uid());
 drop policy if exists "Super admin manage pengguna" on public.pengguna;
-create policy "Super admin manage pengguna" on public.pengguna for all to authenticated using (
-  (auth.jwt() ->> 'peran') = 'super_admin' or
-  exists (select 1 from public.pengguna where id = auth.uid() and peran = 'super_admin')
-);
+create policy "Super admin manage pengguna" on public.pengguna for all to authenticated
+  using (public.is_super_admin())
+  with check (public.is_super_admin());
 
 -- Classes: Public read for student portal, Guru/Kepsek manage own school, Super Admin manage all
 drop policy if exists "Public read classes" on public.classes;

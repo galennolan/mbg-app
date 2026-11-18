@@ -16,12 +16,16 @@ import {
   CheckCircle2,
   AlertTriangle,
   FileSpreadsheet,
+  GraduationCap,
+  Layers,
+  Utensils,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Kelas, School, Siswa } from '@/lib/types';
 import { supabase } from '@/lib/supabase/client';
 import {
   getClassesBySchool,
+  getStudentCountsByClass,
   saveClassRecord,
   deleteClassRecord,
   getSchoolById,
@@ -40,6 +44,9 @@ import {
 } from '@/components/ui/ModalField';
 import {
   PageHeader,
+  Input,
+  Select,
+  Pagination,
   Button,
   FeedbackBanner,
   Alert,
@@ -52,6 +59,7 @@ export default function ManajemenKelasPage() {
   const { user, activeSchoolId } = useAuth();
   const notify = useNotify();
   const [kelasList, setKelasList] = useState<Kelas[]>([]);
+  const [studentCountByClass, setStudentCountByClass] = useState<Record<string, number>>({});
   const [currentSchool, setCurrentSchool] = useState<School>(SEED_SCHOOL);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -71,11 +79,20 @@ export default function ManajemenKelasPage() {
   } | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // Filter & Pagination untuk Kelola Data Kelas
+  const [filterTingkat, setFilterTingkat] = useState<'' | 'X' | 'XI' | 'XII'>('');
+  const [filterJurusan, setFilterJurusan] = useState('');
+  const [searchKelas, setSearchKelas] = useState('');
+  const [classPage, setClassPage] = useState(1);
+  const [classPageSize, setClassPageSize] = useState(10);
+
   // State untuk Kelola Siswa per Kelas
   const [selectedClassForStudents, setSelectedClassForStudents] = useState<Kelas | null>(null);
   const [classStudents, setClassStudents] = useState<Siswa[]>([]);
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [searchStudent, setSearchStudent] = useState('');
+  const [studentPage, setStudentPage] = useState(1);
+  const [studentPageSize, setStudentPageSize] = useState(10);
 
   // Modal Tambah Manual Siswa ke Kelas
   const [showAddStudentModal, setShowAddStudentModal] = useState(false);
@@ -103,6 +120,8 @@ export default function ManajemenKelasPage() {
       ]);
       setKelasList(classesData);
       setCurrentSchool(schoolData);
+      const counts = await getStudentCountsByClass(classesData.map((c) => c.id));
+      setStudentCountByClass(counts);
     } catch (err) {
       console.error(err);
     } finally {
@@ -113,6 +132,48 @@ export default function ManajemenKelasPage() {
   useEffect(() => {
     loadClasses();
   }, [loadClasses]);
+
+  useEffect(() => {
+    setClassPage(1);
+  }, [filterTingkat, filterJurusan, searchKelas, activeSchoolId]);
+
+  useEffect(() => {
+    setStudentPage(1);
+  }, [searchStudent, selectedClassForStudents]);
+
+  const jurusanOptions = Array.from(
+    new Set(kelasList.map((k) => (k.jurusan || '').trim()).filter(Boolean))
+  ).sort((a, b) => a.localeCompare(b));
+
+  const filteredKelasList = kelasList.filter((k) => {
+    const matchTingkat = !filterTingkat || String(k.tingkat).toUpperCase() === filterTingkat;
+    const matchJurusan = !filterJurusan || String(k.jurusan).toUpperCase() === filterJurusan.toUpperCase();
+    const q = searchKelas.trim().toLowerCase();
+    const matchSearch =
+      !q ||
+      k.nama_kelas.toLowerCase().includes(q) ||
+      (k.jurusan && k.jurusan.toLowerCase().includes(q));
+    return matchTingkat && matchJurusan && matchSearch;
+  });
+
+  const totalClassPages = Math.max(1, Math.ceil(filteredKelasList.length / classPageSize));
+  const safeClassPage = Math.min(classPage, totalClassPages);
+  const paginatedKelasList = filteredKelasList.slice(
+    (safeClassPage - 1) * classPageSize,
+    safeClassPage * classPageSize
+  );
+
+  const filteredClassStudents = classStudents.filter(
+    (s) =>
+      s.nama.toLowerCase().includes(searchStudent.toLowerCase()) ||
+      (s.no_hp && s.no_hp.includes(searchStudent))
+  );
+  const totalStudentPages = Math.max(1, Math.ceil(filteredClassStudents.length / studentPageSize));
+  const safeStudentPage = Math.min(studentPage, totalStudentPages);
+  const paginatedClassStudents = filteredClassStudents.slice(
+    (safeStudentPage - 1) * studentPageSize,
+    safeStudentPage * studentPageSize
+  );
 
   const resetForm = () => {
     setEditingKelas(null);
@@ -465,15 +526,34 @@ export default function ManajemenKelasPage() {
     }
   };
 
+  const totalKelas = kelasList.length;
+  const activeKelasCount = kelasList.filter((k) => k.status_aktif !== false).length;
+  const totalKuotaSiswa = kelasList.reduce(
+    (sum, k) => sum + (Number(k.total_siswa_dapodik) || 0),
+    0
+  );
+  const totalSiswaAktual = Object.values(studentCountByClass).reduce((sum, n) => sum + n, 0);
+  const avgSiswaAktual = totalKelas > 0 ? Math.round(totalSiswaAktual / totalKelas) : 0;
+  const tingkatCounts = {
+    X: kelasList.filter((k) => String(k.tingkat).toUpperCase() === 'X').length,
+    XI: kelasList.filter((k) => String(k.tingkat).toUpperCase() === 'XI').length,
+    XII: kelasList.filter((k) => String(k.tingkat).toUpperCase() === 'XII').length,
+  };
+  const jurusanSummaryText =
+    jurusanOptions.length > 3
+      ? `${jurusanOptions.slice(0, 3).join(', ')} +${jurusanOptions.length - 3} lainnya`
+      : jurusanOptions.join(', ') || 'Belum ada jurusan';
+
   return (
     <ProtectedRoute
       allowedRoles={['super_admin', 'admin', 'guru_piket', 'kepala_sekolah', 'guru']}
     >
       <div className="max-w-5xl mx-auto space-y-6 pb-16">
         <PageHeader
-          title="Manajemen Kelas & Jurusan (Multi-Tenant)"
-          subtitle={`${currentSchool.nama_sekolah} • NPSN: ${currentSchool.npsn} • ID Sekolah otomatis terikat dari profil petugas.`}
+          title="Manajemen Kelas & Jurusan"
+          description={`Sekolah Aktif: ${currentSchool.nama_sekolah} (NPSN: ${currentSchool.npsn}) • Kelola rombongan belajar, kompetensi keahlian, dan kuota siswa penerima MBG.`}
           badgeText="MASTER DATA KELAS"
+          icon={<Building2 className="w-6 h-6" />}
         >
           <Button
             type="button"
@@ -483,6 +563,107 @@ export default function ManajemenKelasPage() {
             Tambah Kelas Baru
           </Button>
         </PageHeader>
+
+        {/* Identitas Sekolah Aktif & Ringkasan Statistik Kelas */}
+        <section
+          aria-label="Ringkasan sekolah dan data kelas"
+          className="micro-card rounded-2xl border border-surface-border bg-surface-card p-4 sm:p-5 space-y-4"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="inline-flex items-center gap-1.5 font-bold text-slate-900">
+                <Building2 className="w-4 h-4 text-brand-blue shrink-0" aria-hidden="true" />
+                {currentSchool.nama_sekolah}
+              </span>
+              <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-semibold text-slate-700 border border-slate-200">
+                NPSN: {currentSchool.npsn}
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600">
+              <div className="flex items-center gap-1.5">
+                <Utensils className="w-3.5 h-3.5 text-emerald-600 shrink-0" aria-hidden="true" />
+                <span>
+                  Mitra SPPG:{' '}
+                  <strong className="text-slate-800">
+                    {currentSchool.nama_sppg_mitra || 'SPPG Mitra Bergizi'}
+                  </strong>
+                </span>
+              </div>
+              {currentSchool.nama_kepala_sekolah && (
+                <span>
+                  Kepala Sekolah:{' '}
+                  <strong className="text-slate-800">{currentSchool.nama_kepala_sekolah}</strong>
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 p-3.5">
+              <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <span>Total Rombel</span>
+                <Layers className="w-4 h-4 text-brand-blue" aria-hidden="true" />
+              </div>
+              <div className="mt-1.5 text-2xl font-black text-slate-900 tabular-nums">
+                {totalKelas}
+              </div>
+              <p className="mt-0.5 text-[11px] text-slate-600">
+                {activeKelasCount} aktif • {Math.max(0, totalKelas - activeKelasCount)} nonaktif
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 p-3.5">
+              <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <span>Total Siswa</span>
+                <Users className="w-4 h-4 text-emerald-600" aria-hidden="true" />
+              </div>
+              <div className="mt-1.5 text-2xl font-black text-slate-900 tabular-nums">
+                {totalSiswaAktual.toLocaleString('id-ID')}
+              </div>
+              <p className="mt-0.5 text-[11px] text-slate-600">
+                Kuota Dapodik: {totalKuotaSiswa.toLocaleString('id-ID')} • ~{avgSiswaAktual}/kelas
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 p-3.5">
+              <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <span>Sebaran Tingkat</span>
+                <GraduationCap className="w-4 h-4 text-indigo-600" aria-hidden="true" />
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                {(['X', 'XI', 'XII'] as const).map((lvl) => (
+                  <button
+                    key={lvl}
+                    type="button"
+                    onClick={() => setFilterTingkat(filterTingkat === lvl ? '' : lvl)}
+                    className={`rounded-md px-2 py-0.5 text-[11px] font-bold border transition ${
+                      filterTingkat === lvl
+                        ? 'bg-brand-blue text-white border-brand-blue'
+                        : 'bg-white text-slate-700 border-slate-200 hover:border-brand-blue/50'
+                    }`}
+                    title={`Filter Kelas ${lvl}`}
+                  >
+                    {lvl}: {tingkatCounts[lvl]}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1.5 text-[11px] text-slate-500">Klik tingkat untuk filter</p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 p-3.5">
+              <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <span>Jurusan</span>
+                <ShieldCheck className="w-4 h-4 text-amber-600" aria-hidden="true" />
+              </div>
+              <div className="mt-1.5 text-2xl font-black text-slate-900 tabular-nums">
+                {jurusanOptions.length}
+              </div>
+              <p className="mt-0.5 text-[11px] text-slate-600 truncate" title={jurusanOptions.join(', ')}>
+                {jurusanSummaryText}
+              </p>
+            </div>
+          </div>
+        </section>
 
         {/* Master Data & Operasional Module Tabs */}
         <ClassModuleTabs />
@@ -497,12 +678,86 @@ export default function ManajemenKelasPage() {
 
         {/* Table Kelas */}
         <div className="micro-card rounded-2xl overflow-hidden">
-          <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 font-bold uppercase tracking-wider">
-            <span className="flex items-center gap-1.5">
-              <Building2 className="w-4 h-4 text-brand-blue" />
-              Sekolah Aktif: {currentSchool.nama_sekolah}
-            </span>
-            <span>Total Rombel: {kelasList.length} Kelas</span>
+          <div className="p-4 sm:p-5 border-b border-slate-100 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 font-bold uppercase tracking-wider">
+              <span className="flex items-center gap-1.5">
+                <Building2 className="w-4 h-4 text-brand-blue" />
+                Sekolah Aktif: {currentSchool.nama_sekolah}
+              </span>
+              <span>
+                Menampilkan {filteredKelasList.length} dari {kelasList.length} Kelas
+              </span>
+            </div>
+
+            {/* Filter Tingkat (X, XI, XII), Jurusan & Pencarian */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+              <div className="md:col-span-5">
+                <span className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Filter Tingkat Kelas
+                </span>
+                <div className="grid grid-cols-4 gap-1.5 rounded-xl bg-slate-100 p-1 border border-slate-200">
+                  {(['', 'X', 'XI', 'XII'] as const).map((lvl) => {
+                    const active = filterTingkat === lvl;
+                    return (
+                      <button
+                        key={lvl || 'all'}
+                        type="button"
+                        onClick={() => setFilterTingkat(lvl)}
+                        className={`min-h-[36px] rounded-lg text-xs font-bold transition ${
+                          active
+                            ? 'bg-white text-brand-navy shadow-sm'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        {lvl ? `Kelas ${lvl}` : 'Semua'}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="md:col-span-3">
+                <Select
+                  label="Filter Jurusan"
+                  value={filterJurusan}
+                  onChange={(e) => setFilterJurusan(e.target.value)}
+                  options={[
+                    { value: '', label: `Semua Jurusan (${jurusanOptions.length})` },
+                    ...jurusanOptions.map((j) => ({
+                      value: j,
+                      label: j,
+                    })),
+                  ]}
+                />
+              </div>
+
+              <div className="md:col-span-4 flex items-end gap-2">
+                <div className="flex-1">
+                  <Input
+                    label="Cari Kelas"
+                    placeholder="Contoh: XII RPL, TKR..."
+                    value={searchKelas}
+                    onChange={(e) => setSearchKelas(e.target.value)}
+                    leftIcon={<Search className="w-4 h-4" />}
+                  />
+                </div>
+                {(filterTingkat || filterJurusan || searchKelas) && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      setFilterTingkat('');
+                      setFilterJurusan('');
+                      setSearchKelas('');
+                    }}
+                    className="mb-0.5 shrink-0"
+                  >
+                    Reset
+                  </Button>
+                )}
+              </div>
+            </div>
           </div>
 
           {loading ? (
@@ -514,21 +769,26 @@ export default function ManajemenKelasPage() {
             <div className="p-12 text-center text-slate-500 text-sm">
               Belum ada data kelas yang terdaftar untuk sekolah ini.
             </div>
+          ) : filteredKelasList.length === 0 ? (
+            <div className="p-12 text-center text-slate-500 text-sm">
+              Tidak ada kelas yang sesuai dengan filter yang dipilih.
+            </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-600 border-b border-slate-200">
-                  <tr>
-                    <th className="py-3 px-4">Nama Kelas</th>
-                    <th className="py-3 px-4">Tingkat</th>
-                    <th className="py-3 px-4">Jurusan</th>
-                    <th className="py-3 px-4">Kuota Dapodik</th>
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4 text-right">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {kelasList.map((k) => (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-600 border-b border-slate-200">
+                    <tr>
+                      <th className="py-3 px-4">Nama Kelas</th>
+                      <th className="py-3 px-4">Tingkat</th>
+                      <th className="py-3 px-4">Jurusan</th>
+                      <th className="py-3 px-4">Siswa / Kuota</th>
+                      <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4 text-right">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {paginatedKelasList.map((k) => (
                     <tr key={k.id} className="hover:bg-slate-50/80 transition">
                       <td className="py-3.5 px-4 font-bold text-slate-900 text-sm">
                         {k.nama_kelas}
@@ -541,8 +801,13 @@ export default function ManajemenKelasPage() {
                           {k.jurusan}
                         </span>
                       </td>
-                      <td className="py-3.5 px-4 text-sm font-mono text-brand-navy font-bold">
-                        {k.total_siswa_dapodik || 30} Siswa
+                      <td className="py-3.5 px-4 text-sm font-mono">
+                        <div className="font-bold text-brand-navy">
+                          {studentCountByClass[k.id] ?? 0} Siswa
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          Kuota: {k.total_siswa_dapodik || 0}
+                        </div>
                       </td>
                       <td className="py-3.5 px-4 text-sm">
                         {k.status_aktif !== false ? (
@@ -592,6 +857,18 @@ export default function ManajemenKelasPage() {
                 </tbody>
               </table>
             </div>
+            <Pagination
+              currentPage={safeClassPage}
+              totalItems={filteredKelasList.length}
+              pageSize={classPageSize}
+              onPageChange={setClassPage}
+              onPageSizeChange={(size) => {
+                setClassPageSize(size);
+                setClassPage(1);
+              }}
+              itemLabel="kelas"
+            />
+          </>
           )}
         </div>
 
@@ -771,14 +1048,11 @@ export default function ManajemenKelasPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {classStudents
-                      .filter((s) =>
-                        s.nama.toLowerCase().includes(searchStudent.toLowerCase()) ||
-                        (s.no_hp && s.no_hp.includes(searchStudent))
-                      )
-                      .map((s, idx) => (
+                    {paginatedClassStudents.map((s, idx) => (
                         <tr key={s.id || idx} className="hover:bg-slate-50/70 transition">
-                          <td className="py-2.5 px-3 font-mono text-slate-400">{idx + 1}</td>
+                          <td className="py-2.5 px-3 font-mono text-slate-400">
+                            {(safeStudentPage - 1) * studentPageSize + idx + 1}
+                          </td>
                           <td className="py-2.5 px-3 font-bold text-slate-900">{s.nama}</td>
                           <td className="py-2.5 px-3 font-mono text-slate-600 font-bold">
                             {s.no_hp || '-'}
@@ -809,6 +1083,18 @@ export default function ManajemenKelasPage() {
                 </table>
               )}
             </div>
+
+            <Pagination
+              currentPage={safeStudentPage}
+              totalItems={filteredClassStudents.length}
+              pageSize={studentPageSize}
+              onPageChange={setStudentPage}
+              onPageSizeChange={(size) => {
+                setStudentPageSize(size);
+                setStudentPage(1);
+              }}
+              itemLabel="siswa"
+            />
 
             <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
               <span>

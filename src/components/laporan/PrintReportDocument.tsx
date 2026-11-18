@@ -151,7 +151,7 @@ function PrintSignatureBlock({
   selectedDate,
   schoolInfo,
   petugasNama,
-  rightTitle = 'Guru Piket / Koordinator MBG',
+  rightTitle = 'Guru PIC MBG / Koordinator MBG',
 }: {
   selectedDate: string;
   schoolInfo: School;
@@ -466,7 +466,7 @@ function PrintSiswaTemplate({
                   {r.waktu_penerimaan ? formatWIBTime(r.waktu_penerimaan) : '-'}
                 </td>
                 <td className="border border-black px-2 py-1 text-center">
-                  {r.sumber_pencatatan === 'siswa' ? 'Scan Mandiri' : 'Guru Piket'}
+                  {r.sumber_pencatatan === 'siswa' ? 'Scan Mandiri' : 'Guru PIC MBG'}
                 </td>
                 <td className="border border-black px-2 py-1">{r.petugas?.nama || '-'}</td>
               </tr>

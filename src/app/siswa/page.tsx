@@ -16,11 +16,18 @@ import { supabase } from '@/lib/supabase/client';
 import { Kelas, Siswa } from '@/lib/types';
 import {
   importStudentsWithAutoAccount,
+  importDapodikStudents,
   normalizePhone628,
+  isValidPhone628,
   SEED_CLASSES,
   SEED_STUDENTS,
   SEED_STUDENT_PHONES,
 } from '@/lib/services';
+import {
+  parseDapodikWorkbook,
+  normalizeSchoolName,
+  type DapodikParseResult,
+} from '@/lib/dapodik-import';
 import {
   Modal,
   ModalInput,
@@ -32,6 +39,7 @@ import {
   PageHeader,
   Input,
   Select,
+  Pagination,
   Button,
   FeedbackBanner,
   Alert,
@@ -41,7 +49,7 @@ import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import ClassModuleTabs from '@/components/navigation/ClassModuleTabs';
 
 export default function DataSiswaPage() {
-  const { user, role, activeSchoolId } = useAuth();
+  const { user, role, activeSchoolId, setActiveSchoolId } = useAuth();
   const notify = useNotify();
   const canManageStudents =
     role === 'guru_piket' ||
@@ -55,9 +63,11 @@ export default function DataSiswaPage() {
   const [students, setStudents] = useState<Siswa[]>([]);
   const [kelasList, setKelasList] = useState<Kelas[]>([]);
 
-  // Search & Filters
+  // Search, Filters & Pagination
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedKelasId, setSelectedKelasId] = useState('');
+  const [studentPage, setStudentPage] = useState(1);
+  const [studentPageSize, setStudentPageSize] = useState(20);
 
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
@@ -81,6 +91,13 @@ export default function DataSiswaPage() {
   const [importing, setImporting] = useState(false);
   const [importPreview, setImportPreview] = useState<any[]>([]);
   const [importMessage, setImportMessage] = useState('');
+  const [dapodikPreview, setDapodikPreview] = useState<DapodikParseResult | null>(null);
+  const [importSchoolName, setImportSchoolName] = useState('');
+  const [importProgress, setImportProgress] = useState<{
+    done: number;
+    total: number;
+    stage: string;
+  } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(
     null
@@ -256,9 +273,17 @@ export default function DataSiswaPage() {
       return;
     }
 
-    const normalizedPhone = formData.no_hp
-      ? normalizePhone628(formData.no_hp)
-      : `62813${String(Math.floor(1000000 + Math.random() * 9000000))}`;
+    // No. HP opsional: dibiarkan kosong bila tidak diisi (siswa tetap bisa menerima MBG
+    // lewat klaim perwakilan kelas tanpa login).
+    const rawPhone = formData.no_hp.trim();
+    const normalizedPhone = rawPhone ? normalizePhone628(rawPhone) : '';
+    if (normalizedPhone && !isValidPhone628(normalizedPhone)) {
+      setFeedback({
+        type: 'error',
+        message: 'Format No. HP tidak valid. Gunakan 08xxxxxxxxxx atau 628xxxxxxxxxx, atau kosongkan.',
+      });
+      return;
+    }
 
     const cleanNisn = formData.nisn ? formData.nisn.trim() : '';
 
@@ -298,7 +323,9 @@ export default function DataSiswaPage() {
       });
 
       const msg = editingStudent
-        ? `Data siswa & kunci login (${normalizedPhone}) berhasil diperbarui!`
+        ? normalizedPhone
+          ? `Data siswa & kunci login (${normalizedPhone}) berhasil diperbarui!`
+          : 'Data siswa berhasil diperbarui!'
         : res.message;
 
       setShowAddModal(false);
@@ -396,11 +423,29 @@ export default function DataSiswaPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setImportMessage('');
     const reader = new FileReader();
     reader.onload = (evt) => {
       try {
         const bstr = evt.target?.result;
         const wb = XLSX.read(bstr, { type: 'binary' });
+
+        // Format export Dapodik (sheet "Daftar Siswa") terdeteksi otomatis
+        const dapodik = parseDapodikWorkbook(wb);
+        if (dapodik) {
+          if (!isAdmin) {
+            setDapodikPreview(null);
+            setImportPreview([]);
+            setImportMessage('Import massal format Dapodik hanya dapat dilakukan oleh Super Admin.');
+            return;
+          }
+          setDapodikPreview(dapodik);
+          setImportSchoolName(normalizeSchoolName(dapodik.schoolNameRaw));
+          setImportPreview([]);
+          return;
+        }
+
+        setDapodikPreview(null);
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
         const data = XLSX.utils.sheet_to_json(ws);
@@ -412,8 +457,63 @@ export default function DataSiswaPage() {
     reader.readAsBinaryString(file);
   };
 
+  const resetImportState = () => {
+    setImportPreview([]);
+    setImportMessage('');
+    setDapodikPreview(null);
+    setImportSchoolName('');
+    setImportProgress(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  // Import massal format Dapodik ke Supabase
+  const handleExecuteDapodikImport = async () => {
+    if (!dapodikPreview) return;
+    if (!dapodikPreview.npsn) {
+      setImportMessage('NPSN tidak ditemukan di file. Pastikan sheet "Catatan" atau judul sheet memuat NPSN.');
+      return;
+    }
+    setImporting(true);
+    setImportMessage('');
+    setImportProgress({ done: 0, total: dapodikPreview.rows.length * 2, stage: 'Memulai import' });
+
+    try {
+      const res = await importDapodikStudents({
+        npsn: dapodikPreview.npsn,
+        schoolName: importSchoolName,
+        rows: dapodikPreview.rows,
+        penggunaId: user?.id,
+        onProgress: (done, total, stage) => setImportProgress({ done, total, stage }),
+      });
+
+      setFeedback({ type: 'success', message: res.message });
+      notify.fire({
+        icon: 'success',
+        title: 'Import Data Siswa Berhasil',
+        text: res.message,
+        badgeText: `${res.classesCount} KELAS`,
+      });
+      resetImportState();
+      setShowImportModal(false);
+      if (res.schoolId !== activeSchoolId) {
+        setActiveSchoolId(res.schoolId);
+      } else {
+        loadData();
+      }
+    } catch (err: any) {
+      setImportMessage(err.message || 'Gagal mengimpor data Dapodik.');
+    } finally {
+      setImporting(false);
+      setImportProgress(null);
+    }
+  };
+
   // Process Import Data with Auto-Account Generation (Tahap 5 RBAC)
   const handleExecuteImport = async () => {
+    if (dapodikPreview) {
+      await handleExecuteDapodikImport();
+      return;
+    }
     if (importPreview.length === 0) return;
     setImporting(true);
     setImportMessage('');
@@ -466,6 +566,10 @@ export default function DataSiswaPage() {
     }
   };
 
+  useEffect(() => {
+    setStudentPage(1);
+  }, [searchQuery, selectedKelasId, activeSchoolId]);
+
   // Filtered Students
   const filteredStudents = students.filter((s) => {
     const matchName =
@@ -474,6 +578,13 @@ export default function DataSiswaPage() {
     const matchKelas = !selectedKelasId || s.kelas_id === selectedKelasId;
     return matchName && matchKelas;
   });
+
+  const totalStudentPages = Math.max(1, Math.ceil(filteredStudents.length / studentPageSize));
+  const safeStudentPage = Math.min(studentPage, totalStudentPages);
+  const paginatedStudents = filteredStudents.slice(
+    (safeStudentPage - 1) * studentPageSize,
+    safeStudentPage * studentPageSize
+  );
 
   return (
     <ProtectedRoute
@@ -585,22 +696,25 @@ export default function DataSiswaPage() {
             Belum ada data siswa yang cocok dengan filter pencarian.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-600 border-b border-slate-200">
-                <tr>
-                  <th className="py-3 px-4">No</th>
-                  <th className="py-3 px-4">Nama Lengkap</th>
-                  <th className="py-3 px-4">NISN</th>
-                  <th className="py-3 px-4">Kelas & Jurusan</th>
-                  <th className="py-3 px-4">Status</th>
-                  {canManageStudents && <th className="py-3 px-4 text-right">Aksi</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredStudents.map((s, idx) => (
-                  <tr key={s.id} className="hover:bg-slate-50/80 transition">
-                    <td className="py-3.5 px-4 text-sm font-mono text-slate-500">{idx + 1}</td>
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-600 border-b border-slate-200">
+                  <tr>
+                    <th className="py-3 px-4">No</th>
+                    <th className="py-3 px-4">Nama Lengkap</th>
+                    <th className="py-3 px-4">NISN</th>
+                    <th className="py-3 px-4">Kelas & Jurusan</th>
+                    <th className="py-3 px-4">Status</th>
+                    {canManageStudents && <th className="py-3 px-4 text-right">Aksi</th>}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {paginatedStudents.map((s, idx) => (
+                    <tr key={s.id} className="hover:bg-slate-50/80 transition">
+                      <td className="py-3.5 px-4 text-sm font-mono text-slate-500">
+                        {(safeStudentPage - 1) * studentPageSize + idx + 1}
+                      </td>
                     <td className="py-3.5 px-4 font-bold text-slate-900 text-sm">{s.nama}</td>
                     <td className="py-3.5 px-4 text-sm font-mono text-slate-600">
                       {s.nisn || '-'}
@@ -654,6 +768,19 @@ export default function DataSiswaPage() {
               </tbody>
             </table>
           </div>
+          <Pagination
+            currentPage={safeStudentPage}
+            totalItems={filteredStudents.length}
+            pageSize={studentPageSize}
+            pageSizeOptions={[20, 50, 100]}
+            onPageChange={setStudentPage}
+            onPageSizeChange={(size) => {
+              setStudentPageSize(size);
+              setStudentPage(1);
+            }}
+            itemLabel="siswa"
+          />
+        </>
         )}
       </div>
 
@@ -714,14 +841,14 @@ export default function DataSiswaPage() {
               autoComplete="email"
             />
             <ModalInput
-              label="No. WhatsApp / HP (Format 628xxx)"
+              label="No. WhatsApp / HP (Opsional)"
               type="tel"
               value={formData.no_hp}
               onChange={(e) => setFormData({ ...formData, no_hp: e.target.value })}
               placeholder="0812345678"
               inputMode="tel"
               autoComplete="tel"
-              helperText="Awalan 08xx otomatis dinormalisasi ke 628xxx."
+              helperText="Opsional. Boleh dikosongkan dan diisi nanti. Siswa tanpa HP tetap bisa menerima MBG lewat klaim perwakilan kelas."
             />
           </div>
 
@@ -760,9 +887,9 @@ export default function DataSiswaPage() {
       <Modal
         isOpen={showImportModal}
         onClose={() => {
+          if (importing) return;
           setShowImportModal(false);
-          setImportPreview([]);
-          setImportMessage('');
+          resetImportState();
         }}
         title="Import Data Siswa dari Excel / CSV"
         size="lg"
@@ -775,6 +902,13 @@ export default function DataSiswaPage() {
           <p className="text-slate-600 leading-relaxed">
             Unggah file Excel (<code>.xlsx</code> / <code>.xls</code>) atau CSV dengan kolom:{' '}
             <strong>Nama Lengkap</strong>, <strong>NISN</strong>, dan <strong>Nama Kelas</strong>.
+            {isAdmin && (
+              <>
+                {' '}
+                File <strong>export Dapodik</strong> (sheet <em>Daftar Siswa</em>) terdeteksi otomatis
+                dan diimpor massal.
+              </>
+            )}
           </p>
 
           <button
@@ -792,12 +926,106 @@ export default function DataSiswaPage() {
               type="file"
               accept=".xlsx, .xls, .csv"
               onChange={handleFileUpload}
+              disabled={importing}
               aria-label="Pilih file Excel atau CSV siswa"
               className="w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-brand-blue file:text-white hover:file:bg-brand-blue-700"
             />
           </div>
 
-          {importPreview.length > 0 && (
+          {dapodikPreview && (
+            <div className="space-y-3">
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-emerald-900 text-xs leading-relaxed">
+                <strong>Format Dapodik terdeteksi.</strong> NIK, alamat, dan nama orang tua disimpan
+                di database terpisah dan <strong>tidak ditampilkan</strong> di aplikasi.
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <ModalInput
+                  label="Nama Sekolah"
+                  required
+                  value={importSchoolName}
+                  onChange={(e) => setImportSchoolName(e.target.value)}
+                  helperText="Dipakai bila sekolah dengan NPSN ini belum terdaftar."
+                />
+                <ModalInput
+                  label="NPSN"
+                  value={dapodikPreview.npsn || 'Tidak terdeteksi'}
+                  readOnly
+                  disabled
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
+                  <div className="text-xl font-black text-slate-900">{dapodikPreview.rows.length}</div>
+                  <div className="text-[11px] font-semibold uppercase text-slate-500">Siswa</div>
+                </div>
+                <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
+                  <div className="text-xl font-black text-slate-900">{dapodikPreview.perClass.length}</div>
+                  <div className="text-[11px] font-semibold uppercase text-slate-500">Kelas</div>
+                </div>
+                <div className="rounded-xl bg-amber-50 border border-amber-200 p-3">
+                  <div className="text-xl font-black text-amber-800">{dapodikPreview.totalTanpaHp}</div>
+                  <div className="text-[11px] font-semibold uppercase text-amber-700">Tanpa No. HP</div>
+                </div>
+              </div>
+
+              <div className="max-h-48 overflow-y-auto rounded-xl border border-slate-200">
+                <table className="w-full text-xs">
+                  <thead className="bg-slate-50 text-slate-600 uppercase tracking-wider sticky top-0">
+                    <tr>
+                      <th className="py-2 px-3 text-left">Kelas</th>
+                      <th className="py-2 px-3 text-right">Siswa</th>
+                      <th className="py-2 px-3 text-right">Tanpa HP</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {dapodikPreview.perClass.map((c) => (
+                      <tr key={c.kelas}>
+                        <td className="py-1.5 px-3 font-semibold text-slate-800">{c.kelas}</td>
+                        <td className="py-1.5 px-3 text-right font-mono">{c.jumlah}</td>
+                        <td className="py-1.5 px-3 text-right font-mono text-amber-700">{c.tanpaHp}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {dapodikPreview.issues.length > 0 && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 space-y-1 max-h-28 overflow-y-auto">
+                  <div className="font-bold">Catatan ({dapodikPreview.issues.length}):</div>
+                  {dapodikPreview.issues.map((issue, i) => (
+                    <div key={i}>• {issue}</div>
+                  ))}
+                </div>
+              )}
+
+              {importProgress && (
+                <div className="space-y-1" role="status" aria-live="polite">
+                  <div className="flex justify-between text-xs font-semibold text-slate-600">
+                    <span>{importProgress.stage}</span>
+                    <span>
+                      {importProgress.done} / {importProgress.total}
+                    </span>
+                  </div>
+                  <div className="h-2.5 rounded-full bg-slate-200 overflow-hidden">
+                    <div
+                      className="h-full bg-brand-blue transition-all duration-300"
+                      style={{
+                        width: `${
+                          importProgress.total > 0
+                            ? Math.round((importProgress.done / importProgress.total) * 100)
+                            : 0
+                        }%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {!dapodikPreview && importPreview.length > 0 && (
             <div className="space-y-2">
               <div className="font-bold text-slate-800">
                 Pratinjau Data: {importPreview.length} baris terdeteksi
@@ -819,14 +1047,22 @@ export default function DataSiswaPage() {
 
           <ModalActions
             onCancel={() => {
+              if (importing) return;
               setShowImportModal(false);
-              setImportPreview([]);
-              setImportMessage('');
+              resetImportState();
             }}
             onSubmit={handleExecuteImport}
             submitType="button"
-            submitDisabled={importPreview.length === 0}
-            submitLabel={`Mulai Import (${importPreview.length} Data)`}
+            submitDisabled={
+              dapodikPreview
+                ? !importSchoolName.trim() || !dapodikPreview.npsn
+                : importPreview.length === 0
+            }
+            submitLabel={
+              dapodikPreview
+                ? `Mulai Import Dapodik (${dapodikPreview.rows.length} Siswa)`
+                : `Mulai Import (${importPreview.length} Data)`
+            }
             submitting={importing}
           />
         </div>

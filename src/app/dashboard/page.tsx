@@ -65,7 +65,7 @@ export default function DashboardPage() {
   const [actionBanner, setActionBanner] = useState<string | null>(null);
 
   // Tahap 3: Multi-Tenant Global Overview & Switch School View State (Super Admin)
-  const [schoolsList, setSchoolsList] = useState<School[]>([SEED_SCHOOL]);
+  const [schoolsList, setSchoolsList] = useState<School[]>([]);
   const [globalStats, setGlobalStats] = useState({
     totalSekolahAktif: 4,
     totalKelasLintasSekolah: 7,
@@ -140,6 +140,9 @@ export default function DashboardPage() {
         }
       );
       setSchoolsList(allSchools);
+      if (allSchools.length > 0 && !allSchools.some((s) => s.id === activeSchoolId)) {
+        setActiveSchoolId(allSchools[0].id);
+      }
       setGlobalStats({
         totalSekolahAktif: gStats.totalSekolahAktif,
         totalKelasLintasSekolah: gStats.totalKelasLintasSekolah,
@@ -164,7 +167,7 @@ export default function DashboardPage() {
   }, [loadData]);
 
   const currentSchool =
-    schoolsList.find((s) => s.id === activeSchoolId) || SEED_SCHOOL;
+    schoolsList.find((s) => s.id === activeSchoolId) || schoolsList[0] || SEED_SCHOOL;
 
   const isTiba = session && session.kesimpulan === 'LAYAK_EDAR';
   const isDitolak = session && session.kesimpulan === 'TOLAK_RETUR';
@@ -753,7 +756,7 @@ export default function DashboardPage() {
               required
               value={corrReason}
               onChange={(e) => setCorrReason(e.target.value)}
-              placeholder="Contoh: Koreksi selisih input presensi oleh Guru Piket"
+              placeholder="Contoh: Koreksi selisih input presensi oleh Guru PIC MBG"
             />
 
             <ModalActions

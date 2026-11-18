@@ -43,7 +43,6 @@ export default function Navbar() {
     role,
     student,
     isStudent,
-    loginAsDemoRole,
     signInStudent,
     updateProfileName,
     signOut,
@@ -101,19 +100,8 @@ export default function Navbar() {
     return () => mediaQuery.removeEventListener('change', handleChange);
   }, [theme]);
 
-  // Active Role State for demo/testing toggle (Guru Piket vs Siswa)
-  const [activeRoleView, setActiveRoleView] = useState<'guru_piket' | 'siswa'>('guru_piket');
-
-  useEffect(() => {
-    if (isStudent) {
-      setActiveRoleView('siswa');
-    } else if (user) {
-      setActiveRoleView('guru_piket');
-    }
-  }, [isStudent, user]);
-
   const isActive = (path: string) => pathname === path;
-  const isStaff = (user !== null || activeRoleView === 'guru_piket') && !isStudent;
+  const isStaff = user !== null && !isStudent;
   const isSuperAdmin = role === 'super_admin' || role === 'admin';
   const isLoggedIn = !!user || !!student;
 
@@ -121,9 +109,7 @@ export default function Navbar() {
     ? user.nama
     : student
       ? student.nama_lengkap
-      : activeRoleView === 'siswa'
-        ? 'Tamu (Siswa)'
-        : 'Petugas Demo';
+      : 'Tamu';
 
   const displaySub = user
     ? user.email
@@ -136,12 +122,10 @@ export default function Navbar() {
       ? 'Super Admin'
       : user.peran === 'kepala_sekolah'
         ? 'Kepala Sekolah'
-        : 'Guru Piket'
+        : 'Guru PIC MBG'
     : student
       ? `Siswa (${student.nama_kelas})`
-      : activeRoleView === 'siswa'
-        ? 'Mode Siswa'
-        : 'Mode Guru Piket';
+      : 'Tamu';
 
   const handleOpenProfileModal = () => {
     setEditNameValue(user ? user.nama : student ? student.nama_lengkap : '');
@@ -227,41 +211,6 @@ export default function Navbar() {
               </span>
             </div>
             <p className="text-xs text-sky-200">Akses Cepat Layanan & Portal MBG</p>
-          </div>
-        </div>
-
-        {/* Segmented Control Role Switcher */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-[11px] font-bold text-sky-200/70 uppercase tracking-wider">
-            <span className="flex items-center gap-1.5">
-              <ShieldCheck className="h-3.5 w-3.5 text-cyan-400" aria-hidden="true" />
-              Role Switcher (RBAC)
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-slate-950/50 p-1.5">
-            <button
-              type="button"
-              onClick={() => setActiveRoleView('guru_piket')}
-              className={`min-h-[44px] flex items-center justify-center gap-2 rounded-xl py-2 px-3 text-xs font-bold transition-all micro-tap ${activeRoleView === 'guru_piket'
-                ? 'bg-brand-blue text-white shadow-elev-2'
-                : 'text-sky-300 hover:bg-surface-card/5 hover:text-white'
-                }`}
-            >
-              <Truck className="h-4 w-4" aria-hidden="true" />
-              Guru Piket
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveRoleView('siswa')}
-              className={`min-h-[44px] flex items-center justify-center gap-2 rounded-xl py-2 px-3 text-xs font-bold transition-all micro-tap ${activeRoleView === 'siswa'
-                ? 'bg-brand-blue text-white shadow-elev-2'
-                : 'text-sky-300 hover:bg-surface-card/5 hover:text-white'
-                }`}
-            >
-              <QrCode className="h-4 w-4" aria-hidden="true" />
-              Mode Siswa
-            </button>
           </div>
         </div>
 
@@ -612,29 +561,6 @@ export default function Navbar() {
 
             {/* Right Action: Active User Icon + Profile, Login & Logout Dropdown */}
             <div className="flex items-center gap-2 sm:gap-3">
-              <div className="hidden items-center rounded-xl border border-white/15 bg-brand-navy p-1 text-[11px] font-bold xl:flex">
-                <button
-                  type="button"
-                  onClick={() => setActiveRoleView('guru_piket')}
-                  className={`rounded-lg px-2.5 py-1.5 micro-tap ${activeRoleView === 'guru_piket'
-                    ? 'bg-brand-blue text-white shadow-sm'
-                    : 'text-sky-300 hover:text-white'
-                    }`}
-                >
-                  Guru Piket
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveRoleView('siswa')}
-                  className={`rounded-lg px-2.5 py-1.5 micro-tap ${activeRoleView === 'siswa'
-                    ? 'bg-brand-blue text-white shadow-sm'
-                    : 'text-sky-300 hover:text-white'
-                    }`}
-                >
-                  Siswa
-                </button>
-              </div>
-
               <div className="relative">
                 <button
                   type="button"
@@ -763,80 +689,6 @@ export default function Navbar() {
                 >
                   <Monitor className="h-4 w-4" aria-hidden="true" />
                   System
-                </button>
-              </div>
-            </div>
-
-            {/* Role Switcher Section */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-[11px] font-bold text-sky-200/70 uppercase tracking-wider">
-                <span className="flex items-center gap-1.5">
-                  <ShieldCheck className="h-3.5 w-3.5 text-cyan-400" aria-hidden="true" />
-                  Role Switcher (RBAC)
-                </span>
-                <span className="text-[10px] font-bold text-brand-blue">1-Klik Aktif</span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-slate-950/50 p-1.5">
-                <button
-                  type="button"
-                  onClick={async () => {
-                    await loginAsDemoRole('super_admin');
-                    setUserDropdownOpen(false);
-                    notify.info('Beralih ke peran Super Admin (UBSI)', 'Mode RBAC');
-                  }}
-                  className={`min-h-[44px] flex items-center justify-center gap-2 rounded-xl py-2 px-3 text-xs font-bold transition-all micro-tap ${role === 'super_admin' && !isStudent
-                    ? 'bg-amber-400/20 text-amber-300 border border-amber-400/30'
-                    : 'text-sky-300 hover:bg-surface-card/5 hover:text-white border border-white/5'
-                    }`}
-                >
-                  <ShieldCheck className="w-3.5 h-3.5 text-amber-600 shrink-0" aria-hidden="true" />
-                  Super Admin
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    await loginAsDemoRole('guru_piket');
-                    setUserDropdownOpen(false);
-                    notify.info('Beralih ke peran Guru Piket', 'Mode RBAC');
-                  }}
-                  className={`min-h-[44px] flex items-center justify-center gap-2 rounded-xl py-2 px-3 text-xs font-bold transition-all micro-tap ${role === 'guru_piket' && !isStudent
-                    ? 'bg-brand-blue/20 text-brand-blue border border-brand-blue/30'
-                    : 'text-sky-300 hover:bg-surface-card/5 hover:text-white border border-white/5'
-                    }`}
-                >
-                  <Truck className="h-4 w-4" aria-hidden="true" />
-                  Guru Piket
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    await loginAsDemoRole('kepala_sekolah');
-                    setUserDropdownOpen(false);
-                    notify.info('Beralih ke peran Kepala Sekolah', 'Mode RBAC');
-                  }}
-                  className={`min-h-[44px] flex items-center justify-center gap-2 rounded-xl py-2 px-3 text-xs font-bold transition-all micro-tap ${role === 'kepala_sekolah' && !isStudent
-                    ? 'bg-purple-400/20 text-purple-300 border border-purple-400/30'
-                    : 'text-sky-300 hover:bg-surface-card/5 hover:text-white border border-white/5'
-                    }`}
-                >
-                  <UserCheck className="w-3.5 h-3.5 text-purple-600 shrink-0" aria-hidden="true" />
-                  Kepala Sekolah
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    await signInStudent('Alroy Theola Ardanta', '6281234567890');
-                    setUserDropdownOpen(false);
-                    notify.info('Beralih ke akun Siswa (Alroy Theola Ardanta)', 'Mode RBAC');
-                  }}
-                  className={`min-h-[44px] flex items-center justify-center gap-2 rounded-xl py-2 px-3 text-xs font-bold transition-all micro-tap ${isStudent
-                    ? 'bg-cyan-400/20 text-cyan-300 border border-cyan-400/30'
-                    : 'text-sky-300 hover:bg-surface-card/5 hover:text-white border border-white/5'
-                    }`}
-                >
-                  <GraduationCap className="h-4 w-4" aria-hidden="true" />
-                  Akun Siswa
                 </button>
               </div>
             </div>

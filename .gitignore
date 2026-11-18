@@ -33,3 +33,7 @@ env.local
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# data pribadi siswa (NIK, alamat, orang tua) - jangan di-commit
+/Data_Siswa_*.xlsx
+/supabase/seeds/

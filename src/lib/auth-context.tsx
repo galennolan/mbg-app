@@ -29,9 +29,6 @@ interface AuthContextType {
     nama: string,
     no_hp: string
   ) => Promise<{ error?: string; student?: StudentAuthProfile }>;
-  loginAsDemoRole: (
-    role: 'super_admin' | 'guru_piket' | 'kepala_sekolah'
-  ) => Promise<void>;
   updateProfileName: (newName: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -45,58 +42,24 @@ const AuthContext = createContext<AuthContextType>({
   role: null,
   id_sekolah: DEFAULT_SCHOOL_ID,
   activeSchoolId: DEFAULT_SCHOOL_ID,
-  setActiveSchoolId: () => {},
+  setActiveSchoolId: () => { },
   student: null,
   isStudent: false,
   isGuest: true,
   guestIdentity: null,
-  setGuestIdentity: () => {},
+  setGuestIdentity: () => { },
   loading: true,
   signIn: async () => ({}),
   signInStudent: async () => ({}),
-  loginAsDemoRole: async () => {},
-  updateProfileName: async () => {},
-  signOut: async () => {},
-  refreshProfile: async () => {},
+  updateProfileName: async () => { },
+  signOut: async () => { },
+  refreshProfile: async () => { },
 });
 
 const STUDENT_STORAGE_KEY = 'mbg_student_session';
 const STAFF_STORAGE_KEY = 'mbg_staff_session';
 const GUEST_STORAGE_KEY = 'mbg_guest_identity';
 const ACTIVE_SCHOOL_STORAGE_KEY = 'mbg_active_school_id';
-
-const DEMO_STAFF_PROFILES: Record<'super_admin' | 'guru_piket' | 'kepala_sekolah', Pengguna> = {
-  super_admin: {
-    id: '00000000-0000-4000-8000-000000000001',
-    id_sekolah: DEFAULT_SCHOOL_ID,
-    nama: 'Super Administrator (Marcomm UBSI)',
-    email: 'admin@mbg.sekolah.id',
-    peran: 'super_admin',
-    status_aktif: true,
-    dibuat_pada: new Date().toISOString(),
-    diperbarui_pada: new Date().toISOString(),
-  },
-  guru_piket: {
-    id: '00000000-0000-4000-8000-000000000002',
-    id_sekolah: DEFAULT_SCHOOL_ID,
-    nama: 'Budi Santoso, S.Pd (Guru Piket)',
-    email: 'guru@mbg.sekolah.id',
-    peran: 'guru_piket',
-    status_aktif: true,
-    dibuat_pada: new Date().toISOString(),
-    diperbarui_pada: new Date().toISOString(),
-  },
-  kepala_sekolah: {
-    id: '00000000-0000-4000-8000-000000000003',
-    id_sekolah: DEFAULT_SCHOOL_ID,
-    nama: 'Dr. Mochamad Wahyudi, M.M (Kepsek)',
-    email: 'kepsek@mbg.sekolah.id',
-    peran: 'kepala_sekolah',
-    status_aktif: true,
-    dibuat_pada: new Date().toISOString(),
-    diperbarui_pada: new Date().toISOString(),
-  },
-};
 
 function syncAuthCookies(roleVal: string | null, schoolIdVal: string | null) {
   if (typeof document === 'undefined') return;
@@ -141,26 +104,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const resolveDefaultRoleFromEmail = (email: string): UserRole => {
-    const lower = (email || '').toLowerCase();
-    if (lower.includes('admin')) return 'super_admin';
-    if (lower.includes('kepsek') || lower.includes('kepala')) return 'kepala_sekolah';
-    return 'guru_piket';
-  };
-
-  const resolveDefaultNameFromEmail = (email: string, role: UserRole): string => {
-    if (role === 'super_admin') return 'Super Administrator (UBSI)';
-    if (role === 'kepala_sekolah') return 'Dr. Mochamad Wahyudi, M.M';
-    const prefix = (email || 'Petugas').split('@')[0];
-    return prefix.charAt(0).toUpperCase() + prefix.slice(1);
-  };
-
   const saveStaffLocally = (profile: Pengguna | null) => {
     if (typeof window === 'undefined') return;
     if (profile) {
       localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(profile));
       const schoolId = profile.id_sekolah || DEFAULT_SCHOOL_ID;
-      if (profile.peran !== 'super_admin') {
+      if (profile.peran !== 'super_admin' && profile.id_sekolah) {
         localStorage.setItem(ACTIVE_SCHOOL_STORAGE_KEY, schoolId);
         setActiveSchoolIdState(schoolId);
       }
@@ -171,66 +120,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const fetchProfile = async (userId: string, email: string) => {
+  const fetchProfile = async (userId: string): Promise<boolean> => {
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('pengguna')
         .select('*')
         .eq('id', userId)
         .maybeSingle();
 
-      if (data) {
-        const enrichedUser: Pengguna = {
-          ...(data as Pengguna),
-          id_sekolah: data.id_sekolah || DEFAULT_SCHOOL_ID,
-        };
-        setUser(enrichedUser);
-        saveStaffLocally(enrichedUser);
-        if (!data.id_sekolah) {
-          try {
-            await supabase
-              .from('pengguna')
-              .update({ id_sekolah: DEFAULT_SCHOOL_ID })
-              .eq('id', userId);
-          } catch {
-            // Ignore if RLS blocks update
-          }
-        }
-      } else {
-        const fallbackRole = resolveDefaultRoleFromEmail(email);
-        const fallbackUser: Pengguna = {
-          id: userId,
-          id_sekolah: DEFAULT_SCHOOL_ID,
-          nama: resolveDefaultNameFromEmail(email, fallbackRole),
-          email: email,
-          peran: fallbackRole,
-          status_aktif: true,
-          dibuat_pada: new Date().toISOString(),
-          diperbarui_pada: new Date().toISOString(),
-        };
-        setUser(fallbackUser);
-        saveStaffLocally(fallbackUser);
-
-        try {
-          await supabase.from('pengguna').upsert(fallbackUser);
-        } catch {
-          // Ignore if permission denied
-        }
+      if (error || !data || data.status_aktif === false) {
+        setUser(null);
+        saveStaffLocally(null);
+        return false;
       }
+
+      const profile = data as Pengguna;
+      setUser(profile);
+      saveStaffLocally(profile);
+      return true;
     } catch {
-      const fallbackRole = resolveDefaultRoleFromEmail(email);
-      const localProfile: Pengguna = {
-        id: userId,
-        id_sekolah: DEFAULT_SCHOOL_ID,
-        nama: resolveDefaultNameFromEmail(email, fallbackRole),
-        email: email,
-        peran: fallbackRole,
-        status_aktif: true,
-        dibuat_pada: new Date().toISOString(),
-        diperbarui_pada: new Date().toISOString(),
-      };
-      setUser(localProfile);
-      saveStaffLocally(localProfile);
+      setUser(null);
+      saveStaffLocally(null);
+      return false;
     }
   };
 
@@ -284,7 +195,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } = await supabase.auth.getSession();
         if (session?.user) {
           setAuthUser(session.user);
-          await fetchProfile(session.user.id, session.user.email || '');
+          await fetchProfile(session.user.id);
+        } else if (typeof window !== 'undefined' && localStorage.getItem(STAFF_STORAGE_KEY)) {
+          // Sesi petugas tanpa sesi Supabase asli (sisa mode demo lama) tidak dipercaya lagi.
+          localStorage.removeItem(STAFF_STORAGE_KEY);
+          syncAuthCookies(null, null);
+          setUser(null);
         }
       } catch (err) {
         console.error('Auth initialization error:', err);
@@ -298,7 +214,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
         setAuthUser(session.user);
-        await fetchProfile(session.user.id, session.user.email || '');
+        await fetchProfile(session.user.id);
       } else if (event === 'SIGNED_OUT') {
         setAuthUser(null);
       }
@@ -343,50 +259,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         setStudent(null);
         setAuthUser(data.user);
-        await fetchProfile(data.user.id, data.user.email || cleanEmail);
+        const ok = await fetchProfile(data.user.id);
+        if (!ok) {
+          await supabase.auth.signOut();
+          setAuthUser(null);
+          return {
+            error:
+              'Akun Anda belum terdaftar atau dinonaktifkan di tabel pengguna. Hubungi Super Admin.',
+          };
+        }
         return {};
       }
 
-      if (kataSandi === 'Password123!') {
-        try {
-          const { data: dbUser } = await supabase
-            .from('pengguna')
-            .select('*')
-            .ilike('email', cleanEmail)
-            .maybeSingle();
-
-          if (dbUser) {
-            if (dbUser.status_aktif === false) {
-              return { error: 'Akun pengguna ini sedang dinonaktifkan oleh Super Admin.' };
-            }
-            if (typeof window !== 'undefined') {
-              localStorage.removeItem(STUDENT_STORAGE_KEY);
-            }
-            setStudent(null);
-            setUser(dbUser as Pengguna);
-            saveStaffLocally(dbUser as Pengguna);
-            return {};
-          }
-        } catch {
-          // Lanjut ke pengecekan akun inisial resmi
-        }
-
-        const initialAccounts: Record<string, Pengguna> = {
-          'admin@mbg.sekolah.id': DEMO_STAFF_PROFILES.super_admin,
-          'guru@mbg.sekolah.id': DEMO_STAFF_PROFILES.guru_piket,
-          'kepsek@mbg.sekolah.id': DEMO_STAFF_PROFILES.kepala_sekolah,
+      if (error && (error as { code?: string }).code === 'email_provider_disabled') {
+        return {
+          error:
+            'Login email dinonaktifkan di Supabase. Aktifkan di Authentication → Sign In / Providers → Email.',
         };
-
-        const matchedInitial = initialAccounts[cleanEmail];
-        if (matchedInitial) {
-          if (typeof window !== 'undefined') {
-            localStorage.removeItem(STUDENT_STORAGE_KEY);
-          }
-          setStudent(null);
-          setUser(matchedInitial);
-          saveStaffLocally(matchedInitial);
-          return {};
-        }
       }
 
       return {
@@ -469,21 +358,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setStudent(null);
   };
 
-  const loginAsDemoRole = async (
-    targetRole: 'super_admin' | 'guru_piket' | 'kepala_sekolah'
-  ) => {
-    const profile = DEMO_STAFF_PROFILES[targetRole];
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem(STUDENT_STORAGE_KEY);
-    }
-    setStudent(null);
-    setUser(profile);
-    saveStaffLocally(profile);
-  };
-
   const refreshProfile = async () => {
     if (authUser) {
-      await fetchProfile(authUser.id, authUser.email || '');
+      await fetchProfile(authUser.id);
     }
   };
 
@@ -509,7 +386,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loading,
         signIn,
         signInStudent,
-        loginAsDemoRole,
         updateProfileName,
         signOut,
         refreshProfile,

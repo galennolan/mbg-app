@@ -305,7 +305,7 @@ export default function LaporanPage() {
         r.jurusan || '-',
         r.status_penerimaan.toUpperCase(),
         r.waktu_penerimaan ? formatWIBTime(r.waktu_penerimaan) : '-',
-        r.sumber_pencatatan === 'siswa' ? 'Scan Mandiri' : 'Guru Piket',
+        r.sumber_pencatatan === 'siswa' ? 'Scan Mandiri' : 'Guru PIC MBG',
         r.petugas?.nama || '-',
       ]);
       const colWidths = [
