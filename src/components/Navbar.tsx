@@ -30,6 +30,10 @@ import {
   Sun,
   Moon,
   Monitor,
+  Bell,
+  ChevronRight,
+  Home,
+  CheckCheck,
 } from 'lucide-react';
 import { SEED_SCHOOL } from '@/lib/services';
 import { Modal, ModalBody, ModalHeader, ModalFooter, Input, Button, useNotify } from '@/components/ui';
@@ -50,6 +54,33 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [adminDropdownOpen, setAdminDropdownOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifications, setNotifications] = useState([
+    {
+      id: 'notif-1',
+      title: 'Monitoring Distribusi MBG Aktif',
+      desc: 'Sesi pemantauan penerimaan porsi kelas & verifikasi QR siap digunakan.',
+      time: 'Baru saja',
+      href: '/dashboard',
+      unread: true,
+    },
+    {
+      id: 'notif-2',
+      title: 'Checklist Konfirmasi Kelas',
+      desc: 'Pastikan presensi dan klaim porsi MBG tiap rombel telah diverifikasi.',
+      time: '10 menit lalu',
+      href: '/konfirmasi/kelas',
+      unread: true,
+    },
+    {
+      id: 'notif-3',
+      title: 'Sinkronisasi Master Data Dapodik',
+      desc: 'Data rombel dan kuota siswa penerima MBG telah terhubung dengan sekolah aktif.',
+      time: 'Hari ini',
+      href: '/admin/kelas',
+      unread: false,
+    },
+  ]);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [editNameValue, setEditNameValue] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
@@ -178,12 +209,67 @@ export default function Navbar() {
         setMobileMenuOpen(false);
         setUserDropdownOpen(false);
         setAdminDropdownOpen(false);
+        setNotifOpen(false);
         setProfileModalOpen(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  const unreadCount = notifications.filter((n) => n.unread).length;
+
+  const markAllNotificationsRead = () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
+  };
+
+  const getBreadcrumbs = (path: string) => {
+    const map: Record<string, { group: string; groupHref: string; current: string }> = {
+      '/': { group: 'Utama', groupHref: '/', current: 'Portal Siswa (Scan)' },
+      '/dashboard': { group: 'Utama', groupHref: '/dashboard', current: 'Monitor Real-time' },
+      '/kedatangan': { group: 'Operasional', groupHref: '/kedatangan', current: 'Kedatangan MBG' },
+      '/konfirmasi/kelas': {
+        group: 'Operasional',
+        groupHref: '/konfirmasi/kelas',
+        current: 'Konfirmasi Kelas',
+      },
+      '/konfirmasi/individu': {
+        group: 'Operasional',
+        groupHref: '/konfirmasi/kelas',
+        current: 'Konfirmasi Individu',
+      },
+      '/laporan': { group: 'Operasional', groupHref: '/laporan', current: 'Laporan & SPPG' },
+      '/admin/kelas': { group: 'Master Data', groupHref: '/admin/kelas', current: 'Data Kelas' },
+      '/siswa': { group: 'Master Data', groupHref: '/siswa', current: 'Data Siswa' },
+      '/admin/sekolah': {
+        group: 'Master Data',
+        groupHref: '/admin/sekolah',
+        current: 'Manajemen Sekolah',
+      },
+      '/admin/campaign': {
+        group: 'Master Data',
+        groupHref: '/admin/campaign',
+        current: 'Campaign CRM',
+      },
+      '/admin/pengguna': {
+        group: 'Master Data',
+        groupHref: '/admin/pengguna',
+        current: 'Kelola Pengguna',
+      },
+      '/admin/audit': { group: 'Master Data', groupHref: '/admin/audit', current: 'Audit Log' },
+      '/admin/qrcode': { group: 'Master Data', groupHref: '/admin/qrcode', current: 'Master QR' },
+    };
+
+    return (
+      map[path] || {
+        group: 'Operasional',
+        groupHref: '/dashboard',
+        current: path.replace(/^\//, '').replace(/\//g, ' / ') || 'Beranda',
+      }
+    );
+  };
+
+  const breadcrumb = getBreadcrumbs(pathname || '/');
 
   const MobileNavModal = () => (
     <Modal
@@ -378,243 +464,230 @@ export default function Navbar() {
 
   return (
     <>
-      <nav className="no-print sticky top-0 z-sticky border-b border-sky-300/20 bg-gradient-to-r from-[#082552]/95 via-[#0D3B7A]/95 to-[#1565C0]/95 text-white shadow-[0_8px_24px_-4px_rgba(8,37,82,0.35)] backdrop-blur-md">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex h-16 items-center justify-between">
-            {/* Logo & UBSI Brand */}
-            <div className="flex items-center gap-3">
-              <a
-                href="https://pmbubsi.id/kampus/surakarta"
-                target="_blank"
-                rel="noopener noreferrer"
-                title="Buka Website PMB UBSI Surakarta"
-                className="group flex items-center gap-2.5 micro-tap"
-              >
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-sky-200/40 bg-gradient-to-tr from-[#0D47A1] via-[#1565C0] to-[#38A3F8] shadow-[0_4px_12px_rgba(21,101,192,0.45)] group-hover:scale-105 transition">
-                  <span className="text-sm font-black tracking-tighter text-white">BSI</span>
-                </div>
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="block text-xs sm:text-sm font-black leading-tight tracking-wider text-white group-hover:text-cyan-200 transition truncate max-w-[120px] sm:max-w-none">
-                      NUTRI KAMPUS HUB
-                    </span>
-                    <ExternalLink className="w-3 h-3 text-sky-300 opacity-70 group-hover:opacity-100 transition hidden xs:block" />
-                  </div>
-                  <span className="block text-[9px] sm:text-[10px] font-normal leading-none text-sky-200 opacity-80 hidden md:block">
-                    Universitas Bina Sarana Informatika Surakarta
-                  </span>
-                </div>
-              </a>
-            </div>
-
-            {/* Desktop Navigation - Hidden since we now have Sidebar */}
-            <div className="hidden items-center space-x-0.5 lg:hidden">
-              <Link
-                  href="/"
-                  className={`min-h-[40px] flex items-center gap-1.5 rounded-xl px-2 xl:px-3 py-2 text-[11px] xl:text-xs font-bold micro-tap ${isActive('/')
-                    ? 'bg-brand-blue text-white shadow-sm'
-                    : 'text-sky-200 hover:bg-white/10 hover:text-white'
-                    }`}
-                >
-                  <QrCode className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span className="hidden xl:inline">Portal Siswa</span>
-                </Link>
-
-              {isStaff && (
-                <>
-                  <Link
-                    href="/kedatangan"
-                    className={`min-h-[40px] flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold micro-tap ${isActive('/kedatangan')
-                      ? 'bg-brand-blue text-white shadow-sm'
-                      : 'text-sky-200 hover:bg-surface-card/10 hover:text-white'
-                      }`}
-                  >
-                    <Truck className="h-3.5 w-3.5" aria-hidden="true" />
-                    Kedatangan MBG
-                  </Link>
-
-                  <Link
-                    href="/dashboard"
-                    className={`min-h-[40px] flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold micro-tap ${isActive('/dashboard')
-                      ? 'bg-brand-blue text-white shadow-sm'
-                      : 'text-sky-200 hover:bg-surface-card/10 hover:text-white'
-                      }`}
-                  >
-                    <LayoutDashboard className="h-3.5 w-3.5" aria-hidden="true" />
-                    Live Monitor
-                  </Link>
-
-                  <Link
-                    href="/konfirmasi/kelas"
-                    className={`min-h-[40px] flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold micro-tap ${isActive('/konfirmasi/kelas')
-                      ? 'bg-brand-blue text-white shadow-sm'
-                      : 'text-sky-200 hover:bg-surface-card/10 hover:text-white'
-                      }`}
-                  >
-                    <Users className="h-3.5 w-3.5" aria-hidden="true" />
-                    Konfirmasi Kelas
-                  </Link>
-
-                  <Link
-                    href="/admin/kelas"
-                    className={`min-h-[40px] flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold micro-tap ${isActive('/admin/kelas')
-                      ? 'bg-brand-blue text-white shadow-sm'
-                      : 'text-sky-200 hover:bg-surface-card/10 hover:text-white'
-                      }`}
-                  >
-                    <Building2 className="h-3.5 w-3.5" aria-hidden="true" />
-                    Data Kelas
-                  </Link>
-
-                  <Link
-                    href="/siswa"
-                    className={`min-h-[40px] flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold micro-tap ${isActive('/siswa')
-                      ? 'bg-brand-blue text-white shadow-sm'
-                      : 'text-sky-200 hover:bg-surface-card/10 hover:text-white'
-                      }`}
-                  >
-                    <GraduationCap className="h-3.5 w-3.5" aria-hidden="true" />
-                    Data Siswa
-                  </Link>
-
-                  <Link
-                    href="/laporan"
-                    className={`min-h-[40px] flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold micro-tap ${isActive('/laporan')
-                      ? 'bg-brand-blue text-white shadow-sm'
-                      : 'text-sky-200 hover:bg-surface-card/10 hover:text-white'
-                      }`}
-                  >
-                    <FileSpreadsheet className="h-3.5 w-3.5" aria-hidden="true" />
-                    Laporan
-                  </Link>
-
-                  {isSuperAdmin && (
-                    <div className="relative">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setUserDropdownOpen(false);
-                          setAdminDropdownOpen(!adminDropdownOpen);
-                        }}
-                        aria-expanded={adminDropdownOpen}
-                        className="min-h-[40px] flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-bold text-sky-200 micro-tap hover:bg-surface-card/10 hover:text-white"
-                      >
-                        <ShieldCheck className="h-3.5 w-3.5 text-amber-300" aria-hidden="true" />
-                        Super Admin
-                        <ChevronDown className="ml-0.5 h-3 w-3" aria-hidden="true" />
-                      </button>
-
-                      {adminDropdownOpen && (
-                        <div
-                          className="absolute right-0 z-dropdown mt-2 w-60 rounded-2xl border border-slate-700 bg-slate-900 py-2 text-white shadow-elev-4 animate-slide-up"
-                          onClick={() => setAdminDropdownOpen(false)}
-                        >
-                          <Link
-                            href="/admin/sekolah"
-                            className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-cyan-200 hover:bg-surface-card/10"
-                          >
-                            <Building2 className="h-4 w-4 text-cyan-300" aria-hidden="true" />
-                            Manajemen Sekolah (SaaS)
-                          </Link>
-                          <Link
-                            href="/admin/kelas"
-                            className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-sky-100 hover:bg-surface-card/10"
-                          >
-                            <Users className="h-4 w-4 text-sky-300" aria-hidden="true" />
-                            Manajemen Kelas
-                          </Link>
-                          <Link
-                            href="/admin/campaign"
-                            className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-amber-200 hover:bg-surface-card/10"
-                          >
-                            <Megaphone className="h-4 w-4 text-amber-300" aria-hidden="true" />
-                            Campaign Manager (CRM)
-                          </Link>
-                          <Link
-                            href="/siswa"
-                            className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-sky-100 hover:bg-surface-card/10"
-                          >
-                            <GraduationCap className="h-4 w-4 text-sky-300" aria-hidden="true" />
-                            Data Siswa
-                          </Link>
-                          <Link
-                            href="/admin/pengguna"
-                            className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-sky-100 hover:bg-surface-card/10"
-                          >
-                            <UserCheck className="h-4 w-4 text-sky-300" aria-hidden="true" />
-                            Kelola Pengguna
-                          </Link>
-                          <Link
-                            href="/admin/audit"
-                            className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-sky-100 hover:bg-surface-card/10"
-                          >
-                            <History className="h-4 w-4 text-sky-300" aria-hidden="true" />
-                            Audit Log
-                          </Link>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-
-            {/* Right Action: Active User Icon + Profile, Login & Logout Dropdown */}
-            <div className="flex items-center gap-2 sm:gap-3">
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAdminDropdownOpen(false);
-                    setUserDropdownOpen(!userDropdownOpen);
-                  }}
-                  className={`min-h-[44px] flex items-center gap-2 rounded-xl border px-2.5 py-1.5 text-left micro-tap ${userDropdownOpen
-                    ? 'border-cyan-400 bg-brand-navy-light ring-2 ring-cyan-400/30'
-                    : 'border-white/20 bg-surface-card/10 hover:bg-surface-card/15'
-                    }`}
-                  aria-label="Menu Profil Pengguna, Login & Logout"
-                  aria-expanded={userDropdownOpen}
-                >
-                  <div className="relative flex h-8 w-8 items-center justify-center rounded-lg bg-brand-blue text-white">
-                    <User className="h-4 w-4" aria-hidden="true" />
-                    <span
-                      className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-brand-navy-dark ${isLoggedIn ? 'bg-emerald-400' : 'bg-amber-400'
-                        }`}
-                    />
-                  </div>
-                  <div className="hidden sm:block max-w-[140px]">
-                    <p className="truncate text-xs font-black text-white leading-tight">
-                      {displayName}
-                    </p>
-                    <p className="truncate text-[10px] font-bold text-cyan-300 leading-tight">
-                      {displayRoleLabel}
-                    </p>
-                  </div>
-                  <ChevronDown
-                    className={`h-3.5 w-3.5 text-sky-200 transition-transform duration-200 ${userDropdownOpen ? 'rotate-180 text-cyan-300' : ''
-                      }`}
-                    aria-hidden="true"
-                  />
-                </button>
-              </div>
-
+      <header className="no-print sticky top-0 z-sticky border-b border-surface-border bg-surface-card/90 text-text-primary backdrop-blur-md transition-colors duration-200">
+        <div className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8">
+          <div className="flex h-16 items-center justify-between gap-3">
+            {/* Left: Mobile Menu Button + Breadcrumb Navigation */}
+            <div className="flex min-w-0 items-center gap-2.5">
               {/* Mobile Hamburger Button */}
               <button
                 type="button"
                 onClick={() => {
                   setUserDropdownOpen(false);
                   setAdminDropdownOpen(false);
+                  setNotifOpen(false);
                   setMobileMenuOpen(true);
                 }}
-                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl border border-white/15 bg-surface-card/10 text-white hover:bg-surface-card/20 micro-tap lg:hidden"
+                className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl border border-brand-blue-200 bg-brand-blue-50/70 text-brand-blue-700 hover:bg-brand-blue-100 micro-tap lg:hidden"
                 aria-label="Buka navigasi menu"
               >
-                <Menu className="h-5 w-5 text-sky-200" aria-hidden="true" />
+                <Menu className="h-5 w-5" aria-hidden="true" />
               </button>
+
+              <nav aria-label="Breadcrumb" className="min-w-0">
+                <ol className="flex min-w-0 items-center gap-1.5 text-xs sm:text-sm">
+                  <li className="hidden sm:flex items-center">
+                    <Link
+                      href={isStaff ? '/dashboard' : '/'}
+                      className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 font-semibold text-text-secondary hover:bg-brand-blue-50 hover:text-brand-blue-700 transition-colors"
+                    >
+                      <Home className="h-3.5 w-3.5 text-brand-blue-600 shrink-0" aria-hidden="true" />
+                      <span className="hidden md:inline">Nutri Kampus</span>
+                    </Link>
+                  </li>
+
+                  <li aria-hidden="true" className="hidden sm:flex items-center text-slate-300">
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </li>
+
+                  <li className="hidden xs:flex items-center">
+                    <Link
+                      href={breadcrumb.groupHref}
+                      className="rounded-lg px-2 py-1 font-semibold text-text-secondary hover:bg-brand-blue-50 hover:text-brand-blue-700 transition-colors truncate"
+                    >
+                      {breadcrumb.group}
+                    </Link>
+                  </li>
+
+                  <li aria-hidden="true" className="hidden xs:flex items-center text-slate-300">
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </li>
+
+                  <li aria-current="page" className="min-w-0">
+                    <span className="inline-flex items-center gap-1.5 rounded-xl border border-brand-blue-200/80 bg-gradient-to-r from-brand-blue-50 to-brand-blue-100/70 px-3 py-1 text-xs sm:text-[13px] font-extrabold text-brand-blue-800 truncate shadow-sm">
+                      <span
+                        className="h-1.5 w-1.5 rounded-full bg-gradient-to-r from-[#0D47A1] to-[#1E88E5] shrink-0"
+                        aria-hidden="true"
+                      />
+                      <span className="truncate">{breadcrumb.current}</span>
+                    </span>
+                  </li>
+                </ol>
+              </nav>
+            </div>
+
+            {/* Right: Notification Bell & User Account Pill */}
+            <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+              {/* Notification Bell & Popover */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUserDropdownOpen(false);
+                    setAdminDropdownOpen(false);
+                    setNotifOpen((prev) => !prev);
+                  }}
+                  aria-label={`Notifikasi${unreadCount > 0 ? `, ${unreadCount} belum dibaca` : ''}`}
+                  aria-expanded={notifOpen}
+                  className={`relative min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl border transition-all micro-tap cursor-pointer ${
+                    notifOpen
+                      ? 'border-brand-blue-400 bg-gradient-to-tr from-[#0D47A1] via-[#1565C0] to-[#1E88E5] text-white shadow-[0_4px_12px_rgba(21,101,192,0.35)]'
+                      : 'border-surface-border bg-surface-canvas/80 text-text-secondary hover:border-brand-blue-200 hover:bg-brand-blue-50 hover:text-brand-blue-700'
+                  }`}
+                >
+                  <Bell className="h-4 w-4" aria-hidden="true" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-gradient-to-r from-[#0D47A1] to-[#1E88E5] px-1 font-mono text-[10px] font-extrabold text-white ring-2 ring-surface-card">
+                      {unreadCount}
+                    </span>
+                  )}
+                </button>
+
+                {notifOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-30"
+                      aria-hidden="true"
+                      onClick={() => setNotifOpen(false)}
+                    />
+                    <div
+                      role="dialog"
+                      aria-label="Daftar Notifikasi"
+                      className="absolute right-0 z-40 mt-2 w-80 sm:w-96 overflow-hidden rounded-2xl border border-surface-border bg-surface-card text-text-primary shadow-elev-4 animate-slide-up"
+                    >
+                      <div className="flex items-center justify-between border-b border-surface-border bg-gradient-to-r from-[#082552] via-[#0D47A1] to-[#1565C0] px-4 py-3 text-white">
+                        <div className="flex items-center gap-2">
+                          <Bell className="h-4 w-4 text-sky-200" aria-hidden="true" />
+                          <span className="text-xs font-extrabold uppercase tracking-wider">
+                            Notifikasi Sistem
+                          </span>
+                          {unreadCount > 0 && (
+                            <span className="rounded-full bg-sky-400/25 border border-sky-300/40 px-2 py-0.5 font-mono text-[10px] font-bold text-sky-100">
+                              {unreadCount} baru
+                            </span>
+                          )}
+                        </div>
+                        {unreadCount > 0 && (
+                          <button
+                            type="button"
+                            onClick={markAllNotificationsRead}
+                            className="inline-flex items-center gap-1 rounded-lg bg-white/10 px-2 py-1 text-[10px] font-bold text-sky-100 hover:bg-white/20 transition-colors cursor-pointer"
+                          >
+                            <CheckCheck className="h-3 w-3" aria-hidden="true" />
+                            Tandai dibaca
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="max-h-80 divide-y divide-surface-border overflow-y-auto">
+                        {notifications.map((item) => (
+                          <Link
+                            key={item.id}
+                            href={item.href}
+                            onClick={() => {
+                              setNotifications((prev) =>
+                                prev.map((n) => (n.id === item.id ? { ...n, unread: false } : n))
+                              );
+                              setNotifOpen(false);
+                            }}
+                            className={`flex items-start gap-3 px-4 py-3 transition-colors hover:bg-brand-blue-50/60 ${
+                              item.unread ? 'bg-brand-blue-50/35' : ''
+                            }`}
+                          >
+                            <span
+                              className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
+                                item.unread
+                                  ? 'bg-gradient-to-r from-[#0D47A1] to-[#1E88E5]'
+                                  : 'bg-slate-300'
+                              }`}
+                              aria-hidden="true"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="truncate text-xs font-extrabold text-text-primary">
+                                  {item.title}
+                                </p>
+                                <span className="shrink-0 font-mono text-[10px] text-text-secondary">
+                                  {item.time}
+                                </span>
+                              </div>
+                              <p className="mt-0.5 text-[11px] leading-relaxed text-text-secondary">
+                                {item.desc}
+                              </p>
+                            </div>
+                          </Link>
+                        ))}
+                      </div>
+
+                      <div className="border-t border-surface-border bg-surface-canvas/60 px-4 py-2.5 text-center">
+                        <Link
+                          href="/dashboard"
+                          onClick={() => setNotifOpen(false)}
+                          className="text-[11px] font-bold text-brand-blue-700 hover:text-brand-blue-800"
+                        >
+                          Buka Live Monitor Distribusi →
+                        </Link>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* User Account Button */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAdminDropdownOpen(false);
+                    setNotifOpen(false);
+                    setUserDropdownOpen(!userDropdownOpen);
+                  }}
+                  className={`min-h-[40px] flex items-center gap-2 rounded-xl border px-2.5 py-1.5 text-left transition-all micro-tap cursor-pointer ${
+                    userDropdownOpen
+                      ? 'border-brand-blue-400 bg-brand-blue-50 ring-2 ring-brand-blue-200'
+                      : 'border-surface-border bg-surface-canvas/80 hover:border-brand-blue-200 hover:bg-brand-blue-50/60'
+                  }`}
+                  aria-label="Menu Profil Pengguna, Login & Logout"
+                  aria-expanded={userDropdownOpen}
+                >
+                  <div className="relative flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-tr from-[#0D47A1] via-[#1565C0] to-[#38A3F8] text-white shadow-sm">
+                    <User className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span
+                      className={`absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border border-white ${
+                        isLoggedIn ? 'bg-emerald-400' : 'bg-amber-400'
+                      }`}
+                    />
+                  </div>
+                  <div className="hidden sm:block max-w-[140px]">
+                    <p className="truncate text-xs font-extrabold text-text-primary leading-tight">
+                      {displayName}
+                    </p>
+                    <p className="truncate text-[10px] font-bold text-brand-blue-600 leading-tight">
+                      {displayRoleLabel}
+                    </p>
+                  </div>
+                  <ChevronDown
+                    className={`h-3.5 w-3.5 text-text-secondary transition-transform duration-200 ${
+                      userDropdownOpen ? 'rotate-180 text-brand-blue-600' : ''
+                    }`}
+                    aria-hidden="true"
+                  />
+                </button>
+              </div>
             </div>
           </div>
         </div>
-      </nav>
+      </header>
 
 {/* USER PROFILE, LOGIN & LOGOUT DROPDOWN - Using Modal like MobileNavModal */}
       {mounted && userDropdownOpen && (
