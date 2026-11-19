@@ -95,4 +95,8 @@ export type { PaginationProps } from './Pagination';
 
 export { default as SplashScreen } from './SplashScreen';
 
+export { NavBar } from './tubelight-navbar';
+export type { NavBarProps, NavItem as TubelightNavItem } from './tubelight-navbar';
+
+
 

@@ -696,7 +696,7 @@ export default function Navbar() {
         }}
         aria-label="Buka navigasi menu lengkap"
         title="Buka menu navigasi"
-        className="no-print fixed right-4 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-bottom-nav flex h-12 w-12 items-center justify-center rounded-2xl border border-sky-200/50 bg-gradient-to-tr from-[#0D47A1] via-[#1565C0] to-[#38A3F8] text-white shadow-[0_8px_24px_rgba(13,71,161,0.55)] ring-2 ring-white/20 transition-transform hover:scale-105 active:scale-95 micro-tap lg:hidden"
+        className="no-print fixed right-4 bottom-[calc(5.4rem+env(safe-area-inset-bottom))] z-bottom-nav flex h-12 w-12 items-center justify-center rounded-2xl border border-sky-200/50 bg-gradient-to-tr from-[#0D47A1] via-[#1565C0] to-[#38A3F8] text-white shadow-[0_8px_24px_rgba(13,71,161,0.55)] ring-2 ring-white/20 transition-transform hover:scale-105 active:scale-95 micro-tap lg:hidden"
       >
         <Menu className="h-5 w-5" aria-hidden="true" />
       </button>
