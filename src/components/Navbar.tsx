@@ -378,7 +378,7 @@ export default function Navbar() {
 
   return (
     <>
-      <nav className="no-print sticky top-0 z-sticky border-b border-white/10 bg-brand-navy-dark/95 text-white shadow-elev-3 backdrop-blur-md">
+      <nav className="no-print sticky top-0 z-sticky border-b border-sky-300/20 bg-gradient-to-r from-[#082552]/95 via-[#0D3B7A]/95 to-[#1565C0]/95 text-white shadow-[0_8px_24px_-4px_rgba(8,37,82,0.35)] backdrop-blur-md">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
             {/* Logo & UBSI Brand */}
@@ -390,7 +390,7 @@ export default function Navbar() {
                 title="Buka Website PMB UBSI Surakarta"
                 className="group flex items-center gap-2.5 micro-tap"
               >
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/20 bg-brand-blue shadow-inner group-hover:bg-brand-blue-700 transition">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-sky-200/40 bg-gradient-to-tr from-[#0D47A1] via-[#1565C0] to-[#38A3F8] shadow-[0_4px_12px_rgba(21,101,192,0.45)] group-hover:scale-105 transition">
                   <span className="text-sm font-black tracking-tighter text-white">BSI</span>
                 </div>
                 <div>

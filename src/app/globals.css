@@ -3,19 +3,27 @@
 @tailwind utilities;
 
 :root {
-  --primary-blue: #1769aa;
-  --primary-navy: #172d50;
+  --primary-blue: #1565c0;
+  --primary-navy: #0d3b7a;
+  --ubsi-blue-deep: #082552;
+  --ubsi-blue-royal: #0d47a1;
+  --ubsi-blue-core: #1565c0;
+  --ubsi-blue-bright: #1e88e5;
+  --ubsi-blue-sky: #38a3f8;
+  --ubsi-gradient: linear-gradient(135deg, #0d47a1 0%, #1565c0 52%, #1e88e5 100%);
+  --ubsi-gradient-deep: linear-gradient(135deg, #082552 0%, #0d3b7a 48%, #1565c0 100%);
+  --ubsi-gradient-vibrant: linear-gradient(135deg, #0d47a1 0%, #1976d2 45%, #2998f2 100%);
   --brand-red: #c62836;
   --brand-green: #21864b;
   --brand-warning: #b45309;
-  --surface-canvas: #f4f7fb;
+  --surface-canvas: #f2f7fd;
   --surface-card: #ffffff;
-  --surface-border: #e2e8f0;
-  --text-primary: #172d50;
-  --text-secondary: #475569;
-  --accent-muted: #f1f5f9;
+  --surface-border: #d8e6f8;
+  --text-primary: #0a254d;
+  --text-secondary: #3b5980;
+  --accent-muted: #e8f1fc;
   --focus-ring-width: 2px;
-  --focus-ring-color: #1769aa;
+  --focus-ring-color: #1565c0;
   --focus-ring-offset: 2px;
   --focus-ring-offset-color: #ffffff;
 

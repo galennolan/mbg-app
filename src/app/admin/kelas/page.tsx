@@ -695,7 +695,7 @@ export default function ManajemenKelasPage() {
                 <span className="block text-xs font-semibold text-slate-700 mb-1.5">
                   Filter Tingkat Kelas
                 </span>
-                <div className="grid grid-cols-4 gap-1.5 rounded-xl bg-slate-100 p-1 border border-slate-200">
+                <div className="grid grid-cols-4 gap-1.5 rounded-xl bg-brand-blue-50/80 p-1 border border-brand-blue-200/80">
                   {(['', 'X', 'XI', 'XII'] as const).map((lvl) => {
                     const active = filterTingkat === lvl;
                     return (
@@ -705,8 +705,8 @@ export default function ManajemenKelasPage() {
                         onClick={() => setFilterTingkat(lvl)}
                         className={`min-h-[36px] rounded-lg text-xs font-bold transition ${
                           active
-                            ? 'bg-white text-brand-navy shadow-sm'
-                            : 'text-slate-600 hover:text-slate-900'
+                            ? 'bg-gradient-to-r from-[#0D47A1] via-[#1565C0] to-[#1E88E5] text-white shadow-sm'
+                            : 'text-brand-blue-800 hover:bg-brand-blue-100/70'
                         }`}
                       >
                         {lvl ? `Kelas ${lvl}` : 'Semua'}

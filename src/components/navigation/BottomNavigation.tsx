@@ -92,7 +92,7 @@ export default function BottomNavigation() {
 
   return (
     <nav
-      className="no-print mobile-bottom-nav fixed inset-x-0 bottom-0 z-bottom-nav border-t border-white/15 bg-brand-navy-dark/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-elev-4 backdrop-blur-md lg:hidden"
+      className="no-print mobile-bottom-nav fixed inset-x-0 bottom-0 z-bottom-nav border-t border-sky-300/25 bg-gradient-to-r from-[#082552]/95 via-[#0D3B7A]/95 to-[#1565C0]/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-8px_24px_rgba(8,37,82,0.35)] backdrop-blur-md lg:hidden"
       aria-label="Navigasi utama perangkat seluler"
     >
       <div className={`mx-auto grid max-w-md ${colCountClass} gap-1.5`}>
@@ -110,19 +110,19 @@ export default function BottomNavigation() {
             <Link
               key={href}
               href={href}
-              className={`min-h-[52px] flex flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-bold micro-tap ${
+              className={`min-h-[52px] flex flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-bold transition-all micro-tap ${
                 primary
-                  ? 'text-cyan-300'
+                  ? 'text-sky-200'
                   : active
-                  ? 'bg-white/15 text-white'
-                  : 'text-sky-200/75 hover:text-white hover:bg-white/10'
+                  ? 'border border-sky-300/45 bg-gradient-to-br from-[#1E88E5] to-[#1565C0] text-white shadow-[0_4px_12px_rgba(30,136,229,0.45)]'
+                  : 'text-sky-200/80 hover:text-white hover:bg-white/10'
               }`}
               aria-current={active ? 'page' : undefined}
             >
               <span
                 className={`flex h-7 w-7 items-center justify-center rounded-lg transition-transform duration-150 ${
                   primary
-                    ? 'bg-brand-blue text-white shadow-sm'
+                    ? 'border border-sky-200/40 bg-gradient-to-tr from-[#0D47A1] via-[#1E88E5] to-[#38A3F8] text-white shadow-sm'
                     : active
                     ? 'scale-105'
                     : ''

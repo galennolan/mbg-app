@@ -28,9 +28,9 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
-    'bg-brand-blue hover:bg-brand-blue-700 text-white border border-brand-blue-700/20 shadow-elev-2',
+    'bg-gradient-to-r from-[#0D47A1] via-[#1565C0] to-[#1E88E5] hover:from-[#0A357A] hover:via-[#0D47A1] hover:to-[#1565C0] text-white border border-sky-300/30 shadow-[0_6px_16px_-3px_rgba(21,101,192,0.4)]',
   navy:
-    'bg-brand-navy hover:bg-brand-navy-light text-white border border-brand-navy-dark/20 shadow-elev-2',
+    'bg-gradient-to-r from-[#082552] via-[#0D3B7A] to-[#1565C0] hover:from-[#0A357A] hover:to-[#1E88E5] text-white border border-sky-300/25 shadow-elev-2',
   danger:
     'bg-brand-red hover:bg-brand-red-dark text-white border border-red-800/20 shadow-elev-2',
   success:
@@ -38,11 +38,11 @@ const variantClasses: Record<ButtonVariant, string> = {
   warning:
     'bg-amber-600 hover:bg-amber-700 text-white border border-amber-800/20 shadow-elev-2',
   secondary:
-    'bg-slate-100 hover:bg-slate-200 text-text-primary border border-slate-200/80',
+    'bg-brand-blue-50 hover:bg-brand-blue-100 text-brand-blue-800 border border-brand-blue-200/80',
   outline:
-    'bg-surface-card hover:bg-surface-canvas text-text-primary border border-slate-300 shadow-elev-1',
+    'bg-surface-card hover:bg-brand-blue-50/60 text-brand-blue-800 border border-brand-blue-200 shadow-elev-1',
   ghost:
-    'bg-transparent hover:bg-slate-100 text-slate-700 border border-transparent',
+    'bg-transparent hover:bg-brand-blue-50 text-brand-blue-700 border border-transparent',
 };
 
 const sizeClasses: Record<ButtonSize, string> = {

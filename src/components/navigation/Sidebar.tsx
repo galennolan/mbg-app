@@ -118,18 +118,18 @@ export default function Sidebar() {
   if (pathname === '/login' || pathname === '/login-siswa') return null;
 
   return (
-    <aside className="no-print hidden lg:flex flex-col w-[17.5rem] xl:w-72 h-screen sticky top-0 shrink-0 bg-brand-navy-dark text-white border-r border-white/10">
-      <div className="px-5 py-5 border-b border-white/10">
+    <aside className="no-print hidden lg:flex flex-col w-[17.5rem] xl:w-72 h-screen sticky top-0 shrink-0 bg-gradient-to-b from-[#082552] via-[#0D3B7A] to-[#0A2E65] text-white border-r border-sky-300/15">
+      <div className="px-5 py-5 border-b border-sky-300/15">
         <a href="https://pmbubsi.id/kampus/surakarta" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 min-w-0">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-blue text-white shadow-elev-2">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-sky-200/40 bg-gradient-to-tr from-[#0D47A1] via-[#1565C0] to-[#38A3F8] text-white shadow-[0_6px_16px_rgba(21,101,192,0.45)]">
             <span className="text-sm font-black tracking-tighter">BSI</span>
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
               <h1 className="text-sm font-black tracking-wide truncate">Nutri Kampus</h1>
-              <ExternalLink className="h-3 w-3 text-sky-300/70 shrink-0" aria-hidden="true" />
+              <ExternalLink className="h-3 w-3 text-sky-300/80 shrink-0" aria-hidden="true" />
             </div>
-            <p className="text-[11px] text-sky-200/70 truncate">Operational Hub</p>
+            <p className="text-[11px] text-sky-200/75 truncate">Operational Hub</p>
           </div>
         </a>
       </div>
@@ -143,7 +143,7 @@ export default function Sidebar() {
 
           return (
             <div key={idx} className="space-y-1.5">
-              <h2 className="px-3 text-[11px] font-bold uppercase tracking-[0.16em] text-sky-200/45">
+              <h2 className="px-3 text-[11px] font-bold uppercase tracking-[0.16em] text-sky-200/55">
                 {group.title}
               </h2>
               <div className="space-y-1">
@@ -156,17 +156,17 @@ export default function Sidebar() {
                       href={item.href}
                       aria-current={active ? 'page' : undefined}
                       className={cn(
-                        'group min-h-[44px] flex items-center justify-between gap-3 px-3 py-2.5 rounded-2xl text-sm font-semibold transition-colors micro-tap',
+                        'group min-h-[44px] flex items-center justify-between gap-3 px-3 py-2.5 rounded-2xl text-sm font-semibold transition-all micro-tap',
                         active
-                          ? 'bg-white text-brand-navy shadow-elev-2'
-                          : 'text-sky-100/80 hover:bg-white/10 hover:text-white'
+                          ? 'border border-sky-300/60 bg-gradient-to-r from-[#1E88E5] via-[#1565C0] to-[#0D47A1] text-white shadow-[0_6px_16px_-2px_rgba(30,136,229,0.5)]'
+                          : 'text-sky-100/85 hover:bg-gradient-to-r hover:from-[#124596]/70 hover:to-[#1976D2]/50 hover:text-white'
                       )}
                     >
                       <span className="flex items-center gap-3 min-w-0">
-                        <item.icon className={cn('h-4 w-4 shrink-0', active ? 'text-brand-blue' : 'text-sky-300/70')} aria-hidden="true" />
+                        <item.icon className={cn('h-4 w-4 shrink-0', active ? 'text-white' : 'text-sky-300/80 group-hover:text-sky-200')} aria-hidden="true" />
                         <span className="truncate">{item.label}</span>
                       </span>
-                      {active && <ChevronRight className="h-3.5 w-3.5 text-brand-blue shrink-0" aria-hidden="true" />}
+                      {active && <ChevronRight className="h-3.5 w-3.5 text-sky-200 shrink-0" aria-hidden="true" />}
                     </Link>
                   );
                 })}
@@ -176,12 +176,12 @@ export default function Sidebar() {
         })}
       </nav>
 
-      <div className="p-3 border-t border-white/10">
-        <div className="flex items-center gap-3 rounded-2xl bg-white/8 border border-white/10 p-3">
-          <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-blue text-white">
+      <div className="p-3 border-t border-sky-300/15">
+        <div className="flex items-center gap-3 rounded-2xl bg-gradient-to-r from-[#0D3B7A]/80 to-[#1565C0]/45 border border-sky-300/20 p-3">
+          <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-[#0D47A1] via-[#1565C0] to-[#38A3F8] text-white shadow-sm">
             <User className="h-5 w-5" aria-hidden="true" />
             <span className={cn(
-              'absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-brand-navy-dark',
+              'absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#082552]',
               user || student ? 'bg-emerald-400' : 'bg-amber-400'
             )} />
           </div>

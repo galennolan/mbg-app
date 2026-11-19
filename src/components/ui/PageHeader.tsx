@@ -49,7 +49,10 @@ export function PageHeader({
       <div className="space-y-1 min-w-0">
         <div className="flex flex-wrap items-center gap-2.5">
           {icon && (
-            <span className="text-brand-blue shrink-0" aria-hidden="true">
+            <span
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-[#0D47A1] via-[#1565C0] to-[#1E88E5] text-white shadow-[0_4px_12px_rgba(21,101,192,0.35)]"
+              aria-hidden="true"
+            >
               {icon}
             </span>
           )}
@@ -60,7 +63,7 @@ export function PageHeader({
             {title}
           </h1>
           {contextTag && (
-            <span className="inline-flex items-center gap-1 rounded-lg border border-brand-blue-100 bg-brand-blue-50 px-2.5 py-0.5 text-[11px] font-bold text-brand-blue">
+            <span className="inline-flex items-center gap-1 rounded-lg border border-brand-blue-200 bg-gradient-to-r from-brand-blue-50 to-brand-blue-100/80 px-2.5 py-0.5 text-[11px] font-bold text-brand-blue-700">
               {contextTag}
             </span>
           )}

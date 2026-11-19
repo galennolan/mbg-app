@@ -125,20 +125,20 @@ export default function SplashScreen({
       }`}
       style={{
         background:
-          'radial-gradient(circle at 50% 25%, #173868 0%, #172D50 45%, #0B1626 100%)',
+          'radial-gradient(circle at 50% 25%, #1565C0 0%, #0D3B7A 48%, #082552 100%)',
       }}
     >
       {/* Efek visual glow latar belakang (Mobile Ambient Glows) */}
       <div
-        className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 w-96 h-96 rounded-full bg-sky-500/20 blur-3xl"
+        className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 w-96 h-96 rounded-full bg-sky-400/25 blur-3xl"
         aria-hidden="true"
       />
       <div
-        className="pointer-events-none absolute bottom-1/4 -right-20 w-80 h-80 rounded-full bg-emerald-500/15 blur-3xl"
+        className="pointer-events-none absolute bottom-1/4 -right-20 w-80 h-80 rounded-full bg-blue-400/20 blur-3xl"
         aria-hidden="true"
       />
       <div
-        className="pointer-events-none absolute top-1/3 -left-20 w-72 h-72 rounded-full bg-brand-blue/25 blur-3xl"
+        className="pointer-events-none absolute top-1/3 -left-20 w-72 h-72 rounded-full bg-brand-blue/30 blur-3xl"
         aria-hidden="true"
       />
 
@@ -179,7 +179,7 @@ export default function SplashScreen({
           <div className="relative flex h-28 w-28 items-center justify-center rounded-[28px] border border-white/25 bg-gradient-to-b from-white/15 to-white/5 p-4 shadow-[0_20px_50px_rgba(8,20,40,0.5)] backdrop-blur-xl">
             {/* Lambang BSI & Makanan Bergizi */}
             <div className="relative flex flex-col items-center justify-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-[#125386] to-[#1769AA] text-white shadow-lg border border-white/30">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-[#0D47A1] via-[#1565C0] to-[#38A3F8] text-white shadow-lg border border-sky-200/40">
                 <span className="text-xl font-black tracking-tighter drop-shadow-md">
                   BSI
                 </span>
