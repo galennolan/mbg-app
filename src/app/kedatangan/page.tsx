@@ -984,7 +984,7 @@ export default function KedatanganMBGPage() {
 
         {/* Floating Action Button (FAB) for Mobile Quick Trigger */}
         {!session && (
-          <div className="fixed bottom-20 right-4 z-bottom-nav lg:hidden">
+          <div className="fixed left-4 bottom-[calc(5.4rem+env(safe-area-inset-bottom))] z-bottom-nav lg:hidden">
             <Button
               type="button"
               variant="danger"
