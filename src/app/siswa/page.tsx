@@ -701,73 +701,88 @@ export default function DataSiswaPage() {
               <table className="w-full text-left text-sm">
                 <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-600 border-b border-slate-200">
                   <tr>
-                    <th className="py-3 px-4">No</th>
-                    <th className="py-3 px-4">Nama Lengkap</th>
-                    <th className="py-3 px-4">NISN</th>
-                    <th className="py-3 px-4">Kelas & Jurusan</th>
-                    <th className="py-3 px-4">Status</th>
-                    {canManageStudents && <th className="py-3 px-4 text-right">Aksi</th>}
+                    <th className="py-3 px-2.5 sm:px-4 w-10">No</th>
+                    <th className="py-3 px-2.5 sm:px-4">Nama Lengkap</th>
+                    <th className="py-3 px-2.5 sm:px-4">Kelas &amp; Jurusan</th>
+                    <th className="hidden sm:table-cell py-3 px-4">Status</th>
+                    {canManageStudents && <th className="py-3 px-2.5 sm:px-4 text-right">Aksi</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {paginatedStudents.map((s, idx) => (
                     <tr key={s.id} className="hover:bg-slate-50/80 transition">
-                      <td className="py-3.5 px-4 text-sm font-mono text-slate-500">
+                      <td className="py-3 px-2.5 sm:px-4 text-xs sm:text-sm font-mono text-slate-500">
                         {(safeStudentPage - 1) * studentPageSize + idx + 1}
                       </td>
-                    <td className="py-3.5 px-4 font-bold text-slate-900 text-sm">{s.nama}</td>
-                    <td className="py-3.5 px-4 text-sm font-mono text-slate-600">
-                      {s.nisn || '-'}
-                    </td>
-                    <td className="py-3.5 px-4 text-sm">
-                      <div className="font-semibold text-slate-800">
-                        {s.kelas?.nama_kelas || '-'}
-                      </div>
-                      <div className="text-slate-500">{s.kelas?.jurusan || '-'}</div>
-                    </td>
-                    <td className="py-3.5 px-4 text-sm">
-                      {s.status_aktif ? (
-                        <span className="inline-flex items-center gap-1 text-xs font-semibold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
-                          Aktif
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-xs font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
-                          Nonaktif
-                        </span>
-                      )}
-                    </td>
-                    {canManageStudents && (
-                      <td className="py-3.5 px-4 text-right text-xs">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setFeedback(null);
-                            setEditingStudent(s);
-                            setFormData({
-                              nama: s.nama,
-                              nisn: s.nisn || '',
-                              kelas_id: s.kelas_id,
-                              email: s.email || '',
-                              no_hp: s.no_hp || '',
-                              alergi_makanan: s.alergi_makanan || '',
-                              is_perwakilan_kelas: !!s.is_perwakilan_kelas,
-                              status_aktif: s.status_aktif,
-                            });
-                            setShowAddModal(true);
-                          }}
-                          className="micro-tap p-2 text-slate-600 hover:text-brand-blue rounded-lg hover:bg-slate-100 transition"
-                          title="Edit Siswa"
-                          aria-label={`Edit siswa ${s.nama}`}
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
+                      <td className="py-3 px-2.5 sm:px-4">
+                        <div className="font-bold text-slate-900 text-xs sm:text-sm leading-snug">
+                          {s.nama}
+                        </div>
+                        <div className="mt-0.5 sm:hidden">
+                          {s.status_aktif ? (
+                            <span className="inline-flex items-center text-[10px] font-semibold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-full">
+                              Aktif
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center text-[10px] font-semibold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-full">
+                              Nonaktif
+                            </span>
+                          )}
+                        </div>
                       </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      <td className="py-3 px-2.5 sm:px-4 text-xs sm:text-sm">
+                        <div className="font-semibold text-slate-800">
+                          {s.kelas?.nama_kelas || '-'}
+                        </div>
+                        <div className="mt-0.5">
+                          <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-brand-blue border border-blue-200">
+                            {s.kelas?.jurusan || '-'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="hidden sm:table-cell py-3.5 px-4 text-sm">
+                        {s.status_aktif ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
+                            Aktif
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
+                            Nonaktif
+                          </span>
+                        )}
+                      </td>
+                      {canManageStudents && (
+                        <td className="py-3 px-2.5 sm:px-4 text-right text-xs">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFeedback(null);
+                              setEditingStudent(s);
+                              setFormData({
+                                nama: s.nama,
+                                nisn: s.nisn || '',
+                                kelas_id: s.kelas_id,
+                                email: s.email || '',
+                                no_hp: s.no_hp || '',
+                                alergi_makanan: s.alergi_makanan || '',
+                                is_perwakilan_kelas: !!s.is_perwakilan_kelas,
+                                status_aktif: s.status_aktif,
+                              });
+                              setShowAddModal(true);
+                            }}
+                            className="micro-tap p-1.5 sm:p-2 text-slate-600 hover:text-brand-blue rounded-lg hover:bg-slate-100 transition"
+                            title="Edit Siswa"
+                            aria-label={`Edit siswa ${s.nama}`}
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           <Pagination
             currentPage={safeStudentPage}
             totalItems={filteredStudents.length}

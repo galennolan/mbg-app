@@ -779,84 +779,99 @@ export default function ManajemenKelasPage() {
                 <table className="w-full text-left text-sm">
                   <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-600 border-b border-slate-200">
                     <tr>
-                      <th className="py-3 px-4">Nama Kelas</th>
-                      <th className="py-3 px-4">Tingkat</th>
-                      <th className="py-3 px-4">Jurusan</th>
-                      <th className="py-3 px-4">Siswa / Kuota</th>
-                      <th className="py-3 px-4">Status</th>
-                      <th className="py-3 px-4 text-right">Aksi</th>
+                      <th className="py-3 px-3 sm:px-4">Kelas &amp; Jurusan</th>
+                      <th className="hidden md:table-cell py-3 px-4">Tingkat</th>
+                      <th className="py-3 px-2.5 sm:px-4">Siswa / Kuota</th>
+                      <th className="hidden sm:table-cell py-3 px-4">Status</th>
+                      <th className="py-3 px-3 sm:px-4 text-right">Aksi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {paginatedKelasList.map((k) => (
-                    <tr key={k.id} className="hover:bg-slate-50/80 transition">
-                      <td className="py-3.5 px-4 font-bold text-slate-900 text-sm">
-                        {k.nama_kelas}
-                      </td>
-                      <td className="py-3.5 px-4 text-sm font-semibold text-slate-700">
-                        Kelas {k.tingkat}
-                      </td>
-                      <td className="py-3.5 px-4 text-sm">
-                        <span className="inline-flex items-center rounded-md bg-blue-50 px-2.5 py-0.5 text-xs font-bold text-brand-blue border border-blue-200">
-                          {k.jurusan}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4 text-sm font-mono">
-                        <div className="font-bold text-brand-navy">
-                          {studentCountByClass[k.id] ?? 0} Siswa
-                        </div>
-                        <div className="text-[11px] text-slate-500">
-                          Kuota: {k.total_siswa_dapodik || 0}
-                        </div>
-                      </td>
-                      <td className="py-3.5 px-4 text-sm">
-                        {k.status_aktif !== false ? (
-                          <span className="text-xs font-semibold bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full">
-                            Aktif
-                          </span>
-                        ) : (
-                          <span className="text-xs font-semibold bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full">
-                            Nonaktif
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-3.5 px-4 text-right text-xs">
-                        <div className="inline-flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenClassStudents(k)}
-                            className="micro-tap inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-brand-blue bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition"
-                            title="Kelola Siswa di Kelas Ini"
-                            aria-label={`Kelola siswa kelas ${k.nama_kelas}`}
-                          >
-                            <Users className="w-3.5 h-3.5" />
-                            <span>Siswa</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleOpenModal(k)}
-                            className="micro-tap p-2 text-slate-600 hover:text-brand-blue rounded-lg hover:bg-slate-100 transition"
-                            title="Edit Kelas"
-                            aria-label={`Edit kelas ${k.nama_kelas}`}
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(k)}
-                            className="micro-tap p-2 text-slate-600 hover:text-red-600 rounded-lg hover:bg-red-50 transition"
-                            title="Hapus Kelas"
-                            aria-label={`Hapus kelas ${k.nama_kelas}`}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                      <tr key={k.id} className="hover:bg-slate-50/80 transition">
+                        <td className="py-3 px-3 sm:px-4">
+                          <div className="font-bold text-slate-900 text-xs sm:text-sm leading-snug">
+                            {k.nama_kelas}
+                          </div>
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                            <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-brand-blue border border-blue-200">
+                              {k.jurusan}
+                            </span>
+                            <span className="md:hidden text-[11px] font-semibold text-slate-500">
+                              • Kelas {k.tingkat}
+                            </span>
+                            <span className="sm:hidden">
+                              {k.status_aktif !== false ? (
+                                <span className="inline-block text-[10px] font-semibold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-full">
+                                  Aktif
+                                </span>
+                              ) : (
+                                <span className="inline-block text-[10px] font-semibold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-full">
+                                  Nonaktif
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="hidden md:table-cell py-3.5 px-4 text-sm font-semibold text-slate-700">
+                          Kelas {k.tingkat}
+                        </td>
+                        <td className="py-3 px-2.5 sm:px-4 text-xs sm:text-sm font-mono whitespace-nowrap">
+                          <div className="font-bold text-brand-navy">
+                            {studentCountByClass[k.id] ?? 0} Siswa
+                          </div>
+                          <div className="text-[11px] text-slate-500">
+                            Kuota: {k.total_siswa_dapodik || 0}
+                          </div>
+                        </td>
+                        <td className="hidden sm:table-cell py-3.5 px-4 text-sm">
+                          {k.status_aktif !== false ? (
+                            <span className="text-xs font-semibold bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full">
+                              Aktif
+                            </span>
+                          ) : (
+                            <span className="text-xs font-semibold bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full">
+                              Nonaktif
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-3 sm:px-4 text-right text-xs whitespace-nowrap">
+                          <div className="inline-flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenClassStudents(k)}
+                              className="micro-tap inline-flex items-center gap-1 px-2 sm:px-2.5 py-1.5 text-xs font-bold text-brand-blue bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition"
+                              title="Kelola Siswa di Kelas Ini"
+                              aria-label={`Kelola siswa kelas ${k.nama_kelas}`}
+                            >
+                              <Users className="w-3.5 h-3.5" />
+                              <span className="hidden xs:inline sm:inline">Siswa</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenModal(k)}
+                              className="micro-tap p-1.5 sm:p-2 text-slate-600 hover:text-brand-blue rounded-lg hover:bg-slate-100 transition"
+                              title="Edit Kelas"
+                              aria-label={`Edit kelas ${k.nama_kelas}`}
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(k)}
+                              className="micro-tap p-1.5 sm:p-2 text-slate-600 hover:text-red-600 rounded-lg hover:bg-red-50 transition"
+                              title="Hapus Kelas"
+                              aria-label={`Hapus kelas ${k.nama_kelas}`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             <Pagination
               currentPage={safeClassPage}
               totalItems={filteredKelasList.length}
