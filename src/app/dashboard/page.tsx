@@ -270,34 +270,32 @@ export default function DashboardPage() {
         </div>
       </PageHeader>
 
-      {/* TAHAP 3 SAAS MULTI-TENANT: Global Dashboard & Switch School View (Super Admin Only) */}
+      {/* TAHAP 3 SAAS MULTI-TENANT: Compact Bar & Switch School View (Super Admin Only) */}
       {isSuperAdmin && (
-        <div className="rounded-3xl border border-slate-800 bg-brand-navy-dark text-white p-4 sm:p-5 shadow-elev-3 space-y-4">
-          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 border-b border-white/10 pb-4">
-            <div className="flex items-start gap-3">
-              <div className="w-11 h-11 rounded-2xl bg-brand-blue text-white flex items-center justify-center shrink-0 border border-white/20 shadow-sm">
-                <Building2 className="w-5 h-5 text-cyan-300" />
+        <div className="rounded-2xl border border-sky-300/25 bg-gradient-to-r from-[#082552] via-[#0D3B7A] to-[#1565C0] text-white p-3.5 sm:p-4 shadow-elev-2">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-white/10 text-sky-200 flex items-center justify-center shrink-0 border border-sky-300/25">
+                <Building2 className="w-5 h-5" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[10px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/30 px-2.5 py-0.5 rounded-full">
-                    SaaS Multi-Tenant Control • Super Admin
+                  <h2 className="text-sm font-black text-white truncate">
+                    Multi-Tenant Sekolah Mitra
+                  </h2>
+                  <span className="text-[10px] font-bold uppercase tracking-wider bg-sky-400/20 text-sky-100 border border-sky-300/30 px-2 py-0.5 rounded-md">
+                    {globalStats.totalSekolahAktif} Sekolah • {globalStats.totalKelasLintasSekolah} Kelas • {globalStats.totalSiswaLintasSekolah} Siswa
                   </span>
                 </div>
-                <h2 className="text-base font-black text-white mt-1">
-                  Global Overview Lintas Sekolah & Switch School View
-                </h2>
-                <p className="text-xs text-sky-200 mt-0.5">
-                  Pantau serapan MBG nasional/regional dan beralih antar sekolah mitra tanpa perlu
-                  keluar sesi.
+                <p className="text-[11px] text-sky-200/85 mt-0.5 truncate">
+                  Serapan Lintas Sekolah: <strong className="text-white">{globalStats.totalPorsiTerserapGlobal} Porsi</strong>
                 </p>
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-2.5 min-w-[290px]">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 min-w-[260px]">
               <div className="flex-1 text-slate-900">
                 <Select
-                  label="Switch School View (Pilih Sekolah)"
                   value={activeSchoolId}
                   onValueChange={(val) => {
                     setActiveSchoolId(val);
@@ -318,38 +316,11 @@ export default function DashboardPage() {
 
               <Link
                 href="/admin/sekolah"
-                className="micro-tap min-h-[44px] px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-xs font-bold text-white flex items-center justify-center gap-1.5 transition shrink-0"
+                className="micro-tap min-h-[42px] px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-bold text-white flex items-center justify-center gap-1.5 transition shrink-0"
               >
-                <Building2 className="w-3.5 h-3.5 text-cyan-300" />
-                Kelola Sekolah
+                <Building2 className="w-3.5 h-3.5 text-sky-200" />
+                Kelola
               </Link>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 text-xs">
-            <div className="rounded-xl bg-white/5 border border-white/10 p-3">
-              <span className="text-sky-300 font-bold block">Total Sekolah Mitra</span>
-              <span className="text-xl font-black text-white mt-0.5 block">
-                {globalStats.totalSekolahAktif} Sekolah
-              </span>
-            </div>
-            <div className="rounded-xl bg-white/5 border border-white/10 p-3">
-              <span className="text-sky-300 font-bold block">Total Rombel / Kelas</span>
-              <span className="text-xl font-black text-cyan-300 mt-0.5 block">
-                {globalStats.totalKelasLintasSekolah} Kelas
-              </span>
-            </div>
-            <div className="rounded-xl bg-white/5 border border-white/10 p-3">
-              <span className="text-sky-300 font-bold block">Total Kuota Siswa</span>
-              <span className="text-xl font-black text-emerald-300 mt-0.5 block">
-                {globalStats.totalSiswaLintasSekolah} Siswa
-              </span>
-            </div>
-            <div className="rounded-xl bg-white/5 border border-white/10 p-3">
-              <span className="text-sky-300 font-bold block">Terserap Lintas Sekolah</span>
-              <span className="text-xl font-black text-amber-300 mt-0.5 block">
-                {globalStats.totalPorsiTerserapGlobal} Porsi
-              </span>
             </div>
           </div>
         </div>
@@ -363,134 +334,144 @@ export default function DashboardPage() {
         />
       )}
 
-      {/* Sesi MBG Alert Status Banner */}
-      <div
-        className={`rounded-3xl p-4 sm:p-5 border shadow-elev-2 flex flex-col xl:flex-row xl:items-center justify-between gap-4 ${isTiba
-            ? 'bg-emerald-50 border-emerald-200 text-emerald-950'
-            : isDitolak
-              ? 'bg-rose-50 border-rose-200 text-rose-950'
-              : 'bg-amber-50 border-amber-200 text-amber-950'
+      {/* Ringkasan Utama: 2 Simple & Ringkas Cards (Status Sesi + Ringkasan Serapan Terpadu) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        {/* Card 1: Status Operasional & PIN Harian (5 Col) */}
+        <div
+          className={`lg:col-span-5 rounded-2xl p-4 border shadow-elev-1 flex flex-col justify-between gap-3 ${
+            isTiba
+              ? 'bg-emerald-50/90 border-emerald-200 text-emerald-950'
+              : isDitolak
+                ? 'bg-rose-50/90 border-rose-200 text-rose-950'
+                : 'bg-amber-50/90 border-amber-200 text-amber-950'
           }`}
-      >
-        <div className="flex items-center gap-4">
-          <div
-            className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-white shadow-sm ${isTiba ? 'bg-emerald-600' : isDitolak ? 'bg-rose-600' : 'bg-amber-500'
+        >
+          <div className="flex items-start gap-3">
+            <div
+              className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white shadow-sm shrink-0 ${
+                isTiba ? 'bg-emerald-600' : isDitolak ? 'bg-rose-600' : 'bg-amber-500'
               }`}
-          >
-            {isTiba ? (
-              <CheckCircle2 className="w-6 h-6" />
-            ) : isDitolak ? (
-              <AlertCircle className="w-6 h-6" />
-            ) : (
-              <Clock className="w-6 h-6" />
-            )}
-          </div>
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-black uppercase tracking-wider">
-                Status Operasional Hari Ini:
-              </span>
-              <span
-                className={`text-xs font-extrabold px-2.5 py-0.5 rounded-full ${isTiba
-                    ? 'bg-emerald-100 text-emerald-800'
-                    : isDitolak
-                      ? 'bg-rose-100 text-rose-800'
-                      : 'bg-amber-100 text-amber-800'
-                  }`}
-              >
-                {isTiba
-                  ? 'DISTRIBUSI AKTIF (LAYAK EDAR)'
-                  : isDitolak
-                    ? 'DISTRIBUSI DITUTUP / RETUR'
-                    : 'MENUNGGU KEDATANGAN MBG'}
-              </span>
+            >
+              {isTiba ? (
+                <CheckCircle2 className="w-5 h-5" />
+              ) : isDitolak ? (
+                <AlertCircle className="w-5 h-5" />
+              ) : (
+                <Clock className="w-5 h-5" />
+              )}
             </div>
-            <p className="text-xs text-slate-700 mt-1">
-              {isTiba
-                ? `Tiba jam ${session.jam_tiba} WIB • PIN Harian [${session.kode_pin_harian}] • Master QR siap dipindai oleh perwakilan siswa.`
-                : isDitolak
-                  ? 'Makanan ditandai tidak layak edar atau distribusi telah ditutup.'
-                  : 'Pihak SPPG belum tiba di sekolah. Klik tombol "QC Kedatangan" untuk membuka sesi.'}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {session ? (
-            <div className="flex items-center gap-2">
-              <div className="bg-white border border-slate-200 px-3 py-1.5 rounded-xl text-center shadow-sm">
-                <span className="block text-[10px] text-slate-500 font-bold uppercase">PIN Harian</span>
-                <span className="block text-sm font-black text-brand-navy font-mono">
-                  {session.kode_pin_harian}
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span
+                  className={`text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md ${
+                    isTiba
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : isDitolak
+                        ? 'bg-rose-100 text-rose-800'
+                        : 'bg-amber-100 text-amber-800'
+                  }`}
+                >
+                  {isTiba
+                    ? 'Distribusi Aktif'
+                    : isDitolak
+                      ? 'Distribusi Ditutup'
+                      : 'Menunggu Kedatangan'}
                 </span>
+                {session && (
+                  <span className="text-[11px] font-mono font-bold bg-white/90 border border-slate-200 px-2 py-0.5 rounded-md text-brand-navy">
+                    PIN: {session.kode_pin_harian}
+                  </span>
+                )}
               </div>
+              <p className="text-xs text-slate-700 mt-1.5 leading-relaxed">
+                {isTiba
+                  ? `Tiba pukul ${session.jam_tiba} WIB • Master QR siap dipindai perwakilan kelas.`
+                  : isDitolak
+                    ? 'Makanan ditandai tidak layak edar atau sesi telah ditutup.'
+                    : 'SPPG belum tercatat tiba. Buka QC Kedatangan untuk memulai sesi.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-black/5">
+            {session ? (
               <Link
                 href="/kedatangan"
-                className="micro-tap inline-flex items-center min-h-[44px] px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-800 text-xs font-bold border border-slate-200 shadow-sm transition"
+                className="micro-tap inline-flex items-center gap-1.5 min-h-[38px] px-3.5 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-800 text-xs font-bold border border-slate-200 shadow-sm transition"
               >
-                Tampilkan QR
+                Tampilkan Master QR
+                <ArrowRight className="w-3.5 h-3.5" />
               </Link>
-            </div>
-          ) : (
-            <Link
-              href="/kedatangan"
-              className="micro-tap inline-flex items-center gap-1.5 min-h-[44px] px-4 py-2.5 rounded-xl bg-brand-blue hover:bg-brand-blue-700 text-white text-xs font-bold shadow-sm transition"
-            >
-              <Utensils className="w-3.5 h-3.5" />
-              Lapor MBG Datang
-            </Link>
-          )}
-        </div>
-      </div>
-
-      {/* 4 Summary Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="micro-card rounded-3xl p-5 border-surface-border bg-surface-card shadow-elev-1">
-          <div className="flex items-center justify-between text-text-secondary mb-3">
-            <span className="text-[10px] font-black uppercase tracking-wider">Total Sasaran</span>
-            <div className="w-10 h-10 rounded-2xl bg-brand-blue/10 text-brand-blue flex items-center justify-center border border-brand-blue/10">
-              <Users className="w-5 h-5" />
-            </div>
+            ) : (
+              <Link
+                href="/kedatangan"
+                className="micro-tap inline-flex items-center gap-1.5 min-h-[38px] px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#0D47A1] via-[#1565C0] to-[#1E88E5] text-white text-xs font-bold shadow-sm transition"
+              >
+                <Utensils className="w-3.5 h-3.5" />
+                Lapor MBG Datang
+              </Link>
+            )}
           </div>
-          <p className="text-3xl font-black text-text-primary tracking-tight">{totalSiswa}</p>
-          <p className="text-xs text-text-secondary mt-1 opacity-80 font-medium">Siswa terdaftar di Dapodik</p>
         </div>
 
-        <div className="micro-card rounded-3xl p-5 border-surface-border bg-surface-card shadow-elev-1">
-          <div className="flex items-center justify-between text-text-secondary mb-3">
-            <span className="text-[10px] font-black uppercase tracking-wider">Porsi Terserap</span>
-            <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center border border-emerald-500/10">
-              <CheckCircle2 className="w-5 h-5" />
+        {/* Card 2: Ringkasan Serapan Terpadu (7 Col - Menggabungkan Sasaran, Terserap, Sisa & Capaian dalam 1 Card Ringkas) */}
+        <div className="lg:col-span-7 micro-card rounded-2xl p-4 border-surface-border bg-surface-card shadow-elev-1 flex flex-col justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <span className="text-[11px] font-extrabold uppercase tracking-wider text-text-secondary">
+                Ringkasan Distribusi Hari Ini
+              </span>
+              <div className="flex items-baseline gap-2 mt-0.5">
+                <span className="text-2xl sm:text-3xl font-black text-brand-blue tabular-nums">
+                  {persenSelesai}%
+                </span>
+                <span className="text-xs font-semibold text-text-secondary">
+                  ({totalTerserap} dari {totalSiswa} porsi terserap)
+                </span>
+              </div>
             </div>
-          </div>
-          <p className="text-3xl font-black text-emerald-600 tracking-tight">{totalTerserap}</p>
-          <p className="text-xs text-text-secondary mt-1 opacity-80 font-medium">{persenSelesai}% dari kuota harian</p>
-        </div>
 
-        <div className="micro-card rounded-3xl p-5 border-surface-border bg-surface-card shadow-elev-1">
-          <div className="flex items-center justify-between text-text-secondary mb-3">
-            <span className="text-[10px] font-black uppercase tracking-wider">Sisa Porsi (Absen)</span>
-            <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center border border-amber-500/10">
-              <Utensils className="w-5 h-5" />
+            {/* 3 Compact Pill Metrics */}
+            <div className="grid grid-cols-3 gap-2 w-full sm:w-auto">
+              <div className="rounded-xl bg-brand-blue-50/70 border border-brand-blue-100 px-3 py-2 text-center">
+                <span className="block text-[10px] font-bold uppercase text-brand-blue-700">
+                  Sasaran
+                </span>
+                <span className="block text-sm sm:text-base font-black text-brand-navy tabular-nums">
+                  {totalSiswa}
+                </span>
+              </div>
+              <div className="rounded-xl bg-emerald-50 border border-emerald-200/70 px-3 py-2 text-center">
+                <span className="block text-[10px] font-bold uppercase text-emerald-700">
+                  Terserap
+                </span>
+                <span className="block text-sm sm:text-base font-black text-emerald-700 tabular-nums">
+                  {totalTerserap}
+                </span>
+              </div>
+              <div className="rounded-xl bg-amber-50 border border-amber-200/70 px-3 py-2 text-center">
+                <span className="block text-[10px] font-bold uppercase text-amber-700">
+                  Sisa
+                </span>
+                <span className="block text-sm sm:text-base font-black text-amber-700 tabular-nums">
+                  {totalSisa}
+                </span>
+              </div>
             </div>
           </div>
-          <p className="text-3xl font-black text-amber-600 tracking-tight">{totalSisa}</p>
-          <p className="text-xs text-text-secondary mt-1 opacity-80 font-medium">Tersedia untuk klaim susulan</p>
-        </div>
 
-        <div className="micro-card rounded-3xl p-5 border-surface-border bg-surface-card shadow-elev-1">
-          <div className="flex items-center justify-between text-text-secondary mb-3">
-            <span className="text-[10px] font-black uppercase tracking-wider">Capaian Distribusi</span>
-            <div className="w-10 h-10 rounded-2xl bg-purple-500/10 text-purple-600 flex items-center justify-center border border-purple-500/10">
-              <TrendingUp className="w-5 h-5" />
+          {/* Unified Progress Bar */}
+          <div className="space-y-1.5">
+            <div className="w-full bg-surface-canvas rounded-full h-2.5 overflow-hidden border border-surface-border/60">
+              <div
+                className="bg-gradient-to-r from-[#0D47A1] via-[#1565C0] to-[#1E88E5] h-full rounded-full transition-all duration-700 ease-out"
+                style={{ width: `${Math.min(100, persenSelesai)}%` }}
+              />
             </div>
-          </div>
-          <p className="text-3xl font-black text-purple-600 tracking-tight">{persenSelesai}%</p>
-          <div className="w-full bg-surface-canvas rounded-full h-2 mt-3 overflow-hidden border border-surface-border/50">
-            <div
-              className="bg-purple-600 h-full rounded-full transition-all duration-700 ease-out"
-              style={{ width: `${persenSelesai}%` }}
-            />
+            <div className="flex items-center justify-between text-[11px] text-text-secondary font-medium">
+              <span>Target Kuota Dapodik: {totalSiswa} Siswa</span>
+              <span>Sisa Klaim Susulan: {totalSisa} Porsi</span>
+            </div>
           </div>
         </div>
       </div>
@@ -509,15 +490,15 @@ export default function DashboardPage() {
 
       {/* Main Grid: Status Per Kelas (Left) & Live Activity Feed (Right) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Status Per Kelas (Tahap 2) */}
-        <div className="lg:col-span-7 space-y-4">
+        {/* Status Per Kelas (Tahap 2 - Compact & Simple List Container) */}
+        <div className="lg:col-span-7 space-y-3">
           <div className="flex items-center justify-between px-1">
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-brand-blue/10 text-brand-blue border border-brand-blue/10">
-                <Layers className="h-4.5 w-4.5" />
+                <Layers className="h-4 w-4" />
               </div>
               <h2 className="text-sm font-black text-text-primary uppercase tracking-tight">
-                Status Per Kelas
+                Status Per Kelas ({classes.length})
               </h2>
             </div>
             <Link
@@ -529,102 +510,105 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 gap-4">
-            {classes.map((cls) => {
-              const isComplete = cls.jumlah_hadir >= cls.total_siswa && cls.total_siswa > 0;
-              const hasStarted = cls.jumlah_hadir > 0;
+          <div className="micro-card rounded-2xl border-surface-border bg-surface-card shadow-elev-1 overflow-hidden flex flex-col max-h-[580px]">
+            <div className="flex-1 overflow-y-auto divide-y divide-surface-border/60 scrollbar-thin">
+              {classes.map((cls) => {
+                const isComplete = cls.jumlah_hadir >= cls.total_siswa && cls.total_siswa > 0;
+                const hasStarted = cls.jumlah_hadir > 0;
 
-              return (
-                <div
-                  key={cls.id_kelas}
-                  className="micro-card rounded-3xl p-5 border-surface-border bg-surface-card shadow-elev-1 transition-all"
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
-                    <div className="flex items-center gap-4 min-w-0">
-                      <div
-                        className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-sm shrink-0 border shadow-sm ${isComplete
-                            ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
-                            : hasStarted
-                              ? 'bg-brand-blue/10 text-brand-blue border-brand-blue/20'
-                              : 'bg-surface-canvas text-text-secondary border-surface-border'
+                return (
+                  <div
+                    key={cls.id_kelas}
+                    className="p-3.5 sm:px-4 hover:bg-surface-canvas/60 transition-colors"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div
+                          className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs shrink-0 border ${
+                            isComplete
+                              ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
+                              : hasStarted
+                                ? 'bg-brand-blue/10 text-brand-blue border-brand-blue/20'
+                                : 'bg-surface-canvas text-text-secondary border-surface-border'
                           }`}
-                      >
-                        {cls.tingkat}
-                      </div>
-                      <div className="min-w-0">
-                        <h3 className="text-sm font-black text-text-primary leading-tight truncate">{cls.nama_kelas}</h3>
-                        <p className="text-[11px] text-text-secondary mt-1 font-medium truncate">
-                          Jurusan: <span className="text-text-primary font-bold">{cls.jurusan}</span> • {cls.total_siswa} Siswa
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span
-                        className={`text-[10px] font-black px-3 py-1.5 rounded-xl border tracking-wide uppercase ${isComplete
-                            ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
-                            : hasStarted
-                              ? 'bg-brand-blue/10 text-brand-blue border-brand-blue/20'
-                              : 'bg-surface-canvas text-text-secondary border-surface-border'
-                          }`}
-                      >
-                        {isComplete ? (
-                          <span className="inline-flex items-center gap-1.5">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            SELESAI 100%
-                          </span>
-                        ) : hasStarted ? (
-                          `${cls.jumlah_hadir} TERKLAIM • ${cls.jumlah_absen} SISA`
-                        ) : (
-                          'BELUM DIAMBIL'
-                        )}
-                      </span>
-
-                      {canCorrectData && (
-                        <button
-                          type="button"
-                          onClick={() => handleOpenCorrectionModal(cls)}
-                          className="micro-tap inline-flex items-center gap-1.5 min-h-[36px] px-3 py-1.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 text-[10px] font-black border border-purple-500/20 transition uppercase tracking-wide"
                         >
-                          <Edit2 className="w-3.5 h-3.5" />
-                          Koreksi
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                          {cls.tingkat}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-xs sm:text-sm font-black text-text-primary truncate">
+                              {cls.nama_kelas}
+                            </h3>
+                            <span className="inline-flex items-center rounded bg-brand-blue-50 px-1.5 py-0.5 text-[10px] font-bold text-brand-blue border border-brand-blue-100">
+                              {cls.jurusan}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-text-secondary mt-0.5 font-medium">
+                            <strong className="text-text-primary tabular-nums">
+                              {cls.jumlah_hadir}/{cls.total_siswa}
+                            </strong>{' '}
+                            Porsi ({cls.persen}%)
+                            {cls.waktu_terima && (
+                              <span className="ml-1.5 text-text-secondary/75">
+                                •{' '}
+                                {new Date(cls.waktu_terima).toLocaleTimeString('id-ID', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}{' '}
+                                WIB
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
 
-                  {/* Progress Bar Container */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-[10px] font-black uppercase tracking-wider text-text-secondary opacity-80">
-                      <span>Progres Penyerapan: {cls.persen}%</span>
-                      <span className="text-text-primary">
-                        {cls.jumlah_hadir} / {cls.total_siswa} PORSI
-                      </span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span
+                          className={`text-[10px] font-extrabold px-2.5 py-1 rounded-lg border tracking-wide uppercase ${
+                            isComplete
+                              ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20'
+                              : hasStarted
+                                ? 'bg-brand-blue/10 text-brand-blue border-brand-blue/20'
+                                : 'bg-surface-canvas text-text-secondary border-surface-border'
+                          }`}
+                        >
+                          {isComplete
+                            ? 'Selesai'
+                            : hasStarted
+                              ? `${cls.jumlah_absen} Sisa`
+                              : 'Menunggu'}
+                        </span>
+
+                        {canCorrectData && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenCorrectionModal(cls)}
+                            className="micro-tap inline-flex items-center gap-1 min-h-[30px] px-2.5 py-1 rounded-lg bg-brand-blue-50 hover:bg-brand-blue-100 text-brand-blue-700 text-[10px] font-extrabold border border-brand-blue-200 transition uppercase"
+                          >
+                            <Edit2 className="w-3 h-3" />
+                            <span className="hidden xs:inline">Koreksi</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <div className="w-full bg-surface-canvas rounded-full h-3.5 overflow-hidden p-0.5 border border-surface-border/50">
+
+                    {/* Slim Progress Bar */}
+                    <div className="w-full bg-surface-canvas rounded-full h-1.5 mt-2.5 overflow-hidden">
                       <div
-                        className={`h-full rounded-full transition-all duration-700 ease-in-out ${isComplete
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          isComplete
                             ? 'bg-emerald-500'
                             : cls.persen > 50
                               ? 'bg-brand-blue'
                               : 'bg-blue-400'
-                          }`}
+                        }`}
                         style={{ width: `${cls.persen}%` }}
                       />
                     </div>
                   </div>
-
-                  {cls.waktu_terima && (
-                    <div className="mt-4 pt-3 border-t border-surface-border/30 flex items-center justify-between">
-                      <div className="text-[10px] text-text-secondary font-medium flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5 text-text-secondary/60" />
-                        <span>Klaim terakhir: <strong>{new Date(cls.waktu_terima).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB</strong></span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </div>
 

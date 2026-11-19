@@ -55,12 +55,14 @@ export default function Navbar() {
   const [adminDropdownOpen, setAdminDropdownOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [notifTab, setNotifTab] = useState<'all' | 'unread'>('all');
   const [notifications, setNotifications] = useState([
     {
       id: 'notif-1',
       title: 'Monitoring Distribusi MBG Aktif',
       desc: 'Sesi pemantauan penerimaan porsi kelas & verifikasi QR siap digunakan.',
       time: 'Baru saja',
+      category: 'Live Monitor',
       href: '/dashboard',
       unread: true,
     },
@@ -69,6 +71,7 @@ export default function Navbar() {
       title: 'Checklist Konfirmasi Kelas',
       desc: 'Pastikan presensi dan klaim porsi MBG tiap rombel telah diverifikasi.',
       time: '10 menit lalu',
+      category: 'Operasional',
       href: '/konfirmasi/kelas',
       unread: true,
     },
@@ -77,7 +80,17 @@ export default function Navbar() {
       title: 'Sinkronisasi Master Data Dapodik',
       desc: 'Data rombel dan kuota siswa penerima MBG telah terhubung dengan sekolah aktif.',
       time: 'Hari ini',
+      category: 'Master Data',
       href: '/admin/kelas',
+      unread: false,
+    },
+    {
+      id: 'notif-4',
+      title: 'Laporan & Rekapitulasi SPPG',
+      desc: 'Format laporan harian PDF & Excel siap diunduh untuk audit distribusi.',
+      time: 'Hari ini',
+      category: 'Laporan',
+      href: '/laporan',
       unread: false,
     },
   ]);
@@ -202,6 +215,14 @@ export default function Navbar() {
     };
   }, [mobileMenuOpen]);
 
+  // Auto-close all floating popovers/modals whenever route (pathname) changes
+  useEffect(() => {
+    setNotifOpen(false);
+    setUserDropdownOpen(false);
+    setAdminDropdownOpen(false);
+    setMobileMenuOpen(false);
+  }, [pathname]);
+
   // Close on Escape key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -218,9 +239,58 @@ export default function Navbar() {
   }, []);
 
   const unreadCount = notifications.filter((n) => n.unread).length;
+  const visibleNotifications =
+    notifTab === 'unread' ? notifications.filter((n) => n.unread) : notifications;
 
   const markAllNotificationsRead = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
+  };
+
+  const handleDismissNotification = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+  };
+
+  const handleResetNotifications = () => {
+    setNotifications([
+      {
+        id: 'notif-1',
+        title: 'Monitoring Distribusi MBG Aktif',
+        desc: 'Sesi pemantauan penerimaan porsi kelas & verifikasi QR siap digunakan.',
+        time: 'Baru saja',
+        category: 'Live Monitor',
+        href: '/dashboard',
+        unread: true,
+      },
+      {
+        id: 'notif-2',
+        title: 'Checklist Konfirmasi Kelas',
+        desc: 'Pastikan presensi dan klaim porsi MBG tiap rombel telah diverifikasi.',
+        time: '10 menit lalu',
+        category: 'Operasional',
+        href: '/konfirmasi/kelas',
+        unread: true,
+      },
+      {
+        id: 'notif-3',
+        title: 'Sinkronisasi Master Data Dapodik',
+        desc: 'Data rombel dan kuota siswa penerima MBG telah terhubung dengan sekolah aktif.',
+        time: 'Hari ini',
+        category: 'Master Data',
+        href: '/admin/kelas',
+        unread: false,
+      },
+      {
+        id: 'notif-4',
+        title: 'Laporan & Rekapitulasi SPPG',
+        desc: 'Format laporan harian PDF & Excel siap diunduh untuk audit distribusi.',
+        time: 'Hari ini',
+        category: 'Laporan',
+        href: '/laporan',
+        unread: false,
+      },
+    ]);
   };
 
   const getBreadcrumbs = (path: string) => {
@@ -524,7 +594,7 @@ export default function Navbar() {
 
             {/* Right: Notification Bell & User Account Pill */}
             <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
-              {/* Notification Bell & Popover */}
+              {/* Notification Bell Trigger */}
               <div className="relative">
                 <button
                   type="button"
@@ -548,95 +618,6 @@ export default function Navbar() {
                     </span>
                   )}
                 </button>
-
-                {notifOpen && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-30"
-                      aria-hidden="true"
-                      onClick={() => setNotifOpen(false)}
-                    />
-                    <div
-                      role="dialog"
-                      aria-label="Daftar Notifikasi"
-                      className="absolute right-0 z-40 mt-2 w-80 sm:w-96 overflow-hidden rounded-2xl border border-surface-border bg-surface-card text-text-primary shadow-elev-4 animate-slide-up"
-                    >
-                      <div className="flex items-center justify-between border-b border-surface-border bg-gradient-to-r from-[#082552] via-[#0D47A1] to-[#1565C0] px-4 py-3 text-white">
-                        <div className="flex items-center gap-2">
-                          <Bell className="h-4 w-4 text-sky-200" aria-hidden="true" />
-                          <span className="text-xs font-extrabold uppercase tracking-wider">
-                            Notifikasi Sistem
-                          </span>
-                          {unreadCount > 0 && (
-                            <span className="rounded-full bg-sky-400/25 border border-sky-300/40 px-2 py-0.5 font-mono text-[10px] font-bold text-sky-100">
-                              {unreadCount} baru
-                            </span>
-                          )}
-                        </div>
-                        {unreadCount > 0 && (
-                          <button
-                            type="button"
-                            onClick={markAllNotificationsRead}
-                            className="inline-flex items-center gap-1 rounded-lg bg-white/10 px-2 py-1 text-[10px] font-bold text-sky-100 hover:bg-white/20 transition-colors cursor-pointer"
-                          >
-                            <CheckCheck className="h-3 w-3" aria-hidden="true" />
-                            Tandai dibaca
-                          </button>
-                        )}
-                      </div>
-
-                      <div className="max-h-80 divide-y divide-surface-border overflow-y-auto">
-                        {notifications.map((item) => (
-                          <Link
-                            key={item.id}
-                            href={item.href}
-                            onClick={() => {
-                              setNotifications((prev) =>
-                                prev.map((n) => (n.id === item.id ? { ...n, unread: false } : n))
-                              );
-                              setNotifOpen(false);
-                            }}
-                            className={`flex items-start gap-3 px-4 py-3 transition-colors hover:bg-brand-blue-50/60 ${
-                              item.unread ? 'bg-brand-blue-50/35' : ''
-                            }`}
-                          >
-                            <span
-                              className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
-                                item.unread
-                                  ? 'bg-gradient-to-r from-[#0D47A1] to-[#1E88E5]'
-                                  : 'bg-slate-300'
-                              }`}
-                              aria-hidden="true"
-                            />
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center justify-between gap-2">
-                                <p className="truncate text-xs font-extrabold text-text-primary">
-                                  {item.title}
-                                </p>
-                                <span className="shrink-0 font-mono text-[10px] text-text-secondary">
-                                  {item.time}
-                                </span>
-                              </div>
-                              <p className="mt-0.5 text-[11px] leading-relaxed text-text-secondary">
-                                {item.desc}
-                              </p>
-                            </div>
-                          </Link>
-                        ))}
-                      </div>
-
-                      <div className="border-t border-surface-border bg-surface-canvas/60 px-4 py-2.5 text-center">
-                        <Link
-                          href="/dashboard"
-                          onClick={() => setNotifOpen(false)}
-                          className="text-[11px] font-bold text-brand-blue-700 hover:text-brand-blue-800"
-                        >
-                          Buka Live Monitor Distribusi →
-                        </Link>
-                      </div>
-                    </div>
-                  </>
-                )}
               </div>
 
               {/* User Account Button */}
@@ -701,7 +682,176 @@ export default function Navbar() {
         <Menu className="h-5 w-5" aria-hidden="true" />
       </button>
 
-{/* USER PROFILE, LOGIN & LOGOUT DROPDOWN - Using Modal like MobileNavModal */}
+      {/* RESPONSIVE NOTIFICATION MODAL (PORTAL-RENDERED, NEVER CLIPPED ON MOBILE) */}
+      {mounted && notifOpen && (
+        <Modal
+          isOpen={notifOpen}
+          onClose={() => setNotifOpen(false)}
+          title="Notifikasi Sistem"
+          description="Pembaruan operasional distribusi MBG & sinkronisasi data"
+          size="md"
+          closeOnEscape={true}
+          closeOnOverlayClick={true}
+        >
+          <div className="space-y-4">
+            {/* Filter Tabs & Mark All Read Action */}
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-surface-border pb-3">
+              <div className="inline-flex rounded-xl bg-brand-blue-50/80 p-1 border border-brand-blue-200/70">
+                <button
+                  type="button"
+                  onClick={() => setNotifTab('all')}
+                  className={`min-h-[34px] rounded-lg px-3 py-1 text-xs font-bold transition cursor-pointer ${
+                    notifTab === 'all'
+                      ? 'bg-gradient-to-r from-[#0D47A1] via-[#1565C0] to-[#1E88E5] text-white shadow-sm'
+                      : 'text-brand-blue-800 hover:bg-brand-blue-100/60'
+                  }`}
+                >
+                  Semua ({notifications.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNotifTab('unread')}
+                  className={`min-h-[34px] rounded-lg px-3 py-1 text-xs font-bold transition cursor-pointer ${
+                    notifTab === 'unread'
+                      ? 'bg-gradient-to-r from-[#0D47A1] via-[#1565C0] to-[#1E88E5] text-white shadow-sm'
+                      : 'text-brand-blue-800 hover:bg-brand-blue-100/60'
+                  }`}
+                >
+                  Belum Dibaca ({unreadCount})
+                </button>
+              </div>
+
+              {unreadCount > 0 && (
+                <button
+                  type="button"
+                  onClick={markAllNotificationsRead}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-brand-blue-200 bg-brand-blue-50 px-3 py-1.5 text-xs font-bold text-brand-blue-700 hover:bg-brand-blue-100 transition-colors micro-tap cursor-pointer"
+                >
+                  <CheckCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                  Tandai semua dibaca
+                </button>
+              )}
+            </div>
+
+            {/* Notification Items List */}
+            {visibleNotifications.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-surface-border bg-surface-canvas/50 p-8 text-center space-y-2">
+                <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-blue-50 text-brand-blue-600">
+                  <Bell className="h-5 w-5" aria-hidden="true" />
+                </div>
+                <p className="text-sm font-bold text-text-primary">
+                  {notifTab === 'unread'
+                    ? 'Semua notifikasi sudah dibaca'
+                    : 'Tidak ada notifikasi aktif'}
+                </p>
+                <p className="text-xs text-text-secondary">
+                  {notifTab === 'unread'
+                    ? 'Beralih ke tab Semua untuk melihat riwayat notifikasi.'
+                    : 'Anda dapat memuat ulang pemberitahuan sistem kapan saja.'}
+                </p>
+                {notifications.length === 0 && (
+                  <button
+                    type="button"
+                    onClick={handleResetNotifications}
+                    className="mt-2 inline-flex items-center gap-1.5 rounded-xl bg-brand-blue-50 px-3 py-1.5 text-xs font-bold text-brand-blue-700 hover:bg-brand-blue-100 transition-colors cursor-pointer"
+                  >
+                    Muat Ulang Notifikasi
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="max-h-[55vh] space-y-2.5 overflow-y-auto pr-0.5">
+                {visibleNotifications.map((item) => (
+                  <div
+                    key={item.id}
+                    onClick={() => {
+                      setNotifications((prev) =>
+                        prev.map((n) => (n.id === item.id ? { ...n, unread: false } : n))
+                      );
+                      setNotifOpen(false);
+                      router.push(item.href);
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setNotifications((prev) =>
+                          prev.map((n) => (n.id === item.id ? { ...n, unread: false } : n))
+                        );
+                        setNotifOpen(false);
+                        router.push(item.href);
+                      }
+                    }}
+                    className={`group relative flex items-start gap-3 rounded-2xl border p-3.5 transition-all cursor-pointer micro-tap ${
+                      item.unread
+                        ? 'border-brand-blue-200 bg-gradient-to-r from-brand-blue-50/90 to-white shadow-sm hover:border-brand-blue-400'
+                        : 'border-surface-border bg-surface-card hover:border-brand-blue-200 hover:bg-brand-blue-50/40'
+                    }`}
+                  >
+                    <span
+                      className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${
+                        item.unread
+                          ? 'bg-gradient-to-r from-[#0D47A1] to-[#1E88E5] ring-4 ring-brand-blue-100'
+                          : 'bg-slate-300'
+                      }`}
+                      aria-hidden="true"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center justify-between gap-1.5">
+                        <span className="inline-flex items-center rounded-md bg-brand-blue-100/80 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-brand-blue-800">
+                          {item.category}
+                        </span>
+                        <span className="font-mono text-[11px] font-semibold text-text-secondary">
+                          {item.time}
+                        </span>
+                      </div>
+                      <p className="mt-1.5 text-xs sm:text-sm font-extrabold text-text-primary leading-snug">
+                        {item.title}
+                      </p>
+                      <p className="mt-0.5 text-xs leading-relaxed text-text-secondary">
+                        {item.desc}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => handleDismissNotification(item.id, e)}
+                      aria-label={`Hapus notifikasi ${item.title}`}
+                      title="Hapus notifikasi"
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-200/70 hover:text-slate-700 transition-colors"
+                    >
+                      <X className="h-3.5 w-3.5" aria-hidden="true" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Modal Footer Action */}
+            <div className="flex items-center justify-between gap-3 border-t border-surface-border pt-3">
+              <button
+                type="button"
+                onClick={() => setNotifOpen(false)}
+                className="min-h-[40px] rounded-xl border border-surface-border bg-surface-canvas px-4 py-2 text-xs font-bold text-text-secondary hover:bg-slate-200/70 transition-colors cursor-pointer"
+              >
+                Tutup
+              </button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  setNotifOpen(false);
+                  router.push('/dashboard');
+                }}
+              >
+                Buka Live Monitor Distribusi →
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* USER PROFILE, LOGIN & LOGOUT DROPDOWN - Using Modal like MobileNavModal */}
       {mounted && userDropdownOpen && (
         <Modal
           isOpen={userDropdownOpen}
