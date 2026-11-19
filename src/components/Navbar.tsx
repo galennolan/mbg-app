@@ -467,22 +467,18 @@ export default function Navbar() {
       <header className="no-print sticky top-0 z-sticky border-b border-surface-border bg-surface-card/90 text-text-primary backdrop-blur-md transition-colors duration-200">
         <div className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between gap-3">
-            {/* Left: Mobile Menu Button + Breadcrumb Navigation */}
+            {/* Left: Mobile BSI Logo + Breadcrumb Navigation */}
             <div className="flex min-w-0 items-center gap-2.5">
-              {/* Mobile Hamburger Button */}
-              <button
-                type="button"
-                onClick={() => {
-                  setUserDropdownOpen(false);
-                  setAdminDropdownOpen(false);
-                  setNotifOpen(false);
-                  setMobileMenuOpen(true);
-                }}
-                className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl border border-brand-blue-200 bg-brand-blue-50/70 text-brand-blue-700 hover:bg-brand-blue-100 micro-tap lg:hidden"
-                aria-label="Buka navigasi menu"
+              {/* Mobile BSI Brand Logo (Hidden on Desktop since Sidebar already shows it) */}
+              <a
+                href="https://pmbubsi.id/kampus/surakarta"
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Nutri Kampus Hub · UBSI Surakarta"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-sky-200/50 bg-gradient-to-tr from-[#0D47A1] via-[#1565C0] to-[#38A3F8] text-white shadow-[0_4px_12px_rgba(21,101,192,0.4)] micro-tap lg:hidden"
               >
-                <Menu className="h-5 w-5" aria-hidden="true" />
-              </button>
+                <span className="text-xs font-black tracking-tighter">BSI</span>
+              </a>
 
               <nav aria-label="Breadcrumb" className="min-w-0">
                 <ol className="flex min-w-0 items-center gap-1.5 text-xs sm:text-sm">
@@ -688,6 +684,22 @@ export default function Navbar() {
           </div>
         </div>
       </header>
+
+      {/* Mobile Floating Hamburger Menu Button (Above Bottom Navigation) */}
+      <button
+        type="button"
+        onClick={() => {
+          setUserDropdownOpen(false);
+          setAdminDropdownOpen(false);
+          setNotifOpen(false);
+          setMobileMenuOpen(true);
+        }}
+        aria-label="Buka navigasi menu lengkap"
+        title="Buka menu navigasi"
+        className="no-print fixed right-4 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-bottom-nav flex h-12 w-12 items-center justify-center rounded-2xl border border-sky-200/50 bg-gradient-to-tr from-[#0D47A1] via-[#1565C0] to-[#38A3F8] text-white shadow-[0_8px_24px_rgba(13,71,161,0.55)] ring-2 ring-white/20 transition-transform hover:scale-105 active:scale-95 micro-tap lg:hidden"
+      >
+        <Menu className="h-5 w-5" aria-hidden="true" />
+      </button>
 
 {/* USER PROFILE, LOGIN & LOGOUT DROPDOWN - Using Modal like MobileNavModal */}
       {mounted && userDropdownOpen && (

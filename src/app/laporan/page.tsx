@@ -636,7 +636,7 @@ export default function LaporanPage() {
 
   return (
     <ProtectedRoute allowedRoles={['guru_piket', 'kepala_sekolah', 'super_admin', 'admin', 'guru']}>
-      <div className="no-print space-y-6 pb-12">
+      <div className="no-print space-y-6 pb-16">
         {/* Top Header & Export Controls */}
         <div>
           <PageHeader

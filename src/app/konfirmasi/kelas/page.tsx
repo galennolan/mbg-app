@@ -165,7 +165,7 @@ export default function KonfirmasiKelasPage() {
     SEED_CLASSES.find((c) => c.id === selectedClassId);
 
   return (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-6 pb-16">
       <PageHeader
           title="Konfirmasi Kolektif Kelas (FR-3.2)"
           subtitle="Checklist massal penerimaan MBG per kelas oleh Guru PIC MBG atau Wali Kelas."

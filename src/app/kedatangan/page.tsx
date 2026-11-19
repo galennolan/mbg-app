@@ -485,7 +485,7 @@ export default function KedatanganMBGPage() {
 
   return (
     <ProtectedRoute allowedRoles={['guru_piket', 'super_admin', 'kepala_sekolah', 'admin', 'guru']}>
-      <div className="space-y-6 pb-20">
+      <div className="space-y-6 pb-16">
         {/* Page Header */}
         <PageHeader
           title="Kedatangan MBG & Organoleptik (FR-2.1)"

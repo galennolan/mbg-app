@@ -223,7 +223,7 @@ export default function DashboardPage() {
 
   return (
     <ProtectedRoute allowedRoles={['guru_piket', 'kepala_sekolah', 'super_admin', 'admin', 'guru']}>
-      <div className="space-y-5 pb-8">
+      <div className="space-y-6 pb-16">
       {/* Top Page Header */}
       <PageHeader
         title="Live Monitoring Distribusi MBG (FR-4.1)"

@@ -175,7 +175,7 @@ export default function ManajemenSekolahPage() {
 
   return (
     <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
-      <div className="space-y-6 pb-20">
+      <div className="space-y-6 pb-16">
         <PageHeader
           title="Manajemen Sekolah Mitra (SaaS Multi-Tenant)"
           subtitle="Kelola daftar sekolah penerima manfaat MBG, identitas Kepala Sekolah, dan SPPG Mitra penyedia katering."

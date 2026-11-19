@@ -198,7 +198,7 @@ export default function CampaignManagerPage() {
 
   return (
     <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
-      <div className="space-y-6 pb-20">
+      <div className="space-y-6 pb-16">
         <PageHeader
           title="Master Menu & Campaign Manager (Marcomm UBSI)"
           subtitle="Kelola banner iklan beasiswa di HP siswa, targeting jurusan, link WhatsApp PMB, dan sinkronisasi Dapodik."

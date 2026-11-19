@@ -69,7 +69,7 @@ export default function AuditLogPage() {
 
   return (
     <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
-      <div className="max-w-5xl mx-auto space-y-6 pb-12">
+      <div className="space-y-6 pb-16">
         <PageHeader
         title="Log Riwayat Aktivitas Sistem"
         subtitle="Penelusuran jejak perubahan data, kedatangan MBG, dan transaksi penerimaan."

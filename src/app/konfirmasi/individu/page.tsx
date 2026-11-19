@@ -103,7 +103,7 @@ export default function KonfirmasiIndividuPage() {
 
   return (
     <ProtectedRoute allowedRoles={['guru_piket', 'kepala_sekolah', 'super_admin', 'admin', 'guru']}>
-      <div className="space-y-6 pb-24">
+      <div className="space-y-6 pb-16">
         <PageHeader
         title="Klaim Susulan & Individu (FR-3.2)"
         subtitle="Verifikasi penerimaan mandiri untuk siswa yang terlambat atau mengambil porsi susulan."

@@ -291,7 +291,7 @@ export default function ManajemenPenggunaPage() {
 
   return (
     <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
-      <div className="max-w-5xl mx-auto space-y-6 pb-12">
+      <div className="space-y-6 pb-16">
         <PageHeader
           title="Manajemen Guru & Petugas"
           subtitle="Kelola akun Guru PIC MBG, Kepala Sekolah, dan homebase sekolah masing-masing."

@@ -548,7 +548,7 @@ export default function ManajemenKelasPage() {
     <ProtectedRoute
       allowedRoles={['super_admin', 'admin', 'guru_piket', 'kepala_sekolah', 'guru']}
     >
-      <div className="max-w-5xl mx-auto space-y-6 pb-16">
+      <div className="space-y-6 pb-16">
         <PageHeader
           title="Manajemen Kelas & Jurusan"
           description={`Sekolah Aktif: ${currentSchool.nama_sekolah} (NPSN: ${currentSchool.npsn}) • Kelola rombongan belajar, kompetensi keahlian, dan kuota siswa penerima MBG.`}
@@ -563,6 +563,9 @@ export default function ManajemenKelasPage() {
             Tambah Kelas Baru
           </Button>
         </PageHeader>
+
+        {/* Master Data & Operasional Module Tabs */}
+        <ClassModuleTabs />
 
         {/* Identitas Sekolah Aktif & Ringkasan Statistik Kelas */}
         <section
@@ -664,9 +667,6 @@ export default function ManajemenKelasPage() {
             </div>
           </div>
         </section>
-
-        {/* Master Data & Operasional Module Tabs */}
-        <ClassModuleTabs />
 
         {feedback && (
           <FeedbackBanner

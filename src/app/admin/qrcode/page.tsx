@@ -23,7 +23,7 @@ export default function AdminQRCodePage() {
 
   return (
     <ProtectedRoute allowedRoles={['super_admin', 'admin', 'guru_piket', 'kepala_sekolah', 'guru']}>
-      <div className="space-y-6 pb-12">
+      <div className="space-y-6 pb-16">
         {/* Control Bar (Hidden on Print) */}
       <div className="no-print">
         <PageHeader

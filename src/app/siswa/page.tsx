@@ -590,7 +590,7 @@ export default function DataSiswaPage() {
     <ProtectedRoute
       allowedRoles={['super_admin', 'admin', 'guru_piket', 'kepala_sekolah', 'guru']}
     >
-      <div className="space-y-6 pb-12">
+      <div className="space-y-6 pb-16">
         {/* Header */}
       <PageHeader
         title="Manajemen Data Siswa"
